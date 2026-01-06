@@ -72,7 +72,7 @@
 
     <script type="text/babel" data-type="module">
         import { initializeApp } from 'firebase/app';
-        import { getFirestore, doc, setDoc, getDoc, collection } from 'firebase/firestore';
+        import { getFirestore, doc, setDoc, getDoc, collection, enableIndexedDbPersistence } from 'firebase/firestore';
         import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
         import { getAnalytics } from 'firebase/analytics';
 
@@ -110,8 +110,15 @@
             auth = getAuth(app);
             analytics = getAnalytics(app);
 
-            // 默认还是尝试匿名登录，以防用户不想点登录
-            // 但 UI 上会提供 Google 登录覆盖匿名
+            // Enable offline persistence (fixes "client is offline" in some cases)
+            enableIndexedDbPersistence(db).catch((err) => {
+                if (err.code == 'failed-precondition') {
+                    console.log('Persistence failed: Multiple tabs open');
+                } else if (err.code == 'unimplemented') {
+                    console.log('Persistence failed: Browser not supported');
+                }
+            });
+
             onAuthStateChanged(auth, (u) => {
                 user = u;
                 isFirebaseReady = !!u;
@@ -238,7 +245,7 @@
             const [screen, setScreen] = useState('menu');
             const [mode, setMode] = useState('practice');
             const [isLoading, setIsLoading] = useState(false);
-            const [currentUser, setCurrentUser] = useState(null); // Local user state for UI
+            const [currentUser, setCurrentUser] = useState(null);
 
             // Session States
             const [currentList, setCurrentList] = useState([]);
@@ -301,12 +308,15 @@
             const handleLogin = async () => {
                 if (!auth) return;
                 try {
-                    // Note: signInWithPopup requires Google Provider enabled in Firebase Console
                     const provider = new GoogleAuthProvider();
                     await signInWithPopup(auth, provider);
                     alert("登录成功！");
                 } catch (e) {
-                    alert("登录失败: " + e.message + "\n(请确保在Firebase控制台开启了Google登录)");
+                    let msg = e.message;
+                    if (msg.includes("unauthorized-domain") || msg.includes("auth/operation-not-allowed")) {
+                        msg = "域名未授权！请在 Firebase 控制台添加: " + window.location.hostname;
+                    }
+                    alert("登录失败: " + msg);
                 }
             };
 
@@ -314,12 +324,9 @@
                 if (!auth) return;
                 try {
                     await signOut(auth);
-                    // Re-sign in anonymously if you want to allow guest access immediately
-                    await signInAnonymously(auth);
-                    alert("已登出，切换为匿名访客模式");
-                } catch (e) {
-                    console.error(e);
-                }
+                    setCurrentUser(null);
+                    alert("已登出");
+                } catch (e) { console.error(e); }
             };
 
             const handleCloudBackup = async () => {
@@ -330,7 +337,14 @@
                             wrongBook, sessionPractice, sessionRecite, progress, lastUpdated: new Date().toISOString()
                         });
                         alert("✅ 云端同步成功！");
-                    } catch (e) { alert("同步失败: " + e.message); }
+                    } catch (e) {
+                        console.error(e);
+                        let errMsg = e.message;
+                        if(errMsg.includes("offline")) {
+                            errMsg += "\n(提示: 请不要直接双击打开HTML文件，请使用本地服务器或部署到GitHub Pages)";
+                        }
+                        alert("同步失败: " + errMsg);
+                    }
                     setIsLoading(false);
                 } else {
                     const data = { wrongBook, sessionPractice, sessionRecite, progress, timestamp: new Date().toISOString() };
@@ -359,7 +373,11 @@
                     }
                 } catch (e) {
                     console.error(e);
-                    alert("恢复失败: " + e.message);
+                    let errMsg = e.message;
+                    if(errMsg.includes("offline")) {
+                        errMsg += "\n(提示: 请不要直接双击打开HTML文件，请使用本地服务器或部署到GitHub Pages)";
+                    }
+                    alert("恢复失败: " + errMsg);
                 }
                 setIsLoading(false);
             };
