@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <!-- PWA Settings -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,8 +12,10 @@
     <title>创新创业题库刷题</title>
 
     <!-- Icons -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb' stroke='white' stroke-width='1'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.9-3.1-7-7-7S4 4.1 4 8c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5m9 0H8m6 4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2m6-4v4H8v-4'/%3E%3C/svg%3E">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb' stroke='white' stroke-width='1'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.9-3.1-7-7-7S4 4.1 4 8c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5m9 0H8m6 4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2m6-4v4H8v-4'/%3E%3C/svg%3E">
+    <link rel="apple-touch-icon"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb' stroke='white' stroke-width='1'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.9-3.1-7-7-7S4 4.1 4 8c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5m9 0H8m6 4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2m6-4v4H8v-4'/%3E%3C/svg%3E">
+    <link rel="icon" type="image/svg+xml"
+          href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb' stroke='white' stroke-width='1'%3E%3Cpath d='M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.9-3.1-7-7-7S4 4.1 4 8c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5m9 0H8m6 4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2m6-4v4H8v-4'/%3E%3C/svg%3E">
 
     <!-- Libraries -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -23,18 +26,23 @@
 
     <!-- Firebase Imports -->
     <script type="importmap">
-      {
-        "imports": {
-          "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-          "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
-          "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-          "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
+        {
+          "imports": {
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
+            "firebase/analytics": "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js"
+          }
         }
-      }
     </script>
 
     <style>
-        html, body { height: 100%; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             background-color: #f3f4f6;
             touch-action: manipulation;
@@ -43,6 +51,7 @@
             place-items: center;
             overscroll-behavior-y: none;
         }
+
         #root {
             width: 100%;
             min-height: 100vh;
@@ -50,771 +59,1361 @@
             justify-content: center;
             align-items: center;
         }
-        .slide-in { animation: slideIn 0.3s ease-out; }
-        .fade-in { animation: fadeIn 0.2s ease-in; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .btn-press:active { transform: scale(0.98); }
-        .spinner {
-            border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 3px solid #3b82f6;
-            width: 24px; height: 24px; animation: spin 1s linear infinite;
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .progress-bar { transition: width 1s ease-out; }
-        .h-safe-screen { height: 100vh; height: 100dvh; }
+
+        .fade-in {
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(15px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .btn-press:active {
+            transform: scale(0.98);
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .progress-bar {
+            transition: width 1s ease-out;
+        }
+
+        .h-safe-screen {
+            height: 100vh;
+            height: 100dvh;
+        }
     </style>
 </head>
 <body class="bg-gray-100">
-    <div id="root"></div>
+<div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import { initializeApp } from 'firebase/app';
-        import { getFirestore, doc, setDoc, getDoc, collection, enableIndexedDbPersistence } from 'firebase/firestore';
-        import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-        import { getAnalytics } from 'firebase/analytics';
+<script type="text/babel" data-type="module">
+    import {initializeApp} from 'firebase/app';
+    import {getFirestore, doc, setDoc, getDoc, collection, enableIndexedDbPersistence} from 'firebase/firestore';
+    import {
+        getAuth,
+        signInAnonymously,
+        GoogleAuthProvider,
+        signInWithPopup,
+        signOut,
+        onAuthStateChanged
+    } from 'firebase/auth';
+    import {getAnalytics} from 'firebase/analytics';
 
-        const { useState, useEffect, useRef } = React;
+    const {useState, useEffect, useRef} = React;
 
-        // ==========================================
-        // 配置 & 数据
-        // ==========================================
-        const GITHUB_EXCEL_URL = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions.xls";
-        const SAMPLE_CSV_DATA = `目录,题目类型,大题题干,小题题型,小题题干,正确答案,答案解析,难易度,知识点,标签,选项数,选项A,选项B,选项C,选项D,选项E,选项F,选项G,选项H
+    // ==========================================
+    // 配置 & 数据
+    // ==========================================
+    const GITHUB_EXCEL_URL = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions.xls";
+    const SAMPLE_CSV_DATA = `目录,题目类型,大题题干,小题题型,小题题干,正确答案,答案解析,难易度,知识点,标签,选项数,选项A,选项B,选项C,选项D,选项E,选项F,选项G,选项H
 /创新创业/第3讲,单选题,​​Timmons创业过程模型的核心要素是（）,,,B,Timmons模型强调机会、团队和资源的动态平衡,,,,4,资金、市场、技术,机会、团队、资源,产品、客户、供应链,创新、风险、执行,,,,`;
 
-        // ==========================================
-        // Firebase Cloud Logic
-        // ==========================================
-        let db = null;
-        let auth = null;
-        let user = null;
-        let analytics = null;
-        let isFirebaseReady = false;
+    // ==========================================
+    // Firebase Cloud Logic
+    // ==========================================
+    let db = null;
+    let auth = null;
+    let user = null;
+    let analytics = null;
+    let isFirebaseReady = false;
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyBLSxSlltcxeGcUFqcNSjM_HP2VQMBRpTk",
-            authDomain: "iae-question-bank.firebaseapp.com",
-            projectId: "iae-question-bank",
-            storageBucket: "iae-question-bank.firebasestorage.app",
-            messagingSenderId: "633374279476",
-            appId: "1:633374279476:web:ecc3678bc40af112d88761",
-            measurementId: "G-106Q4RJLGF"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyBLSxSlltcxeGcUFqcNSjM_HP2VQMBRpTk",
+        authDomain: "iae-question-bank.firebaseapp.com",
+        projectId: "iae-question-bank",
+        storageBucket: "iae-question-bank.firebasestorage.app",
+        messagingSenderId: "633374279476",
+        appId: "1:633374279476:web:ecc3678bc40af112d88761",
+        measurementId: "G-106Q4RJLGF"
+    };
 
-        try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            analytics = getAnalytics(app);
+    try {
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        analytics = getAnalytics(app);
 
-            // Enable offline persistence (fixes "client is offline" in some cases)
-            enableIndexedDbPersistence(db).catch((err) => {
-                if (err.code == 'failed-precondition') {
-                    console.log('Persistence failed: Multiple tabs open');
-                } else if (err.code == 'unimplemented') {
-                    console.log('Persistence failed: Browser not supported');
-                }
+        enableIndexedDbPersistence(db).catch((err) => {
+            if (err.code == 'failed-precondition') {
+                console.log('Persistence failed: Multiple tabs open');
+            } else if (err.code == 'unimplemented') {
+                console.log('Persistence failed: Browser not supported');
+            }
+        });
+
+        onAuthStateChanged(auth, (u) => {
+            user = u;
+            isFirebaseReady = !!u;
+            console.log("Firebase User:", u ? (u.isAnonymous ? "Anonymous" : u.email) : "None");
+        });
+    } catch (e) {
+        console.error("Firebase init error:", e);
+    }
+
+    // ==========================================
+    // 图标库
+    // ==========================================
+    const ICONS = {
+        ArrowLeft: <path d="M19 12H5m7 7l-7-7 7-7"/>,
+        Lightbulb: <path
+            d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.9-3.1-7-7-7S4 4.1 4 8c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5m9 0H8m6 4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2m6-4v4H8v-4"/>,
+        Play: <path d="M5 3l14 9-14 9V3z"/>,
+        ChevronRight: <path d="M9 18l6-6-6-6"/>,
+        RotateCw: <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 12"/>,
+        BookX: <path
+            d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2zM9 10l6-6m0 6l-6-6"/>,
+        CloudDownload: <path
+            d="M12 22v-9m0 0l-3.5 3.5M12 13l3.5 3.5M20.2 16.6a5.5 5.5 0 0 0-3.7-9.9c-3.5 0-6.1 2.2-7 5.2a4 4 0 0 0 0 8h10.7"/>,
+        CloudUpload: <g>
+            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+            <path d="M12 12v9"/>
+            <path d="m16 16-4-4-4 4"/>
+        </g>,
+        FileUp: <path
+            d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM12 12v6m0 0l-3-3m3 3l3-3"/>,
+        Download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m7-5l5 5 5-5m-5 5V3"/>,
+        History: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/>,
+        RotateCcw: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/>,
+        Edit3: <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>,
+        Eye: <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>,
+        CheckCircle: <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3"/>,
+        XCircle: <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z M15 9l-6 6 M9 9l6 6"/>,
+        BookOpen: <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>,
+        Maximize: <path
+            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2-2h3"/>,
+        Minimize: <path
+            d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>,
+        LogOut: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>,
+        User: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/>
+    };
+
+    const Icon = ({name, size = 20, className = ""}) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+            {ICONS[name] || <circle cx="12" cy="12" r="10"/>}
+        </svg>
+    );
+
+    // ==========================================
+    // 核心组件：FormatText (使用原生 CSS 处理换行)
+    // ==========================================
+    const FormatText = ({text, className}) => {
+        if (!text) return null;
+        // 1. 预处理：将字面量 \n、HTML <br> 以及各种控制字符统一转换为标准 \n
+        const normalized = String(text)
+            .replace(/\\n/g, '\n')       // 处理字面量 "\n" (常见于JSON或转义文本)
+            .replace(/<br\s*\/?>/gi, '\n') // 处理 HTML 换行标签
+            .replace(/\r\n/g, '\n')      // 处理 Windows 换行
+            .replace(/\r/g, '\n');       // 处理 Mac 旧版换行
+
+        // 2. 按 \n 分割成数组
+        const lines = normalized.split('\n');
+
+        return (
+            <div className={className}>
+                {lines.map((line, i) => (
+                    // 3. 每一行强制渲染为一个 div，保留空行高度
+                    <div key={i} style={{minHeight: '1.5em', lineHeight: '1.6'}}>
+                        {line || '\u00A0'}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
+    // ==========================================
+    // 核心解析逻辑
+    // ==========================================
+
+    // ==========================================
+// 增强版 parseData，兼容本地文件和云端
+// ==========================================
+const parseData = (input) => {
+    if (!input) return [];
+
+    try {
+        let rows = [];
+        let wb;
+
+        // ===============================
+        // 1. 读取 Excel / JSON / Array
+        // ===============================
+        if (input instanceof File) {
+            // 本地上传文件
+            const reader = new FileReader();
+            return new Promise((resolve, reject) => {
+                reader.onload = (e) => {
+                    const arr = new Uint8Array(e.target.result);
+                    try {
+                        wb = XLSX.read(arr, { type: 'array' });
+                        resolve(processWorkbook(wb));
+                    } catch (err) {
+                        console.error("读取本地 Excel 失败", err);
+                        resolve([]);
+                    }
+                };
+                reader.onerror = (err) => reject(err);
+                reader.readAsArrayBuffer(input);
             });
-
-            onAuthStateChanged(auth, (u) => {
-                user = u;
-                isFirebaseReady = !!u;
-                console.log("Firebase User:", u ? (u.isAnonymous ? "Anonymous" : u.email) : "None");
-            });
-        } catch (e) {
-            console.error("Firebase init error:", e);
+        } else if (input instanceof ArrayBuffer || input instanceof Uint8Array) {
+            wb = XLSX.read(new Uint8Array(input), { type: 'array' });
+        } else if (Array.isArray(input)) {
+            rows = input;
+        } else if (typeof input === 'string') {
+            if (input.trim().startsWith('[')) {
+                try {
+                    const json = JSON.parse(input);
+                    if (Array.isArray(json)) return convertObjectsToQuestions(json);
+                } catch (e) { /* fallback to Excel */ }
+            }
+            wb = XLSX.read(input, { type: 'string' });
         }
 
-        // ==========================================
-        // 图标库
-        // ==========================================
-        const ICONS = {
-            ArrowLeft: <path d="M19 12H5m7 7l-7-7 7-7" />,
-            Lightbulb: <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-1 1.5-2.4 1.5-3.8 0-3.9-3.1-7-7-7S4 4.1 4 8c0 1.4.5 2.8 1.5 3.8.8.8 1.3 1.5 1.5 2.5m9 0H8m6 4a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2m6-4v4H8v-4" />,
-            Play: <path d="M5 3l14 9-14 9V3z" />,
-            ChevronRight: <path d="M9 18l6-6-6-6" />,
-            RotateCw: <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 12" />,
-            BookX: <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2zM9 10l6-6m0 6l-6-6" />,
-            CloudDownload: <path d="M12 22v-9m0 0l-3.5 3.5M12 13l3.5 3.5M20.2 16.6a5.5 5.5 0 0 0-3.7-9.9c-3.5 0-6.1 2.2-7 5.2a4 4 0 0 0 0 8h10.7" />,
-            CloudUpload: <g><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></g>,
-            FileUp: <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM12 12v6m0 0l-3-3m3 3l3-3" />,
-            Download: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m7-5l5 5 5-5m-5 5V3" />,
-            History: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" />,
-            RotateCcw: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12" />,
-            Edit3: <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />,
-            Eye: <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />,
-            CheckCircle: <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3" />,
-            XCircle: <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z M15 9l-6 6 M9 9l6 6" />,
-            BookOpen: <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />,
-            Maximize: <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />,
-            Minimize: <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />,
-            LogOut: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
-            User: <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+        if (wb) return processWorkbook(wb);
+        if (rows && rows.length > 0) return processRows(rows);
+        return [];
+
+    } catch (e) {
+        console.error("Parse Error:", e);
+        return [];
+    }
+};
+
+// ===============================
+// Workbook -> Rows
+// ===============================
+const processWorkbook = (wb) => {
+    if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) return [];
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    // header:1 保留原始索引，defval:'' 填充空单元格
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    return processRows(rows);
+};
+
+// ===============================
+// 核心行解析
+// ===============================
+const processRows = (rows) => {
+    if (!rows || rows.length < 2) return [];
+
+    const headers = rows[0].map(h => String(h || '').trim());
+
+    const getColIdx = (...names) => {
+        for (const name of names) {
+            const idx = headers.findIndex(h => {
+                const hClean = h.replace(/\s+/g, '').toLowerCase();
+                const nClean = name.replace(/\s+/g, '').toLowerCase();
+                return hClean === nClean || hClean.includes(nClean);
+            });
+            if (idx !== -1) return idx;
+        }
+        return -1;
+    };
+
+    const idxType = getColIdx('题目类型', 'type');
+    const idxQuestion = getColIdx('大题题干', '小题题干', 'question', '题目');
+    const idxAnswer = getColIdx('正确答案', 'answer');
+    const idxExp = getColIdx('答案解析', 'explanation', '解析');
+    const idxOptA = getColIdx('选项A', 'optionA');
+
+    if (idxType === -1) return [];
+
+    const result = [];
+
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+
+        const typeStr = String(row[idxType] || '').trim();
+        if (!typeStr) continue;
+
+        let type = 'unknown';
+        if (typeStr.includes('单选')) type = 'single';
+        else if (typeStr.includes('多选')) type = 'multi';
+        else if (typeStr.includes('填空')) type = 'fill';
+        else if (typeStr.includes('简答') || typeStr.includes('大题')) type = 'essay';
+        else if (typeStr.includes('判断')) type = 'bool';
+        if (type === 'unknown') continue;
+
+        let rawAnswer = idxAnswer !== -1 ? String(row[idxAnswer] || '').trim() : '';
+
+        // === 优先使用选项A填充多行答案 ===
+        if ((type === 'fill' || type === 'essay') && idxOptA !== -1) {
+            const contentA = String(row[idxOptA] || '').trim();
+            if (contentA) rawAnswer = contentA.replace(/\\n/g, '\n');
+        }
+
+        const explanation = idxExp !== -1 ? String(row[idxExp] || '').trim() : '暂无详细解析';
+        const qStem = idxQuestion !== -1 ? String(row[idxQuestion] || '').trim() : '';
+
+        const question = {
+            id: i,
+            type,
+            question: qStem,
+            answer: rawAnswer,
+            explanation,
+            options: []
         };
 
-        const Icon = ({ name, size = 20, className = "" }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                {ICONS[name] || <circle cx="12" cy="12" r="10"/>}
-            </svg>
-        );
-
-        // ==========================================
-        // 解析逻辑
-        // ==========================================
-        const parseData = (text) => {
-            const lines = text.trim().split(/\r\n|\n|\r/);
-            if (lines.length < 2) return [];
-            const headers = lines[0].split(',').map(h => h.trim());
-            const getIdx = (name) => headers.indexOf(name);
-            if(getIdx('题目类型') === -1) return null;
-
-            const result = [];
-            const parseLine = (line) => {
-                const ret = [];
-                let p = '', inQuote = false;
-                for (let i = 0; i < line.length; i++) {
-                    const c = line[i];
-                    if (c === '"') { inQuote = !inQuote; }
-                    else if (c === ',' && !inQuote) { ret.push(p); p = ''; }
-                    else { p += c; }
+        // === 处理选项 ===
+        if (['single', 'multi'].includes(type)) {
+            ['A','B','C','D','E','F','G','H'].forEach(label => {
+                const idx = getColIdx(`选项${label}`, `option${label}`);
+                if (idx !== -1) {
+                    const val = String(row[idx] || '').trim();
+                    if (val) question.options.push({ label, text: val });
                 }
-                ret.push(p);
-                return ret.map(s => s.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-            };
+            });
+        } else if (type === 'bool') {
+            question.options = [{label:'A',text:'正确'}, {label:'B',text:'错误'}];
+            const ans = question.answer.toUpperCase();
+            if (['正确','对','√','T'].some(k => ans.includes(k))) question.answer = 'A';
+            else if (['错误','错','×','F'].some(k => ans.includes(k))) question.answer = 'B';
+        }
 
-            for(let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const row = parseLine(lines[i]);
-                if (row.length < 5) continue;
+        if (type === 'multi') {
+            question.answer = question.answer.replace(/[^A-Za-z]/g, '').toUpperCase().split('').sort().join('');
+        }
 
-                const typeStr = row[getIdx('题目类型')] || '';
-                let type = 'unknown';
-                if (typeStr.includes('单选')) type = 'single';
-                else if (typeStr.includes('多选')) type = 'multi';
-                else if (typeStr.includes('填空')) type = 'fill';
-                else if (typeStr.includes('简答') || typeStr.includes('大题')) type = 'essay';
-                else if (typeStr.includes('判断')) type = 'bool';
+        result.push(question);
+    }
 
-                if (type === 'unknown') continue;
+    return result;
+};
 
-                let rawAnswer = (row[getIdx('正确答案')] || '').trim();
-                if (type === 'fill' || type === 'essay') {
-                    const ansInOptionA = (row[getIdx('选项A')] || '').trim();
-                    if (ansInOptionA) rawAnswer = ansInOptionA;
-                }
 
-                const question = {
-                    id: i,
-                    type: type,
-                    question: row[getIdx('大题题干')] || row[getIdx('小题题干')] || '',
-                    answer: rawAnswer,
-                    explanation: row[getIdx('答案解析')] || "暂无详细解析",
-                    options: []
-                };
-
-                if (type === 'multi') question.answer = question.answer.replace(/[^A-Za-z]/g, '').toUpperCase().split('').sort().join('');
-
-                if (['single', 'multi'].includes(type)) {
-                    ['选项A', '选项B', '选项C', '选项D', '选项E', '选项F'].forEach((key, idx) => {
-                        const val = row[getIdx(key)];
-                        if (val) question.options.push({ label: String.fromCharCode(65 + idx), text: val });
-                    });
-                } else if (type === 'bool') {
-                    question.options = [{label:'A',text:'正确'}, {label:'B',text:'错误'}];
-                    const ans = question.answer.toUpperCase();
-                    if (['正确', '对', '√', 'T'].some(k => ans.includes(k))) question.answer = 'A';
-                    else if (['错误', '错', '×', 'F'].some(k => ans.includes(k))) question.answer = 'B';
-                }
-
-                result.push(question);
+    const convertObjectsToQuestions = (rows) => {
+        if (!rows || !rows.length) return [];
+        const getValue = (row, ...keys) => {
+            for (const k of keys) {
+                if (row[k] !== undefined) return String(row[k]);
+                const found = Object.keys(row).find(rk => {
+                    const rkClean = rk.replace(/\s+/g, '').toLowerCase();
+                    const kClean = k.replace(/\s+/g, '').toLowerCase();
+                    return rkClean === kClean;
+                });
+                if (found) return String(row[found]);
             }
-            return result;
+            return '';
         };
 
-        const Storage = {
-            get: (key, def) => { try { return JSON.parse(localStorage.getItem(key)) || def; } catch { return def; } },
-            set: (key, val) => { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { console.error(e); } },
-            remove: (key) => localStorage.removeItem(key)
-        };
+        return rows.map((row, i) => {
+            const typeStr = getValue(row, '题目类型', 'type');
+            let type = 'unknown';
+            if (typeStr.includes('单选')) type = 'single';
+            else if (typeStr.includes('多选')) type = 'multi';
+            else if (typeStr.includes('填空')) type = 'fill';
+            else if (typeStr.includes('简答') || typeStr.includes('大题')) type = 'essay';
+            else if (typeStr.includes('判断')) type = 'bool';
+            if (type === 'unknown') return null;
 
-        const App = () => {
-            const [questions, setQuestions] = useState([]);
-            const [screen, setScreen] = useState('menu');
-            const [mode, setMode] = useState('practice');
-            const [isLoading, setIsLoading] = useState(false);
-            const [currentUser, setCurrentUser] = useState(null);
+            let ans = getValue(row, '正确答案', 'answer').trim();
 
-            // Session States
-            const [currentList, setCurrentList] = useState([]);
-            const [currentIndex, setCurrentIndex] = useState(0);
-            const [answers, setAnswers] = useState({});
-            const [results, setResults] = useState({});
-
-            // Persistent Data
-            const [wrongBook, setWrongBook] = useState(Storage.get('cxcy_wrong_book', []));
-            const [sessionPractice, setSessionPractice] = useState(Storage.get('cxcy_session_practice', null));
-            const [sessionRecite, setSessionRecite] = useState(Storage.get('cxcy_session_recite', null));
-            const [customDataName, setCustomDataName] = useState(Storage.get('cxcy_custom_name', null));
-            const [rawDb, setRawDb] = useState(Storage.get('cxcy_custom_db', null));
-            const [progress, setProgress] = useState(Storage.get('cxcy_progress', { answered: [], correct: [], recited: [] }));
-
-            // Update local user state when Firebase user changes
-            useEffect(() => {
-                if (auth) {
-                    return onAuthStateChanged(auth, (u) => {
-                        user = u;
-                        setCurrentUser(u);
-                        isFirebaseReady = !!u;
-                    });
+            if (type === 'fill' || type === 'essay') {
+                const valA = getValue(row, '选项A', 'optionA', '选项 A').trim();
+                if (valA) {
+                    // 修复：处理字面量换行符
+                    ans = valA.replace(/\\n/g, '\n');
                 }
-            }, []);
+            }
 
-            // Initial Load
-            useEffect(() => {
-                const init = async () => {
-                    if (rawDb) {
-                        const parsed = parseData(rawDb);
-                        if(parsed?.length) { setQuestions(parsed); return; }
-                    }
-                    setIsLoading(true);
-                    try {
-                        const res = await fetch(GITHUB_EXCEL_URL);
-                        const buf = await res.arrayBuffer();
-                        const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
-                        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
-                        const parsed = parseData(csv);
-                        if(parsed?.length) {
-                            setQuestions(parsed);
-                            setRawDb(csv);
-                            setCustomDataName("GitHub 云端题库");
-                            Storage.set('cxcy_custom_db', csv);
-                            Storage.set('cxcy_custom_name', "GitHub 云端题库");
-                        }
-                    } catch(e) {
-                        console.error(e);
-                        setQuestions(parseData(SAMPLE_CSV_DATA));
-                    } finally { setIsLoading(false); }
-                };
-                init();
-            }, []);
-
-            useEffect(() => { Storage.set('cxcy_wrong_book', wrongBook); }, [wrongBook]);
-            useEffect(() => { Storage.set('cxcy_progress', progress); }, [progress]);
-
-            // Handlers
-            const handleLogin = async () => {
-                if (!auth) return;
-                try {
-                    const provider = new GoogleAuthProvider();
-                    await signInWithPopup(auth, provider);
-                    alert("登录成功！");
-                } catch (e) {
-                    let msg = e.message;
-                    if (msg.includes("unauthorized-domain") || msg.includes("auth/operation-not-allowed")) {
-                        msg = "域名未授权！请在 Firebase 控制台添加: " + window.location.hostname;
-                    }
-                    alert("登录失败: " + msg);
-                }
+            const q = {
+                id: i + 1, type,
+                question: getValue(row, '大题题干', '小题题干', 'question').trim(),
+                answer: ans,
+                explanation: (getValue(row, '答案解析', 'explanation') || "暂无详细解析").trim(),
+                options: []
             };
+            if (['single', 'multi'].includes(type)) {
+                ['A', 'B', 'C', 'D', 'E', 'F'].forEach((l) => {
+                    const v = getValue(row, `选项${l}`, `option${l}`, `选项 ${l}`);
+                    if (v) q.options.push({label: l, text: v.trim()});
+                });
+            } else if (type === 'bool') {
+                q.options = [{label: 'A', text: '正确'}, {label: 'B', text: '错误'}];
+                const a = q.answer.toUpperCase();
+                if (['正确', '对', '√', 'T'].some(k => a.includes(k))) q.answer = 'A';
+                else if (['错误', '错', '×', 'F'].some(k => a.includes(k))) q.answer = 'B';
+            }
+            if (type === 'multi') q.answer = q.answer.replace(/[^A-Za-z]/g, '').toUpperCase().split('').sort().join('');
+            return q;
+        }).filter(Boolean);
+    };
 
-            const handleLogout = async () => {
-                if (!auth) return;
-                try {
-                    await signOut(auth);
-                    setCurrentUser(null);
-                    alert("已登出");
-                } catch (e) { console.error(e); }
-            };
+    const Storage = {
+        get: (key, def) => {
+            try {
+                return JSON.parse(localStorage.getItem(key)) || def;
+            } catch {
+                return def;
+            }
+        },
+        set: (key, val) => {
+            try {
+                localStorage.setItem(key, JSON.stringify(val));
+            } catch (e) {
+                console.error(e);
+            }
+        },
+        remove: (key) => localStorage.removeItem(key)
+    };
 
-            const handleCloudBackup = async () => {
-                if (isFirebaseReady && user) {
-                    setIsLoading(true);
-                    try {
-                        await setDoc(doc(db, 'users', user.uid), {
-                            wrongBook, sessionPractice, sessionRecite, progress, lastUpdated: new Date().toISOString()
-                        });
-                        alert("✅ 云端同步成功！");
-                    } catch (e) {
-                        console.error(e);
-                        let errMsg = e.message;
-                        if(errMsg.includes("offline")) {
-                            errMsg += "\n(提示: 请不要直接双击打开HTML文件，请使用本地服务器或部署到GitHub Pages)";
-                        }
-                        alert("同步失败: " + errMsg);
+    const App = () => {
+        const [questions, setQuestions] = useState([]);
+        const [screen, setScreen] = useState('menu');
+        const [mode, setMode] = useState('practice');
+        const [isLoading, setIsLoading] = useState(false);
+        const [currentUser, setCurrentUser] = useState(null);
+
+        // Session States
+        const [currentList, setCurrentList] = useState([]);
+        const [currentIndex, setCurrentIndex] = useState(0);
+        const [answers, setAnswers] = useState({});
+        const [results, setResults] = useState({});
+
+        // Persistent Data
+        const [wrongBook, setWrongBook] = useState(Storage.get('cxcy_wrong_book', []));
+        const [sessionPractice, setSessionPractice] = useState(Storage.get('cxcy_session_practice', null));
+        const [sessionRecite, setSessionRecite] = useState(Storage.get('cxcy_session_recite', null));
+        const [customDataName, setCustomDataName] = useState(Storage.get('cxcy_custom_name', null));
+        const [rawDb, setRawDb] = useState(Storage.get('cxcy_custom_db', null));
+        const [progress, setProgress] = useState(Storage.get('cxcy_progress', {
+            answered: [],
+            correct: [],
+            recited: []
+        }));
+
+        useEffect(() => {
+            if (auth) {
+                return onAuthStateChanged(auth, (u) => {
+                    user = u;
+                    setCurrentUser(u);
+                    isFirebaseReady = !!u;
+                });
+            }
+        }, []);
+
+        useEffect(() => {
+            const init = async () => {
+                if (rawDb) {
+                    const parsed = parseData(rawDb);
+                    if (parsed?.length) {
+                        setQuestions(parsed);
+                        return;
                     }
-                    setIsLoading(false);
-                } else {
-                    const data = { wrongBook, sessionPractice, sessionRecite, progress, timestamp: new Date().toISOString() };
-                    const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `备份_${new Date().toISOString().slice(0,10)}.json`;
-                    a.click();
-                }
-            };
-
-            const handleCloudRestore = async () => {
-                if (!isFirebaseReady || !user) {
-                    alert("未连接到云端");
-                    return;
                 }
                 setIsLoading(true);
                 try {
-                    const docSnap = await getDoc(doc(db, 'users', user.uid));
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        restoreData(data);
-                    } else {
-                        alert("云端没有找到备份记录");
+                    const res = await fetch(GITHUB_EXCEL_URL);
+                    const buf = await res.arrayBuffer();
+                    const wb = XLSX.read(new Uint8Array(buf), {type: 'array'});
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const jsonDataForStorage = XLSX.utils.sheet_to_json(sheet, {defval: ''});
+                    const questions = convertObjectsToQuestions(jsonDataForStorage);
+
+                    if (questions?.length) {
+                        setQuestions(questions);
+                        const jsonStr = JSON.stringify(jsonDataForStorage);
+                        setRawDb(jsonStr);
+                        setCustomDataName("GitHub 云端题库");
+                        Storage.set('cxcy_custom_db', jsonStr);
+                        Storage.set('cxcy_custom_name', "GitHub 云端题库");
                     }
                 } catch (e) {
                     console.error(e);
-                    let errMsg = e.message;
-                    if(errMsg.includes("offline")) {
-                        errMsg += "\n(提示: 请不要直接双击打开HTML文件，请使用本地服务器或部署到GitHub Pages)";
-                    }
-                    alert("恢复失败: " + errMsg);
+                    setQuestions(parseData(SAMPLE_CSV_DATA));
+                } finally {
+                    setIsLoading(false);
                 }
-                setIsLoading(false);
             };
+            init();
+        }, []);
 
-            const handleFileImport = (e) => {
-                const file = e.target.files[0];
-                if(!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    try {
-                        const data = JSON.parse(evt.target.result);
-                        restoreData(data);
-                    } catch(e) { alert("文件格式错误"); }
-                    e.target.value = null;
-                };
-                reader.readAsText(file);
-            };
+        useEffect(() => {
+            Storage.set('cxcy_wrong_book', wrongBook);
+        }, [wrongBook]);
+        useEffect(() => {
+            Storage.set('cxcy_progress', progress);
+        }, [progress]);
 
-            const restoreData = (data) => {
-                const newWrong = data.wrongBook || [];
-                const newProg = { answered: [], correct: [], recited: [], ...(data.progress || {}) };
-                if(!data.progress && newWrong.length) newProg.answered = [...newWrong];
-
-                setWrongBook(newWrong);
-                setSessionPractice(data.sessionPractice);
-                setSessionRecite(data.sessionRecite);
-                setProgress(newProg);
-
-                Storage.set('cxcy_wrong_book', newWrong);
-                Storage.set('cxcy_session_practice', data.sessionPractice);
-                Storage.set('cxcy_session_recite', data.sessionRecite);
-                Storage.set('cxcy_progress', newProg);
-
-                alert(`✅ 恢复成功！\n错题: ${newWrong.length}\n刷题: ${newProg.answered.length}`);
+        const handleLogin = async () => {
+            if (!auth) return;
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+                alert("登录成功！");
+            } catch (e) {
+                let msg = e.message;
+                alert("登录失败: " + msg);
             }
+        };
 
-            const resetToDefault = () => {
-                if(confirm("确定要恢复到默认演示题库吗？")) {
-                    Storage.remove('cxcy_custom_db');
-                    Storage.remove('cxcy_custom_name');
-                    setRawDb(null);
-                    setCustomDataName(null);
-                    setWrongBook([]);
-                    setSessionPractice(null);
-                    setSessionRecite(null);
-                    Storage.remove('cxcy_session_practice');
-                    Storage.remove('cxcy_session_recite');
-                    setProgress({ answered: [], correct: [], recited: [] });
-                }
-            };
+        const handleLogout = async () => {
+            if (!auth) return;
+            try {
+                await signOut(auth);
+                setCurrentUser(null);
+                alert("已登出");
+            } catch (e) {
+                console.error(e);
+            }
+        };
 
-            const startQuiz = (list, m) => {
-                setCurrentList(list); setMode(m); setCurrentIndex(0); setAnswers({}); setResults({}); setScreen('quiz');
-                saveSession(list, 0, {}, {}, m);
-            };
-
-            const resumeSession = (m) => {
-                const s = m === 'practice' ? sessionPractice : sessionRecite;
-                if (!s) return;
-                setCurrentList(s.list); setCurrentIndex(s.index); setAnswers(s.answers); setResults(s.results); setMode(s.mode); setScreen('quiz');
-            };
-
-            const saveSession = (list, idx, ans, res, m) => {
-                const d = { list, index: idx, answers: ans, results: res, mode: m };
-                if (m === 'practice') { setSessionPractice(d); Storage.set('cxcy_session_practice', d); }
-                else { setSessionRecite(d); Storage.set('cxcy_session_recite', d); }
-            };
-
-            const updateProgress = (qId, isCorrect, modeType) => {
-                setProgress(prev => {
-                    const next = { ...prev };
-                    if (modeType === 'recite') {
-                        if(!next.recited.includes(qId)) next.recited = [...next.recited, qId];
-                    } else {
-                        if(!next.answered.includes(qId)) next.answered = [...next.answered, qId];
-                        if(isCorrect) {
-                            if(!next.correct.includes(qId)) next.correct = [...next.correct, qId];
-                        } else {
-                            next.correct = next.correct.filter(id => id !== qId);
-                        }
-                    }
-                    return next;
-                });
-            };
-
-            const handleAnswer = (qId, val, ok) => {
-                const nAns = { ...answers, [qId]: val };
-                const nRes = { ...results, [qId]: ok };
-                setAnswers(nAns); setResults(nRes);
-                if(!ok && !wrongBook.includes(qId)) setWrongBook(p => [...p, qId]);
-                updateProgress(qId, ok, 'practice');
-                saveSession(currentList, currentIndex, nAns, nRes, mode);
-            };
-
-            const handleIndexChange = (newIndex) => {
-                setCurrentIndex(newIndex);
-                saveSession(currentList, newIndex, answers, results, mode);
-                if(mode === 'recite') updateProgress(currentList[newIndex].id, false, 'recite');
-            };
-
-            const handleFileUpload = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                e.target.value = null;
-                if(confirm(`检测到文件：${file.name}\n是否替换当前题库？\n(注意：这将重置所有刷题进度)`)) {
-                    if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
-                        const reader = new FileReader();
-                        reader.onload = (evt) => {
-                            try {
-                                const data = new Uint8Array(evt.target.result);
-                                const workbook = XLSX.read(data, {type: 'array'});
-                                const sheetName = workbook.SheetNames[0];
-                                const csvOutput = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-                                importData(csvOutput, file.name);
-                            } catch (err) { alert("❌ 解析失败: " + err.message); }
-                        };
-                        reader.readAsArrayBuffer(file);
-                    } else {
-                        const reader = new FileReader();
-                        reader.onload = (evt) => importData(evt.target.result, file.name);
-                        reader.readAsText(file);
-                    }
-                }
-            };
-
-            const handleWebImport = async () => {
-                if(!confirm("确定要从 GitHub 下载最新题库吗？\n这将覆盖当前的自定义题库并重置进度。")) return;
+        const handleCloudBackup = async () => {
+            if (isFirebaseReady && user) {
                 setIsLoading(true);
                 try {
-                    const response = await fetch(GITHUB_EXCEL_URL);
-                    if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-                    const arrayBuffer = await response.arrayBuffer();
-                    const data = new Uint8Array(arrayBuffer);
-                    const workbook = XLSX.read(data, {type: 'array'});
-                    const sheetName = workbook.SheetNames[0];
-                    const csvOutput = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
-                    if(importData(csvOutput, "GitHub 云端题库")) alert("✅ 云端题库更新成功！");
-                } catch (err) { alert("❌ 下载失败: " + err.message + "\n请检查网络连接。"); }
-                finally { setIsLoading(false); }
+                    await setDoc(doc(db, 'users', user.uid), {
+                        wrongBook, sessionPractice, sessionRecite, progress, lastUpdated: new Date().toISOString()
+                    });
+                    alert("✅ 云端同步成功！");
+                } catch (e) {
+                    alert("同步失败: " + e.message);
+                }
+                setIsLoading(false);
+            } else {
+                const data = {wrongBook, sessionPractice, sessionRecite, progress, timestamp: new Date().toISOString()};
+                const blob = new Blob([JSON.stringify(data)], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `备份_${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+            }
+        };
+
+        const handleCloudRestore = async () => {
+            if (!isFirebaseReady || !user) {
+                alert("未连接到云端");
+                return;
+            }
+            setIsLoading(true);
+            try {
+                const docSnap = await getDoc(doc(db, 'users', user.uid));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    restoreData(data);
+                } else {
+                    alert("云端没有找到备份记录");
+                }
+            } catch (e) {
+                alert("恢复失败: " + e.message);
+            }
+            setIsLoading(false);
+        };
+
+        const handleFileImport = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    restoreData(data);
+                } catch (e) {
+                    alert("文件格式错误");
+                }
+                e.target.value = null;
             };
-
-            return (
-                <div className="w-full h-safe-screen md:h-[800px] md:max-w-4xl bg-white shadow-2xl md:rounded-3xl overflow-hidden relative font-sans text-gray-900 flex flex-col transition-all duration-300 border border-gray-200 mx-auto">
-                    {isLoading && <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center"><div className="spinner mb-4"></div><div className="text-blue-600 font-bold animate-pulse">正在同步数据...</div></div>}
-
-                    {screen === 'menu' && (
-                        <MenuScreen
-                            questions={questions}
-                            wrongBook={wrongBook}
-                            sessionPractice={sessionPractice}
-                            sessionRecite={sessionRecite}
-                            customName={customDataName}
-                            progress={progress}
-                            currentUser={currentUser}
-                            onUpload={handleFileUpload}
-                            onWebLoad={handleWebImport}
-                            onReset={resetToDefault}
-                            onCloudBackup={handleCloudBackup}
-                            onCloudRestore={handleCloudRestore}
-                            onFileImport={handleFileImport}
-                            onLogin={handleLogin}
-                            onLogout={handleLogout}
-                            onStartConfig={() => setScreen('config')}
-                            onResumePractice={() => resumeSession('practice')}
-                            onResumeRecite={() => resumeSession('recite')}
-                            onWrongMenu={() => setScreen('wrong_book_menu')}
-                        />
-                    )}
-                    {screen === 'wrong_book_menu' && <WrongBookMenu wrongBook={wrongBook} onBack={()=>setScreen('menu')} onStart={(m)=>{const wq=questions.filter(q=>wrongBook.includes(q.id)); if(!wq.length)return alert("暂无错题"); startQuiz(wq,m);}} />}
-                    {screen === 'config' && <ConfigScreen questions={questions} onBack={()=>setScreen('menu')} onStart={startQuiz} />}
-                    {screen === 'quiz' && <QuizScreen list={currentList} index={currentIndex} setIndex={handleIndexChange} answers={answers} results={results} mode={mode} onAnswer={handleAnswer} onFinish={()=>{setScreen('result');}} onBack={()=>setScreen('menu')} />}
-                    {screen === 'result' && <ResultScreen list={currentList} results={results} onRetry={()=>startQuiz(currentList, mode)} onHome={()=>setScreen('menu')} />}
-                </div>
-            );
+            reader.readAsText(file);
         };
 
-        const MenuScreen = ({ questions, wrongBook, sessionPractice, sessionRecite, customName, progress, currentUser, onUpload, onWebLoad, onReset, onCloudBackup, onCloudRestore, onFileImport, onLogin, onLogout, onStartConfig, onResumePractice, onResumeRecite, onWrongMenu }) => {
-            const totalQ = questions.length || 1;
-            const answeredPct = Math.min(100, Math.round((progress.answered.length / totalQ) * 100));
-            const correctPct = Math.min(100, Math.round((progress.correct.length / totalQ) * 100));
-            const recitedPct = Math.min(100, Math.round(((progress.recited || []).length / totalQ) * 100));
+        const restoreData = (data) => {
+            const newWrong = data.wrongBook || [];
+            const newProg = {answered: [], correct: [], recited: [], ...(data.progress || {})};
+            if (!data.progress && newWrong.length) newProg.answered = [...newWrong];
 
-            return (
-                <div className="flex-1 flex flex-col bg-white overflow-hidden">
-                    <div className="p-4 border-b flex items-center justify-between bg-white z-10 shadow-sm shrink-0">
-                        <span className="font-bold text-lg text-gray-800">题库刷题</span>
-                        <div className="flex items-center">
-                            {currentUser && !currentUser.isAnonymous ? (
-                                <button onClick={onLogout} className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded flex items-center gap-1">
-                                    <Icon name="LogOut" size={12} /> 登出
-                                </button>
-                            ) : (
-                                <button onClick={onLogin} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded flex items-center gap-1">
-                                    <Icon name="User" size={12} /> 登录云端
-                                </button>
-                            )}
-                        </div>
+            setWrongBook(newWrong);
+            setSessionPractice(data.sessionPractice);
+            setSessionRecite(data.sessionRecite);
+            setProgress(newProg);
+
+            Storage.set('cxcy_wrong_book', newWrong);
+            Storage.set('cxcy_session_practice', data.sessionPractice);
+            Storage.set('cxcy_session_recite', data.sessionRecite);
+            Storage.set('cxcy_progress', newProg);
+
+            alert(`✅ 恢复成功！\n错题: ${newWrong.length}\n刷题: ${newProg.answered.length}`);
+        }
+
+        const resetToDefault = () => {
+            if (confirm("确定要恢复到默认演示题库吗？")) {
+                Storage.remove('cxcy_custom_db');
+                Storage.remove('cxcy_custom_name');
+                setRawDb(null);
+                setCustomDataName(null);
+                setWrongBook([]);
+                setSessionPractice(null);
+                setSessionRecite(null);
+                Storage.remove('cxcy_session_practice');
+                Storage.remove('cxcy_session_recite');
+                setProgress({answered: [], correct: [], recited: []});
+            }
+        };
+
+        const startQuiz = (list, m) => {
+            setCurrentList(list);
+            setMode(m);
+            setCurrentIndex(0);
+            setAnswers({});
+            setResults({});
+            setScreen('quiz');
+            saveSession(list, 0, {}, {}, m);
+        };
+
+        const resumeSession = (m) => {
+            const s = m === 'practice' ? sessionPractice : sessionRecite;
+            if (!s) return;
+            setCurrentList(s.list);
+            setCurrentIndex(s.index);
+            setAnswers(s.answers);
+            setResults(s.results);
+            setMode(s.mode);
+            setScreen('quiz');
+        };
+
+        const saveSession = (list, idx, ans, res, m) => {
+            const d = {list, index: idx, answers: ans, results: res, mode: m};
+            if (m === 'practice') {
+                setSessionPractice(d);
+                Storage.set('cxcy_session_practice', d);
+            } else {
+                setSessionRecite(d);
+                Storage.set('cxcy_session_recite', d);
+            }
+        };
+
+        const updateProgress = (qId, isCorrect, modeType) => {
+            setProgress(prev => {
+                const next = {...prev};
+                if (modeType === 'recite') {
+                    if (!next.recited.includes(qId)) next.recited = [...next.recited, qId];
+                } else {
+                    if (!next.answered.includes(qId)) next.answered = [...next.answered, qId];
+                    if (isCorrect) {
+                        if (!next.correct.includes(qId)) next.correct = [...next.correct, qId];
+                    } else {
+                        next.correct = next.correct.filter(id => id !== qId);
+                    }
+                }
+                return next;
+            });
+        };
+
+        const handleAnswer = (qId, val, ok) => {
+            const nAns = {...answers, [qId]: val};
+            const nRes = {...results, [qId]: ok};
+            setAnswers(nAns);
+            setResults(nRes);
+            if (!ok && !wrongBook.includes(qId)) setWrongBook(p => [...p, qId]);
+            updateProgress(qId, ok, 'practice');
+            saveSession(currentList, currentIndex, nAns, nRes, mode);
+        };
+
+        const handleIndexChange = (newIndex) => {
+            setCurrentIndex(newIndex);
+            saveSession(currentList, newIndex, answers, results, mode);
+            if (mode === 'recite') updateProgress(currentList[newIndex].id, false, 'recite');
+        };
+
+        const importData = (content, name, isBinary = false) => {
+            let parsed = parseData(content);
+            if (parsed.length) {
+                if (isBinary) {
+                    const wb = XLSX.read(new Uint8Array(content), {type: 'array'});
+                    const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ''});
+                    const jsonStr = JSON.stringify(json);
+                    setRawDb(jsonStr);
+                    Storage.set('cxcy_custom_db', jsonStr);
+                } else {
+                    setRawDb(content);
+                    Storage.set('cxcy_custom_db', content);
+                }
+            }
+
+            if (parsed && parsed.length > 0) {
+                setQuestions(parsed);
+                setCustomDataName(name);
+                Storage.set('cxcy_custom_name', name);
+
+                setSessionPractice(null);
+                setSessionRecite(null);
+                setWrongBook([]);
+                setProgress({answered: [], correct: [], recited: []});
+                Storage.remove('cxcy_session_practice');
+                Storage.remove('cxcy_session_recite');
+                Storage.remove('cxcy_wrong_book');
+                Storage.remove('cxcy_progress');
+
+                return true;
+            } else {
+                alert("❌ 文件解析失败：未找到有效题目，请检查格式。");
+                return false;
+            }
+        };
+
+        const handleFileUpload = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            e.target.value = null;
+            if (confirm(`检测到文件：${file.name}\n是否替换当前题库？\n(注意：这将重置所有刷题进度)`)) {
+                if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        try {
+                            importData(evt.target.result, file.name, true);
+                        } catch (err) {
+                            alert("❌ 解析失败: " + err.message);
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => importData(evt.target.result, file.name, false);
+                    reader.readAsText(file);
+                }
+            }
+        };
+
+        const handleWebImport = async () => {
+            if (!confirm("确定要从 GitHub 下载最新题库吗？\n这将覆盖当前的自定义题库并重置进度。")) return;
+            setIsLoading(true);
+            try {
+                const response = await fetch(GITHUB_EXCEL_URL);
+                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                const arrayBuffer = await response.arrayBuffer();
+
+                const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
+                const jsonData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ''});
+                const questions = convertObjectsToQuestions(jsonData);
+
+                if (questions?.length) {
+                    setQuestions(questions);
+                    const jsonStr = JSON.stringify(jsonData);
+                    setRawDb(jsonStr);
+                    setCustomDataName("GitHub 云端题库");
+                    Storage.set('cxcy_custom_db', jsonStr);
+                    Storage.set('cxcy_custom_name', "GitHub 云端题库");
+
+                    setSessionPractice(null);
+                    setSessionRecite(null);
+                    setWrongBook([]);
+                    setProgress({answered: [], correct: [], recited: []});
+                    Storage.remove('cxcy_session_practice');
+                    Storage.remove('cxcy_session_recite');
+                    Storage.remove('cxcy_wrong_book');
+                    Storage.remove('cxcy_progress');
+
+                    alert("✅ 云端题库更新成功！");
+                }
+            } catch (err) {
+                alert("❌ 下载失败: " + err.message + "\n请检查网络连接。");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        return (
+            <div
+                className="w-full h-safe-screen md:h-[800px] md:max-w-4xl bg-white shadow-2xl md:rounded-3xl overflow-hidden relative font-sans text-gray-900 flex flex-col transition-all duration-300 border border-gray-200 mx-auto">
+                {isLoading &&
+                    <div className="absolute inset-0 bg-white/90 z-50 flex flex-col items-center justify-center">
+                        <div className="spinner mb-4"></div>
+                        <div className="text-blue-600 font-bold animate-pulse">正在同步数据...</div>
+                    </div>}
+
+                {screen === 'menu' && (
+                    <MenuScreen
+                        questions={questions}
+                        wrongBook={wrongBook}
+                        sessionPractice={sessionPractice}
+                        sessionRecite={sessionRecite}
+                        customName={customDataName}
+                        progress={progress}
+                        currentUser={currentUser}
+                        onUpload={handleFileUpload}
+                        onWebLoad={handleWebImport}
+                        onReset={resetToDefault}
+                        onCloudBackup={handleCloudBackup}
+                        onCloudRestore={handleCloudRestore}
+                        onFileImport={handleFileImport}
+                        onLogin={handleLogin}
+                        onLogout={handleLogout}
+                        onStartConfig={() => setScreen('config')}
+                        onResumePractice={() => resumeSession('practice')}
+                        onResumeRecite={() => resumeSession('recite')}
+                        onWrongMenu={() => setScreen('wrong_book_menu')}
+                    />
+                )}
+                {screen === 'wrong_book_menu' &&
+                    <WrongBookMenu wrongBook={wrongBook} onBack={() => setScreen('menu')} onStart={(m) => {
+                        const wq = questions.filter(q => wrongBook.includes(q.id));
+                        if (!wq.length) return alert("暂无错题");
+                        startQuiz(wq, m);
+                    }}/>}
+                {screen === 'config' &&
+                    <ConfigScreen questions={questions} onBack={() => setScreen('menu')} onStart={startQuiz}/>}
+                {screen === 'quiz' &&
+                    <QuizScreen list={currentList} index={currentIndex} setIndex={handleIndexChange} answers={answers}
+                                results={results} mode={mode} onAnswer={handleAnswer} onFinish={() => {
+                        setScreen('result');
+                    }} onBack={() => setScreen('menu')}/>}
+                {screen === 'result' &&
+                    <ResultScreen list={currentList} results={results} onRetry={() => startQuiz(currentList, mode)}
+                                  onHome={() => setScreen('menu')}/>}
+            </div>
+        );
+    };
+
+    const MenuScreen = ({
+                            questions,
+                            wrongBook,
+                            sessionPractice,
+                            sessionRecite,
+                            customName,
+                            progress,
+                            currentUser,
+                            onUpload,
+                            onWebLoad,
+                            onReset,
+                            onCloudBackup,
+                            onCloudRestore,
+                            onFileImport,
+                            onLogin,
+                            onLogout,
+                            onStartConfig,
+                            onResumePractice,
+                            onResumeRecite,
+                            onWrongMenu
+                        }) => {
+        const totalQ = questions.length || 1;
+        const answeredPct = Math.min(100, Math.round((progress.answered.length / totalQ) * 100));
+        const correctPct = Math.min(100, Math.round((progress.correct.length / totalQ) * 100));
+        const recitedPct = Math.min(100, Math.round(((progress.recited || []).length / totalQ) * 100));
+
+        return (
+            <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                <div className="p-4 border-b flex items-center justify-between bg-white z-10 shadow-sm shrink-0">
+                    <span className="font-bold text-lg text-gray-800">题库刷题</span>
+                    <div className="flex items-center">
+                        {currentUser && !currentUser.isAnonymous ? (
+                            <button onClick={onLogout}
+                                    className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded flex items-center gap-1">
+                                <Icon name="LogOut" size={12}/> 登出
+                            </button>
+                        ) : (
+                            <button onClick={onLogin}
+                                    className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded flex items-center gap-1">
+                                <Icon name="User" size={12}/> Google登录
+                            </button>
+                        )}
                     </div>
+                </div>
 
-                    <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 items-center">
-                        <div className="text-center w-full mt-2">
-                            <div className="flex items-center justify-center gap-4 mb-4">
-                                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-blue-200 shadow-xl">
-                                    <Icon name="Lightbulb" size={32} className="text-white" />
-                                </div>
-                                <div className="text-left">
-                                    <h1 className="text-xl font-bold text-gray-800">创新创业题库</h1>
-                                    <p className="text-gray-500 text-xs mt-1">
-                                        {customName ? <span className="text-green-600 font-bold truncate max-w-[120px] inline-block align-bottom">{customName}</span> : '演示题库'}
-                                        <span className="mx-1">·</span>
-                                        <span>共 {questions.length} 题</span>
-                                    </p>
-                                </div>
+                <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-4 items-center">
+                    <div className="text-center w-full mt-2">
+                        <div className="flex items-center justify-center gap-4 mb-4">
+                            <div
+                                className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-blue-200 shadow-xl">
+                                <Icon name="Lightbulb" size={32} className="text-white"/>
                             </div>
+                            <div className="text-left">
+                                <h1 className="text-xl font-bold text-gray-800">创新创业题库</h1>
+                                <p className="text-gray-500 text-xs mt-1">
+                                    {customName ? <span
+                                        className="text-green-600 font-bold truncate max-w-[120px] inline-block align-bottom">{customName}</span> : '演示题库'}
+                                    <span className="mx-1">·</span>
+                                    <span>共 {questions.length} 题</span>
+                                </p>
+                            </div>
+                        </div>
 
-                            <div className="grid grid-cols-3 gap-2 mb-6 w-full">
-                                {[
-                                    {l:'累计刷题', v:progress.answered.length, c:'blue', p:answeredPct},
-                                    {l:'正确掌握', v:progress.correct.length, c:'green', p:correctPct},
-                                    {l:'背题进度', v:(progress.recited||[]).length, c:'purple', p:recitedPct}
-                                ].map((x,i)=>(
-                                    <div key={i} className={`bg-${x.c}-50 p-2 rounded-xl border border-${x.c}-100 text-left`}>
-                                        <div className={`text-[10px] text-${x.c}-500 font-bold mb-1`}>{x.l}</div>
-                                        <div className="flex items-end gap-1"><span className={`text-lg font-bold text-${x.c}-800`}>{x.v}</span><span className={`text-[10px] text-${x.c}-400 mb-1`}>/ {questions.length}</span></div>
-                                        <div className={`w-full bg-${x.c}-200 h-1.5 rounded-full mt-2 overflow-hidden`}><div className={`bg-${x.c}-500 h-full rounded-full progress-bar`} style={{width:`${x.p}%`}}></div></div>
+                        <div className="grid grid-cols-3 gap-2 mb-6 w-full">
+                            {[
+                                {l: '累计刷题', v: progress.answered.length, c: 'blue', p: answeredPct},
+                                {l: '正确掌握', v: progress.correct.length, c: 'green', p: correctPct},
+                                {l: '背题进度', v: (progress.recited || []).length, c: 'purple', p: recitedPct}
+                            ].map((x, i) => (
+                                <div key={i}
+                                     className={`bg-${x.c}-50 p-2 rounded-xl border border-${x.c}-100 text-left`}>
+                                    <div className={`text-[10px] text-${x.c}-500 font-bold mb-1`}>{x.l}</div>
+                                    <div className="flex items-end gap-1"><span
+                                        className={`text-lg font-bold text-${x.c}-800`}>{x.v}</span><span
+                                        className={`text-[10px] text-${x.c}-400 mb-1`}>/ {questions.length}</span></div>
+                                    <div className={`w-full bg-${x.c}-200 h-1.5 rounded-full mt-2 overflow-hidden`}>
+                                        <div className={`bg-${x.c}-500 h-full rounded-full progress-bar`}
+                                             style={{width: `${x.p}%`}}></div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="w-full max-w-2xl space-y-3">
-                            <button onClick={onStartConfig} className="btn-press w-full bg-gray-900 text-white p-4 rounded-2xl shadow-lg flex items-center justify-between hover:bg-black transition">
-                                <div className="flex items-center gap-4"><div className="p-2 bg-gray-700 rounded-lg"><Icon name="Play" size={20} /></div><div className="text-left"><div className="font-bold">开始新练习</div><div className="text-xs text-gray-400">选择题型与模式</div></div></div>
-                                <Icon name="ChevronRight" className="opacity-50" />
-                            </button>
-
-                            {(sessionPractice || sessionRecite) && (
-                                <div className="grid grid-cols-2 gap-3">
-                                    {sessionPractice ? (
-                                        <button onClick={onResumePractice} className="btn-press bg-white border-2 border-blue-50 text-blue-700 p-3 rounded-2xl flex flex-col justify-center items-start hover:bg-blue-50 transition">
-                                            <div className="flex items-center gap-2 mb-1"><Icon name="Edit3" size={16} /><span className="font-bold text-sm">继续刷题</span></div>
-                                            <div className="text-xs opacity-70">进度: {sessionPractice.index+1}/{sessionPractice.list.length}</div>
-                                        </button>
-                                    ) : <div/>}
-                                    {sessionRecite ? (
-                                        <button onClick={onResumeRecite} className="btn-press bg-white border-2 border-purple-50 text-purple-700 p-3 rounded-2xl flex flex-col justify-center items-start hover:bg-purple-50 transition">
-                                            <div className="flex items-center gap-2 mb-1"><Icon name="Eye" size={16} /><span className="font-bold text-sm">继续背题</span></div>
-                                            <div className="text-xs opacity-70">进度: {sessionRecite.index+1}/{sessionRecite.list.length}</div>
-                                        </button>
-                                    ) : <div/>}
                                 </div>
-                            )}
-
-                             <button onClick={onWrongMenu} className="btn-press w-full bg-white border-2 border-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-between hover:bg-red-50 transition">
-                                <div className="flex items-center gap-4"><div className="p-2 bg-red-100 rounded-lg"><Icon name="BookX" size={20} /></div><div className="text-left"><div className="font-bold">错题本</div><div className="text-xs opacity-70">共 {wrongBook.length} 题</div></div></div>
-                                <Icon name="ChevronRight" className="opacity-30" />
-                            </button>
-                        </div>
-
-                        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 w-full max-w-2xl mt-4">
-                            <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">数据管理</h3>
-                            <div className="grid grid-cols-4 gap-2">
-                                <button onClick={onWebLoad} className="bg-white border border-blue-200 text-blue-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-blue-50">
-                                    <Icon name="CloudDownload" size={18} />
-                                    <span className="font-bold text-[10px]">GitHub更新</span>
-                                </button>
-
-                                <div className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 text-center relative group overflow-hidden hover:bg-gray-100 cursor-pointer flex flex-col items-center justify-center">
-                                    <input type="file" accept=".csv, .xls, .xlsx" onChange={onUpload} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                                    <Icon name="FileUp" size={18} />
-                                    <span className="font-bold text-[10px]">导入题库</span>
-                                </div>
-
-                                {currentUser ? (
-                                    <>
-                                        <button onClick={onCloudBackup} className="bg-white border border-blue-200 text-blue-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-blue-50">
-                                            <Icon name="CloudUpload" size={18} />
-                                            <span className="font-bold text-[10px]">云端备份</span>
-                                        </button>
-                                        <button onClick={onCloudRestore} className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-gray-100">
-                                            <Icon name="CloudDownload" size={18} />
-                                            <span className="font-bold text-[10px]">云端恢复</span>
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button onClick={onCloudBackup} className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-gray-100">
-                                            <Icon name="Download" size={18} />
-                                            <span className="font-bold text-[10px]">文件备份</span>
-                                        </button>
-                                        <div className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 text-center relative group overflow-hidden hover:bg-gray-100 cursor-pointer flex flex-col items-center justify-center">
-                                            <input type="file" accept=".json" onChange={onFileImport} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                                            <Icon name="History" size={18} />
-                                            <span className="font-bold text-[10px]">文件恢复</span>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                            <div className="text-[10px] text-gray-400 mt-2 text-center">
-                                {currentUser && !currentUser.isAnonymous ? "✅ 已登录云端 (Google)" : (currentUser ? "💡 匿名访客模式 (请登录以同步)" : "正在连接...")}
-                            </div>
-                            {customName && (
-                                <button onClick={onReset} className="w-full mt-3 py-2 text-red-400 text-xs flex items-center justify-center gap-1 hover:text-red-600">
-                                    <Icon name="RotateCcw" size={14} /> 恢复默认题库
-                                </button>
-                            )}
+                            ))}
                         </div>
                     </div>
-                </div>
-            );
-        };
 
-        const WrongBookMenu = ({ wrongBook, onBack, onStart }) => (
-            <div className="flex-1 flex flex-col h-full bg-white">
-                <div className="p-4 border-b flex items-center bg-white z-10 shrink-0"><button onClick={onBack} className="p-3 -ml-3 rounded-full hover:bg-gray-100 text-black font-bold"><Icon name="ArrowLeft" size={24} /></button><span className="font-bold ml-2 text-lg">错题本</span></div>
-                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-8">
-                    <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mb-4"><Icon name="BookX" size={48} className="text-red-500" /></div>
-                    <div><h2 className="text-2xl font-bold text-gray-800">当前错题总数</h2><div className="text-6xl font-bold text-red-500 my-4">{wrongBook.length}</div><p className="text-gray-400 text-sm">这些题目需要重点复习哦</p></div>
-                    <div className="w-full max-w-sm space-y-4"><button onClick={()=>onStart('practice')} disabled={!wrongBook.length} className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50"><Icon name="Edit3" size={20} /> 刷题模式</button><button onClick={()=>onStart('recite')} disabled={!wrongBook.length} className="w-full py-4 bg-green-50 text-green-700 border border-green-200 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-100 disabled:opacity-50"><Icon name="Eye" size={20} /> 背题模式</button></div>
+                    <div className="w-full max-w-2xl space-y-3">
+                        <button onClick={onStartConfig}
+                                className="btn-press w-full bg-gray-900 text-white p-4 rounded-2xl shadow-lg flex items-center justify-between hover:bg-black transition">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2 bg-gray-700 rounded-lg"><Icon name="Play" size={20}/></div>
+                                <div className="text-left">
+                                    <div className="font-bold">开始新练习</div>
+                                    <div className="text-xs text-gray-400">选择题型与模式</div>
+                                </div>
+                            </div>
+                            <Icon name="ChevronRight" className="opacity-50"/>
+                        </button>
+
+                        {(sessionPractice || sessionRecite) && (
+                            <div className="grid grid-cols-2 gap-3">
+                                {sessionPractice ? (
+                                    <button onClick={onResumePractice}
+                                            className="btn-press bg-white border-2 border-blue-50 text-blue-700 p-3 rounded-2xl flex flex-col justify-center items-start hover:bg-blue-50 transition">
+                                        <div className="flex items-center gap-2 mb-1"><Icon name="Edit3"
+                                                                                            size={16}/><span
+                                            className="font-bold text-sm">继续刷题</span></div>
+                                        <div
+                                            className="text-xs opacity-70">进度: {sessionPractice.index + 1}/{sessionPractice.list.length}</div>
+                                    </button>
+                                ) : <div/>}
+                                {sessionRecite ? (
+                                    <button onClick={onResumeRecite}
+                                            className="btn-press bg-white border-2 border-purple-50 text-purple-700 p-3 rounded-2xl flex flex-col justify-center items-start hover:bg-purple-50 transition">
+                                        <div className="flex items-center gap-2 mb-1"><Icon name="Eye" size={16}/><span
+                                            className="font-bold text-sm">继续背题</span></div>
+                                        <div
+                                            className="text-xs opacity-70">进度: {sessionRecite.index + 1}/{sessionRecite.list.length}</div>
+                                    </button>
+                                ) : <div/>}
+                            </div>
+                        )}
+
+                        <button onClick={onWrongMenu}
+                                className="btn-press w-full bg-white border-2 border-red-50 text-red-600 p-4 rounded-2xl flex items-center justify-between hover:bg-red-50 transition">
+                            <div className="flex items-center gap-4">
+                                <div className="p-2 bg-red-100 rounded-lg"><Icon name="BookX" size={20}/></div>
+                                <div className="text-left">
+                                    <div className="font-bold">错题本</div>
+                                    <div className="text-xs opacity-70">共 {wrongBook.length} 题</div>
+                                </div>
+                            </div>
+                            <Icon name="ChevronRight" className="opacity-30"/>
+                        </button>
+                    </div>
+
+                    <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 w-full max-w-2xl mt-4">
+                        <h3 className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">数据管理</h3>
+                        <div className="grid grid-cols-4 gap-2">
+                            <button onClick={onWebLoad}
+                                    className="bg-white border border-blue-200 text-blue-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-blue-50">
+                                <Icon name="CloudDownload" size={18}/>
+                                <span className="font-bold text-[10px]">从云加载题库</span>
+                            </button>
+
+                            <div
+                                className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 text-center relative group overflow-hidden hover:bg-gray-100 cursor-pointer flex flex-col items-center justify-center">
+                                <input type="file" accept=".csv, .xls, .xlsx" onChange={onUpload}
+                                       className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                                <Icon name="FileUp" size={18}/>
+                                <span className="font-bold text-[10px]">导入题库</span>
+                            </div>
+
+                            {currentUser ? (
+                                <>
+                                    <button onClick={onCloudBackup}
+                                            className="bg-white border border-blue-200 text-blue-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-blue-50">
+                                        <Icon name="CloudUpload" size={18}/>
+                                        <span className="font-bold text-[10px]">云端备份进度</span>
+                                    </button>
+                                    <button onClick={onCloudRestore}
+                                            className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-gray-100">
+                                        <Icon name="CloudDownload" size={18}/>
+                                        <span className="font-bold text-[10px]">云端恢复进度</span>
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button onClick={onCloudBackup}
+                                            className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 flex flex-col items-center justify-center gap-1 hover:bg-gray-100">
+                                        <Icon name="Download" size={18}/>
+                                        <span className="font-bold text-[10px]">进度文件备份</span>
+                                    </button>
+                                    <div
+                                        className="bg-white border border-gray-200 text-gray-600 rounded-xl p-2 text-center relative group overflow-hidden hover:bg-gray-100 cursor-pointer flex flex-col items-center justify-center">
+                                        <input type="file" accept=".json" onChange={onFileImport}
+                                               className="absolute inset-0 opacity-0 cursor-pointer z-10"/>
+                                        <Icon name="History" size={18}/>
+                                        <span className="font-bold text-[10px]">从文件恢复进度</span>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-2 text-center">
+                            {currentUser && !currentUser.isAnonymous ? "✅ 已登录云端 (Google)" : (currentUser ? "💡 匿名访客模式 (请登录以同步)" : "正在连接...")}
+                        </div>
+                        {customName && (
+                            <button onClick={onReset}
+                                    className="w-full mt-3 py-2 text-red-400 text-xs flex items-center justify-center gap-1 hover:text-red-600">
+                                <Icon name="RotateCcw" size={14}/> 恢复默认题库
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         );
+    };
 
-        const ConfigScreen = ({ questions, onBack, onStart }) => {
-            const [num, setNum] = useState(10);
-            const [mode, setMode] = useState('practice');
-            const [selTypes, setSelTypes] = useState(['single','multi','bool','fill','essay']);
-            const typeLabels = { single:'单选题', multi:'多选题', bool:'判断题', fill:'填空题', essay:'简答题' };
-            const availableTypes = [...new Set(questions.map(q => q.type))];
+    const WrongBookMenu = ({wrongBook, onBack, onStart}) => (
+        <div className="flex-1 flex flex-col h-full bg-white">
+            <div className="p-4 border-b flex items-center bg-white z-10 shrink-0">
+                <button onClick={onBack} className="p-3 -ml-3 rounded-full hover:bg-gray-100 text-black font-bold"><Icon
+                    name="ArrowLeft" size={24}/></button>
+                <span className="font-bold ml-2 text-lg">错题本</span></div>
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-8">
+                <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center mb-4"><Icon
+                    name="BookX" size={48} className="text-red-500"/></div>
+                <div><h2 className="text-2xl font-bold text-gray-800">当前错题总数</h2>
+                    <div className="text-6xl font-bold text-red-500 my-4">{wrongBook.length}</div>
+                    <p className="text-gray-400 text-sm">这些题目需要重点复习哦</p></div>
+                <div className="w-full max-w-sm space-y-4">
+                    <button onClick={() => onStart('practice')} disabled={!wrongBook.length}
+                            className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-blue-700 disabled:opacity-50">
+                        <Icon name="Edit3" size={20}/> 刷题模式
+                    </button>
+                    <button onClick={() => onStart('recite')} disabled={!wrongBook.length}
+                            className="w-full py-4 bg-green-50 text-green-700 border border-green-200 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-100 disabled:opacity-50">
+                        <Icon name="Eye" size={20}/> 背题模式
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 
-            return (
-                <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
-                    <div className="p-4 border-b flex items-center bg-white z-10 shrink-0"><button onClick={onBack} className="p-3 -ml-3 rounded-full hover:bg-gray-100 text-black font-bold"><Icon name="ArrowLeft" size={24} /></button><span className="font-bold ml-2 text-lg">刷题设置</span></div>
-                    <div className="flex-1 overflow-y-auto p-6 space-y-8 w-full max-w-2xl mx-auto">
-                        <div>
-                            <div className="text-xs font-bold text-gray-400 uppercase mb-3">模式</div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div onClick={() => setMode('practice')} className={`p-4 border-2 rounded-xl text-center cursor-pointer ${mode === 'practice' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 text-gray-500'}`}><div className="font-bold">刷题模式</div><div className="text-xs mt-1">答完出解析</div></div>
-                                <div onClick={() => setMode('recite')} className={`p-4 border-2 rounded-xl text-center cursor-pointer ${mode === 'recite' ? 'border-green-600 bg-green-50 text-green-700' : 'border-gray-100 text-gray-500'}`}><div className="font-bold">背题模式</div><div className="text-xs mt-1">直接看答案</div></div>
+    const ConfigScreen = ({questions, onBack, onStart}) => {
+        const [num, setNum] = useState(10);
+        const [mode, setMode] = useState('practice');
+        const [selTypes, setSelTypes] = useState(['single', 'multi', 'bool', 'fill', 'essay']);
+        const typeLabels = {single: '单选题', multi: '多选题', bool: '判断题', fill: '填空题', essay: '简答题'};
+        const availableTypes = [...new Set(questions.map(q => q.type))];
+
+        return (
+            <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
+                <div className="p-4 border-b flex items-center bg-white z-10 shrink-0">
+                    <button onClick={onBack} className="p-3 -ml-3 rounded-full hover:bg-gray-100 text-black font-bold">
+                        <Icon name="ArrowLeft" size={24}/></button>
+                    <span className="font-bold ml-2 text-lg">刷题设置</span></div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 w-full max-w-2xl mx-auto">
+                    <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase mb-3">模式</div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div onClick={() => setMode('practice')}
+                                 className={`p-4 border-2 rounded-xl text-center cursor-pointer ${mode === 'practice' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 text-gray-500'}`}>
+                                <div className="font-bold">刷题模式</div>
+                                <div className="text-xs mt-1">答完出解析</div>
+                            </div>
+                            <div onClick={() => setMode('recite')}
+                                 className={`p-4 border-2 rounded-xl text-center cursor-pointer ${mode === 'recite' ? 'border-green-600 bg-green-50 text-green-700' : 'border-gray-100 text-gray-500'}`}>
+                                <div className="font-bold">背题模式</div>
+                                <div className="text-xs mt-1">直接看答案</div>
                             </div>
                         </div>
-                        <div>
-                            <div className="text-xs font-bold text-gray-400 uppercase mb-3">题型</div>
-                            <div className="flex flex-wrap gap-2">
-                                {Object.keys(typeLabels).map(k => (
-                                    availableTypes.includes(k) && <button key={k} onClick={() => setSelTypes(p => p.includes(k) ? p.filter(x => x!==k) : [...p, k])} className={`px-4 py-2 rounded-full text-sm font-bold border transition ${selTypes.includes(k) ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-200'}`}>{typeLabels[k]}</button>
-                                ))}
+                    </div>
+                    <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase mb-3">题型</div>
+                        <div className="flex flex-wrap gap-2">
+                            {Object.keys(typeLabels).map(k => (
+                                availableTypes.includes(k) && <button key={k}
+                                                                      onClick={() => setSelTypes(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k])}
+                                                                      className={`px-4 py-2 rounded-full text-sm font-bold border transition ${selTypes.includes(k) ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-500 border-gray-200'}`}>{typeLabels[k]}</button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-xs font-bold text-gray-400 uppercase mb-3">数量</div>
+                        <div className="grid grid-cols-4 gap-2">
+                            {[10, 20, 50, 'all'].map(n => <button key={n} onClick={() => setNum(n)}
+                                                                  className={`py-3 rounded-xl text-sm font-bold border transition ${num === n ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500'}`}>{n === 'all' ? '全部' : n}</button>)}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-6 border-t bg-gray-50 z-10 shrink-0">
+                    <button onClick={() => {
+                        let pool = questions.filter(q => selTypes.includes(q.type));
+                        if (!pool.length) return alert("请选择题型");
+                        pool.sort(() => .5 - Math.random());
+                        if (num !== 'all') pool = pool.slice(0, num);
+                        onStart(pool, mode);
+                    }} className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold shadow-lg btn-press">开始挑战
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const QuizScreen = ({list, index, setIndex, answers, results, mode, onAnswer, onFinish, onBack}) => {
+        const q = list[index];
+        const isRecite = mode === 'recite';
+        const userAns = answers[q.id];
+        const isAns = userAns !== undefined;
+        const show = isRecite || isAns;
+        const [multiSel, setMultiSel] = useState([]);
+        useEffect(() => {
+            setMultiSel([]);
+        }, [index]);
+
+        const handleSubmit = (val, ok) => onAnswer(q.id, val, ok);
+        const handleMultiClick = (label) => {
+            if (multiSel.includes(label)) setMultiSel(multiSel.filter(x => x !== label)); else setMultiSel([...multiSel, label]);
+        };
+        const submitMulti = () => {
+            if (!multiSel.length) return;
+            const myAns = multiSel.sort().join('');
+            handleSubmit(myAns, myAns === q.answer);
+        };
+        const toggleFull = () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => {
+            }); else if (document.exitFullscreen) document.exitFullscreen();
+        };
+
+        return (
+            <div className="flex-1 flex flex-col h-full bg-gray-100">
+                <div className="bg-white px-4 py-3 shadow-sm flex justify-between items-center z-10 shrink-0">
+                    <div className="flex items-center gap-2">
+                        <button onClick={onBack} className="text-black hover:bg-gray-100 p-2 -ml-2 rounded-full"><Icon
+                            name="ArrowLeft" size={24}/></button>
+                        <span className="font-bold text-gray-700 text-sm">{index + 1}/{list.length}</span></div>
+                    <div className="flex items-center gap-2">
+                        <button onClick={toggleFull} className="p-2 bg-gray-100 rounded-full text-gray-600"><Icon
+                            name="Maximize" size={18}/></button>
+                        <button onClick={onFinish}
+                                className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm font-bold">交卷
+                        </button>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 pb-32">
+                    <div className="bg-white rounded-2xl p-5 shadow-sm min-h-[250px] relative max-w-3xl mx-auto">
+                        <span
+                            className="absolute top-0 right-0 bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-bl-xl font-bold">{q.type === 'single' ? '单选' : q.type === 'multi' ? '多选' : q.type === 'bool' ? '判断' : q.type === 'fill' ? '填空' : '简答'}</span>
+
+                        <h3 className="text-base font-bold text-gray-800 leading-relaxed mt-2 mb-4">
+                            <FormatText text={q.question}/>
+                        </h3>
+
+                        {['single', 'bool', 'multi'].includes(q.type) ? (
+                            <div className="space-y-2">
+                                {q.options.map(opt => {
+                                    let st = 'neutral';
+                                    let isSel = multiSel.includes(opt.label);
+                                    if (isRecite || isAns) {
+                                        if (q.answer.includes(opt.label)) st = 'correct'; else if ((userAns?.includes(opt.label)) || (isAns && q.type === 'multi' && userAns.includes(opt.label))) st = 'wrong';
+                                    } else if (q.type === 'multi' && isSel) st = 'selected';
+
+                                    let cls = "border-gray-100 text-gray-600 hover:bg-gray-50";
+                                    if (st === 'selected') cls = "border-blue-500 bg-blue-50 text-blue-700";
+                                    if (st === 'correct') cls = "border-green-500 bg-green-50 text-green-700";
+                                    if (st === 'wrong') cls = "border-red-500 bg-red-50 text-red-700";
+
+                                    return <button key={opt.label} disabled={show}
+                                                   onClick={() => q.type === 'multi' ? !show && handleMultiClick(opt.label) : !show && handleSubmit(opt.label, opt.label === q.answer)}
+                                                   className={`w-full text-left p-3 rounded-xl border-2 transition relative ${cls}`}>
+                                        <span
+                                            className="font-bold mr-2">{opt.label}.</span>{opt.text}{st === 'correct' &&
+                                        <span className="absolute right-4 top-3 text-green-600"><Icon name="CheckCircle"
+                                                                                                      size={20}/></span>}{st === 'wrong' &&
+                                        <span className="absolute right-4 top-3 text-red-500"><Icon name="XCircle"
+                                                                                                    size={20}/></span>}
+                                    </button>
+                                })}
+                                {q.type === 'multi' && !show && <button onClick={submitMulti}
+                                                                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold mt-4 shadow-md active:scale-95 transition">确认提交</button>}
                             </div>
-                        </div>
-                        <div>
-                            <div className="text-xs font-bold text-gray-400 uppercase mb-3">数量</div>
-                            <div className="grid grid-cols-4 gap-2">
-                                {[10, 20, 50, 'all'].map(n => <button key={n} onClick={() => setNum(n)} className={`py-3 rounded-xl text-sm font-bold border transition ${num===n ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-gray-200 text-gray-500'}`}>{n==='all'?'全部':n}</button>)}
+                        ) : <InputArea key={q.id} q={q} ans={q.answer} userAns={userAns} isRecite={isRecite}
+                                       onSubmit={handleSubmit}/>}
+                    </div>
+                    {show && (
+                        <div
+                            className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 fade-in max-w-3xl mx-auto">
+                            <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold">
+                                <Icon name="BookOpen" size={16}/> 解析
                             </div>
+
+                            <div className="mb-2 bg-white/50 p-2 rounded text-green-700 font-mono font-bold">
+                                正确答案：
+                                {q.type === 'bool' ? (
+                                    <span className="ml-1">
+                    {q.answer === 'A' ? '正确' : '错误'}
+                </span>
+                                ) : (
+                                    <pre className="mt-1 whitespace-pre-wrap break-words font-mono text-green-700">
+                    {q.answer}
+                </pre>
+                                )}
+                            </div>
+
+                            {q.explanation && (
+                                <pre
+                                    className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap break-words mt-2">
+                {q.explanation}
+            </pre>
+                            )}
+                        </div>
+                    )}
+
+
+                </div>
+                <div className="bg-white border-t p-3 flex gap-3 z-10 shrink-0 safe-area-bottom">
+                    <button onClick={() => setIndex(Math.max(0, index - 1))} disabled={index === 0}
+                            className="flex-1 py-3 border rounded-xl text-gray-500 font-bold disabled:opacity-30 hover:bg-gray-50">上一题
+                    </button>
+                    <button onClick={() => index < list.length - 1 ? setIndex(index + 1) : onFinish()}
+                            className="flex-[2] py-3 bg-gray-900 text-white rounded-xl font-bold shadow-lg hover:bg-black">{index === list.length - 1 ? '完成' : '下一题'}</button>
+                </div>
+            </div>
+        );
+    };
+
+    const InputArea = ({q, ans, userAns, isRecite, onSubmit}) => {
+        const [val, setVal] = useState('');
+        const [selfJudge, setSelfJudge] = useState(false);
+        if (isRecite) return null;
+        if (userAns !== undefined) return <div
+            className="p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+            <div className="text-xs text-gray-400">你的回答</div>
+            <div className="font-medium text-gray-800 mt-1"><FormatText text={userAns}/></div>
+        </div>;
+        if (selfJudge) return <div className="fade-in space-y-4">
+            <div className="p-4 bg-gray-50 rounded-xl">
+                <div className="text-xs text-gray-400">你的回答</div>
+                <div><FormatText text={val}/></div>
+            </div>
+            <div className="p-4 bg-green-50 border border-green-200 rounded-xl overflow-y-auto"
+                 style={{minHeight: '100px', maxHeight: 'none'}}>
+                <div className="text-xs text-green-600 font-bold mb-2">参考答案</div>
+                <div className="text-green-800">
+                    <FormatText text={ans}/>
+                </div>
+                {q.type === 'essay' && q.explanation && q.explanation !== '暂无详细解析' && (
+                    <div className="mt-4 pt-4 border-t border-green-200">
+                        <div className="text-xs text-green-600 font-bold mb-1">补充解析：</div>
+                        <div className="text-green-700 text-sm">
+                            <FormatText text={q.explanation}/>
                         </div>
                     </div>
-                    <div className="p-6 border-t bg-gray-50 z-10 shrink-0"><button onClick={()=>{ let pool=questions.filter(q=>selTypes.includes(q.type)); if(!pool.length)return alert("请选择题型"); pool.sort(()=>.5-Math.random()); if(num!=='all')pool=pool.slice(0,num); onStart(pool,mode); }} className="w-full py-4 bg-gray-900 text-white rounded-xl font-bold shadow-lg btn-press">开始挑战</button></div>
-                </div>
-            );
-        };
+                )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => onSubmit(val, false)}
+                        className="py-3 bg-red-100 text-red-600 rounded-xl font-bold">错误
+                </button>
+                <button onClick={() => onSubmit(val, true)}
+                        className="py-3 bg-green-100 text-green-600 rounded-xl font-bold">正确
+                </button>
+            </div>
+        </div>;
+        return <div className="space-y-4"><textarea value={val} onChange={e => setVal(e.target.value)}
+                                                    className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none resize-none transition"
+                                                    rows={6} placeholder="请输入答案..."/>
+            <button onClick={() => {
+                if (!val.trim()) return;
+                if (q.type === 'essay') setSelfJudge(true); else onSubmit(val, val.trim().toLowerCase() === ans.trim().toLowerCase());
+            }} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700">提交
+            </button>
+        </div>;
+    };
 
-        const QuizScreen = ({ list, index, setIndex, answers, results, mode, onAnswer, onFinish, onBack }) => {
-            const q = list[index];
-            const isRecite = mode === 'recite';
-            const userAns = answers[q.id];
-            const isAns = userAns !== undefined;
-            const show = isRecite || isAns;
-            const [multiSel, setMultiSel] = useState([]);
-            useEffect(() => { setMultiSel([]); }, [index]);
-
-            const handleSubmit = (val, ok) => onAnswer(q.id, val, ok);
-            const handleMultiClick = (label) => { if (multiSel.includes(label)) setMultiSel(multiSel.filter(x => x !== label)); else setMultiSel([...multiSel, label]); };
-            const submitMulti = () => { if (!multiSel.length) return; const myAns = multiSel.sort().join(''); handleSubmit(myAns, myAns === q.answer); };
-            const toggleFull = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e=>{}); else if (document.exitFullscreen) document.exitFullscreen(); };
-
-            return (
-                <div className="flex-1 flex flex-col h-full bg-gray-100">
-                    <div className="bg-white px-4 py-3 shadow-sm flex justify-between items-center z-10 shrink-0">
-                        <div className="flex items-center gap-2"><button onClick={onBack} className="text-black hover:bg-gray-100 p-2 -ml-2 rounded-full"><Icon name="ArrowLeft" size={24} /></button><span className="font-bold text-gray-700 text-sm">{index+1}/{list.length}</span></div>
-                        <div className="flex items-center gap-2"><button onClick={toggleFull} className="p-2 bg-gray-100 rounded-full text-gray-600"><Icon name="Maximize" size={18} /></button><button onClick={onFinish} className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-sm font-bold">交卷</button></div>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4 pb-32">
-                        <div className="bg-white rounded-2xl p-5 shadow-sm min-h-[250px] relative max-w-3xl mx-auto">
-                             <span className="absolute top-0 right-0 bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-bl-xl font-bold">{q.type==='single'?'单选':q.type==='multi'?'多选':q.type==='bool'?'判断':q.type==='fill'?'填空':'简答'}</span>
-                             <h3 className="text-base font-bold text-gray-800 leading-relaxed mt-2 mb-4">{q.question}</h3>
-                             {['single','bool','multi'].includes(q.type) ? (
-                                 <div className="space-y-2">
-                                     {q.options.map(opt => {
-                                         let st = 'neutral';
-                                         let isSel = multiSel.includes(opt.label);
-                                         if(isRecite || isAns) { if(q.answer.includes(opt.label)) st='correct'; else if((userAns?.includes(opt.label)) || (isAns && q.type==='multi' && userAns.includes(opt.label))) st='wrong'; }
-                                         else if(q.type==='multi' && isSel) st='selected';
-
-                                         let cls = "border-gray-100 text-gray-600 hover:bg-gray-50";
-                                         if(st==='selected') cls="border-blue-500 bg-blue-50 text-blue-700";
-                                         if(st==='correct') cls="border-green-500 bg-green-50 text-green-700";
-                                         if(st==='wrong') cls="border-red-500 bg-red-50 text-red-700";
-
-                                         return <button key={opt.label} disabled={show} onClick={()=>q.type==='multi'?!show&&handleMultiClick(opt.label):!show&&handleSubmit(opt.label, opt.label===q.answer)} className={`w-full text-left p-3 rounded-xl border-2 transition relative ${cls}`}><span className="font-bold mr-2">{opt.label}.</span>{opt.text}{st==='correct'&&<span className="absolute right-4 top-3 text-green-600"><Icon name="CheckCircle" size={20}/></span>}{st==='wrong'&&<span className="absolute right-4 top-3 text-red-500"><Icon name="XCircle" size={20}/></span>}</button>
-                                     })}
-                                     {q.type==='multi' && !show && <button onClick={submitMulti} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold mt-4 shadow-md active:scale-95 transition">确认提交</button>}
-                                 </div>
-                             ) : <InputArea key={q.id} q={q} ans={q.answer} userAns={userAns} isRecite={isRecite} onSubmit={handleSubmit} />}
+    const ResultScreen = ({list, results, onRetry, onHome}) => {
+        const correct = Object.values(results).filter(Boolean).length;
+        const score = Math.round((correct / list.length) * 100);
+        return (
+            <div className="flex-1 flex flex-col h-full bg-white">
+                <div className="p-4 border-b flex items-center bg-white z-10 shrink-0">
+                    <button onClick={onHome} className="p-3 -ml-3 rounded-full hover:bg-gray-100 text-black font-bold">
+                        <Icon name="ArrowLeft" size={24}/></button>
+                    <span className="font-bold ml-2 text-lg">本次成绩</span></div>
+                <div
+                    className="flex-1 flex flex-col p-8 animate-fade-in text-center justify-center bg-white overflow-y-auto">
+                    <div className="mb-8 relative w-40 h-40 mx-auto flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="50%" cy="50%" r="70" stroke="#f3f4f6" strokeWidth="12" fill="none"/>
+                            <circle cx="50%" cy="50%" r="70" stroke={score >= 60 ? "#10B981" : "#EF4444"}
+                                    strokeWidth="12" fill="none" strokeDasharray="440"
+                                    strokeDashoffset={440 - (440 * score) / 100}
+                                    className="transition-all duration-1000"/>
+                        </svg>
+                        <div className="absolute">
+                            <div className="text-4xl font-bold">{score}</div>
+                            <div className="text-xs text-gray-400">分</div>
                         </div>
-                        {show && <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 fade-in max-w-3xl mx-auto"><div className="flex items-center gap-2 mb-2 text-blue-800 font-bold"><Icon name="BookOpen" size={16}/> 解析</div><div className="mb-2 bg-white/50 p-2 rounded text-green-700 font-mono font-bold">正确答案：{q.type==='bool'?(q.answer==='A'?'正确':'错误'):q.answer}</div><div className="text-sm text-gray-600 leading-relaxed">{q.explanation}</div></div>}
                     </div>
-                    <div className="bg-white border-t p-3 flex gap-3 z-10 shrink-0 safe-area-bottom"><button onClick={()=>setIndex(Math.max(0,index-1))} disabled={index===0} className="flex-1 py-3 border rounded-xl text-gray-500 font-bold disabled:opacity-30 hover:bg-gray-50">上一题</button><button onClick={()=>index<list.length-1?setIndex(index+1):onFinish()} className="flex-[2] py-3 bg-gray-900 text-white rounded-xl font-bold shadow-lg hover:bg-black">{index===list.length-1?'完成':'下一题'}</button></div>
-                </div>
-            );
-        };
-
-        const InputArea = ({ q, ans, userAns, isRecite, onSubmit }) => {
-            const [val, setVal] = useState('');
-            const [selfJudge, setSelfJudge] = useState(false);
-            if(isRecite) return null;
-            if(userAns!==undefined) return <div className="p-4 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200"><div className="text-xs text-gray-400">你的回答</div><div className="font-medium text-gray-800 mt-1">{userAns}</div></div>;
-            if(selfJudge) return <div className="fade-in space-y-4"><div className="p-4 bg-gray-50 rounded-xl"><div className="text-xs text-gray-400">你的回答</div><div>{val}</div></div><div className="p-4 bg-green-50 border border-green-200 rounded-xl"><div className="text-xs text-green-600 font-bold">参考答案</div><div className="text-green-800">{ans}</div></div><div className="grid grid-cols-2 gap-3"><button onClick={()=>onSubmit(val,false)} className="py-3 bg-red-100 text-red-600 rounded-xl font-bold">错误</button><button onClick={()=>onSubmit(val,true)} className="py-3 bg-green-100 text-green-600 rounded-xl font-bold">正确</button></div></div>;
-            return <div className="space-y-4"><textarea value={val} onChange={e=>setVal(e.target.value)} className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none resize-none transition" rows={4} placeholder="请输入答案..."/><button onClick={()=>{if(!val.trim())return; if(q.type==='essay')setSelfJudge(true); else onSubmit(val, val.trim().toLowerCase()===ans.trim().toLowerCase());}} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md hover:bg-blue-700">提交</button></div>;
-        };
-
-        const ResultScreen = ({ list, results, onRetry, onHome }) => {
-            const correct = Object.values(results).filter(Boolean).length;
-            const score = Math.round((correct/list.length)*100);
-            return (
-                <div className="flex-1 flex flex-col h-full bg-white">
-                    <div className="p-4 border-b flex items-center bg-white z-10 shrink-0"><button onClick={onHome} className="p-3 -ml-3 rounded-full hover:bg-gray-100 text-black font-bold"><Icon name="ArrowLeft" size={24} /></button><span className="font-bold ml-2 text-lg">本次成绩</span></div>
-                    <div className="flex-1 flex flex-col p-8 animate-fade-in text-center justify-center bg-white overflow-y-auto">
-                        <div className="mb-8 relative w-40 h-40 mx-auto flex items-center justify-center"><svg className="w-full h-full transform -rotate-90"><circle cx="50%" cy="50%" r="70" stroke="#f3f4f6" strokeWidth="12" fill="none"/><circle cx="50%" cy="50%" r="70" stroke={score>=60?"#10B981":"#EF4444"} strokeWidth="12" fill="none" strokeDasharray="440" strokeDashoffset={440-(440*score)/100} className="transition-all duration-1000"/></svg><div className="absolute"><div className="text-4xl font-bold">{score}</div><div className="text-xs text-gray-400">分</div></div></div>
-                        <div className="grid grid-cols-2 gap-4 mb-8 max-w-md mx-auto w-full"><div className="bg-green-50 p-4 rounded-2xl"><div className="text-2xl font-bold text-green-600">{correct}</div><div className="text-xs text-green-400">答对</div></div><div className="bg-red-50 p-4 rounded-2xl"><div className="text-2xl font-bold text-red-500">{list.length-correct}</div><div className="text-xs text-red-400">答错</div></div></div>
-                        <div className="space-y-3 max-w-md mx-auto w-full"><button onClick={onRetry} className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-xl hover:bg-black transition">再来一次</button><button onClick={onHome} className="w-full py-4 bg-white border-2 border-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 transition">返回主页</button></div>
+                    <div className="grid grid-cols-2 gap-4 mb-8 max-w-md mx-auto w-full">
+                        <div className="bg-green-50 p-4 rounded-2xl">
+                            <div className="text-2xl font-bold text-green-600">{correct}</div>
+                            <div className="text-xs text-green-400">答对</div>
+                        </div>
+                        <div className="bg-red-50 p-4 rounded-2xl">
+                            <div className="text-2xl font-bold text-red-500">{list.length - correct}</div>
+                            <div className="text-xs text-red-400">答错</div>
+                        </div>
+                    </div>
+                    <div className="space-y-3 max-w-md mx-auto w-full">
+                        <button onClick={onRetry}
+                                className="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold shadow-xl hover:bg-black transition">再来一次
+                        </button>
+                        <button onClick={onHome}
+                                className="w-full py-4 bg-white border-2 border-gray-100 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 transition">返回主页
+                        </button>
                     </div>
                 </div>
-            );
-        };
+            </div>
+        );
+    };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App/>);
+</script>
 </body>
 </html>
