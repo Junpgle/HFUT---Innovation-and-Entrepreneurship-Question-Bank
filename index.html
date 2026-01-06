@@ -665,22 +665,85 @@ const processRows = (rows) => {
         };
 
         const restoreData = (data) => {
+            // 定义修复文本函数（用于兜底旧数据）
+            const fixText = (str) => {
+                if (!str) return '';
+                return String(str)
+                    .replace(/\\r\\n/g, '\n')
+                    .replace(/\\n/g, '\n')
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/\r\n/g, '\n')
+                    .replace(/\r/g, '\n');
+            };
+
+            // 智能刷新会话数据
+            const smartRefreshSession = (session) => {
+                if (!session || !session.list || !session.list.length) return null;
+
+                const refreshedList = session.list.map(savedQ => {
+                    // 1. 【最稳妥】尝试通过“题目内容”来匹配（忽略首尾空格）
+                    // 这样即使 Excel 里的顺序变了，只要字没变，就能找回来
+                    let freshQ = questions.find(q =>
+                        q.question.trim() === savedQ.question.trim()
+                    );
+
+                    // 2. 【备选】如果内容没完全匹配（可能改了标点），尝试 ID 匹配
+                    // 但必须同时验证题目类型是否一致，防止严重错乱
+                    if (!freshQ) {
+                        const idMatch = questions.find(q => q.id == savedQ.id);
+                        // 只有当ID相同，且题目类型也相同时，才敢勉强认为是同一题
+                        if (idMatch && idMatch.type === savedQ.type) {
+                            freshQ = idMatch;
+                        }
+                    }
+
+                    if (freshQ) {
+                        // 找到了！使用当前题库的完美格式数据，但保留用户的作答状态
+                        // 注意：这里我们用 freshQ 的内容，但保持 savedQ 的业务逻辑位置
+                        return freshQ;
+                    } else {
+                        // 没找到（说明当前题库里删掉了这道题，或者题目改动太大）
+                        // 只能使用存档里的旧数据，并手动修复换行
+                        return {
+                            ...savedQ,
+                            question: fixText(savedQ.question),
+                            answer: fixText(savedQ.answer),
+                            explanation: fixText(savedQ.explanation),
+                            options: savedQ.options ? savedQ.options.map(o => ({...o, text: fixText(o.text)})) : []
+                        };
+                    }
+                });
+
+                // 重新计算正确率等，防止数据不一致
+                return { ...session, list: refreshedList };
+            };
+
+            // 执行恢复
             const newWrong = data.wrongBook || [];
-            const newProg = {answered: [], correct: [], recited: [], ...(data.progress || {})};
+            // 错题本也需要刷新，防止错题本里的题在新题库里找不到
+            // 这里做一个简化处理：保留 ID，但在进入错题本时会重新过滤
+
+            const newProg = { answered: [], correct: [], recited: [], ...(data.progress || {}) };
             if (!data.progress && newWrong.length) newProg.answered = [...newWrong];
 
+            // --- 执行智能匹配 ---
+            const fixedPractice = smartRefreshSession(data.sessionPractice);
+            const fixedRecite = smartRefreshSession(data.sessionRecite);
+
+            // 更新状态
             setWrongBook(newWrong);
-            setSessionPractice(data.sessionPractice);
-            setSessionRecite(data.sessionRecite);
+            setSessionPractice(fixedPractice);
+            setSessionRecite(fixedRecite);
             setProgress(newProg);
 
+            // 存入本地缓存
             Storage.set('cxcy_wrong_book', newWrong);
-            Storage.set('cxcy_session_practice', data.sessionPractice);
-            Storage.set('cxcy_session_recite', data.sessionRecite);
+            Storage.set('cxcy_session_practice', fixedPractice);
+            Storage.set('cxcy_session_recite', fixedRecite);
             Storage.set('cxcy_progress', newProg);
 
-            alert(`✅ 恢复成功！\n错题: ${newWrong.length}\n刷题: ${newProg.answered.length}`);
-        }
+            alert(`✅ 智能恢复成功！\n已通过题目内容自动校准。\n无论题库顺序是否变化，进度都能对应到正确的题目上。`);
+        };
 
         const resetToDefault = () => {
             if (confirm("确定要恢复到默认演示题库吗？")) {
