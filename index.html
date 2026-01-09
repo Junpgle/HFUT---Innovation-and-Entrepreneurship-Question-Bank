@@ -400,7 +400,6 @@
 
             try {
                 // --- 改用云函数 secureSync 进行安全存储 ---
-                // 不再在前端直接操作数据库对象，而是将数据打包发给云引擎
                 const response = await window.AV.Cloud.run('secureSync', {
                     brushedIds: Array.from(brushedIds),
                     memorizedIds: Array.from(memorizedIds),
@@ -416,8 +415,26 @@
                 }
 
             } catch (e) {
-                if (!silent) { setSyncStatus('error'); setSyncMsg("备份失败"); }
-                console.error("云同步失败 (请检查云引擎部署状态):", e);
+                if (!silent) {
+                    setSyncStatus('error');
+
+                    // --- 智能错误提示逻辑 ---
+                    let displayMsg = "备份失败";
+                    const serverMsg = e.message || "";
+
+                    if (serverMsg.includes("邮箱")) {
+                        displayMsg = "需验证邮箱";
+                        alert("同步失败：\n" + serverMsg); // 弹窗强提醒验证邮箱
+                    } else if (serverMsg.includes("速度过快") || serverMsg.includes("异常")) {
+                        displayMsg = "被拦截";
+                        alert("同步被拒绝：\n" + serverMsg); // 弹窗警告作弊拦截
+                    } else if (serverMsg.includes("Forbidden") || e.code === 403) {
+                        displayMsg = "权限不足"; // 对应 ACL 拦截
+                    }
+
+                    setSyncMsg(displayMsg);
+                }
+                console.error("云同步失败:", e);
             }
         };
 
