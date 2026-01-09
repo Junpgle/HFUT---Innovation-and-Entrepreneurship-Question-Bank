@@ -60,10 +60,6 @@
             align-items: center;
         }
 
-        .slide-in {
-            animation: slideIn 0.3s ease-out;
-        }
-
         .fade-in {
             animation: fadeIn 0.2s ease-in;
         }
@@ -86,15 +82,6 @@
             to {
                 opacity: 1;
             }
-        }
-
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
         }
 
         .btn-press:active {
@@ -124,7 +111,6 @@
         }
 
         .h-safe-screen {
-            height: 100vh;
             height: 100dvh;
         }
     </style>
@@ -134,10 +120,9 @@
 
 <script type="text/babel" data-type="module">
     import {initializeApp} from 'firebase/app';
-    import {getFirestore, doc, setDoc, getDoc, collection, enableIndexedDbPersistence} from 'firebase/firestore';
+    import {getFirestore, doc, setDoc, getDoc, enableIndexedDbPersistence} from 'firebase/firestore';
     import {
         getAuth,
-        signInAnonymously,
         GoogleAuthProvider,
         signInWithPopup,
         signOut,
@@ -145,7 +130,7 @@
     } from 'firebase/auth';
     import {getAnalytics} from 'firebase/analytics';
 
-    const {useState, useEffect, useRef} = React;
+    const {useState, useEffect} = React;
 
     // ==========================================
     // 配置 & 数据
@@ -180,9 +165,9 @@
         analytics = getAnalytics(app);
 
         enableIndexedDbPersistence(db).catch((err) => {
-            if (err.code == 'failed-precondition') {
+            if (err.code === 'failed-precondition') {
                 console.log('Persistence failed: Multiple tabs open');
-            } else if (err.code == 'unimplemented') {
+            } else if (err.code === 'unimplemented') {
                 console.log('Persistence failed: Browser not supported');
             }
         });
@@ -243,23 +228,20 @@
     // ==========================================
     // 核心组件：FormatText (使用原生 CSS 处理换行)
     // ==========================================
-    const FormatText = ({text, className}) => {
+    const FormatText = ({text, className = ""}) => {
         if (!text) return null;
-        // 1. 预处理：将字面量 \n、HTML <br> 以及各种控制字符统一转换为标准 \n
         const normalized = String(text)
-            .replace(/\\n/g, '\n')       // 处理字面量 "\n" (常见于JSON或转义文本)
-            .replace(/<br\s*\/?>/gi, '\n') // 处理 HTML 换行标签
-            .replace(/\r\n/g, '\n')      // 处理 Windows 换行
-            .replace(/\r/g, '\n');       // 处理 Mac 旧版换行
+            .replace(/\\n/g, '\n')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
 
-        // 2. 按 \n 分割成数组
         const lines = normalized.split('\n');
 
         return (
             <div className={className}>
                 {lines.map((line, i) => (
-                    // 3. 每一行强制渲染为一个 div，保留空行高度
-                    <div key={i} style={{minHeight: '1.5em', lineHeight: '1.6'}}>
+                    <div key={`line-${i}-${line.substring(0, 10)}`} style={{minHeight: '1.5em', lineHeight: '1.6'}}>
                         {line || '\u00A0'}
                     </div>
                 ))}
@@ -267,165 +249,166 @@
         );
     };
 
+
     // ==========================================
     // 核心解析逻辑
     // ==========================================
 
+    // 增强版 parseData，兼容本地文件和云端
     // ==========================================
-// 增强版 parseData，兼容本地文件和云端
-// ==========================================
-const parseData = (input) => {
-    if (!input) return [];
+    const parseData = (input) => {
+        if (!input) return [];
 
-    try {
-        let rows = [];
-        let wb;
+        try {
+            let rows = [];
+            let wb;
 
-        // ===============================
-        // 1. 读取 Excel / JSON / Array
-        // ===============================
-        if (input instanceof File) {
-            // 本地上传文件
-            const reader = new FileReader();
-            return new Promise((resolve, reject) => {
-                reader.onload = (e) => {
-                    const arr = new Uint8Array(e.target.result);
+            // ===============================
+            // 1. 读取 Excel / JSON / Array
+            // ===============================
+            if (input instanceof File) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const arr = new Uint8Array(e.target.result);
+                        try {
+                            wb = XLSX.read(arr, {type: 'array'});
+                            resolve(processWorkbook(wb));
+                        } catch (err) {
+                            console.error("读取本地 Excel 失败", err);
+                            resolve([]);
+                        }
+                    };
+                    reader.onerror = () => reject(new Error('文件读取失败'));
+                    reader.readAsArrayBuffer(input);
+                });
+
+            } else if (input instanceof ArrayBuffer || input instanceof Uint8Array) {
+                wb = XLSX.read(new Uint8Array(input), {type: 'array'});
+            } else if (Array.isArray(input)) {
+                rows = input;
+            } else if (typeof input === 'string') {
+                if (input.trim().startsWith('[')) {
                     try {
-                        wb = XLSX.read(arr, { type: 'array' });
-                        resolve(processWorkbook(wb));
-                    } catch (err) {
-                        console.error("读取本地 Excel 失败", err);
-                        resolve([]);
+                        const json = JSON.parse(input);
+                        if (Array.isArray(json)) return convertObjectsToQuestions(json);
+                    } catch (e) { /* fallback to Excel */
                     }
-                };
-                reader.onerror = (err) => reject(err);
-                reader.readAsArrayBuffer(input);
-            });
-        } else if (input instanceof ArrayBuffer || input instanceof Uint8Array) {
-            wb = XLSX.read(new Uint8Array(input), { type: 'array' });
-        } else if (Array.isArray(input)) {
-            rows = input;
-        } else if (typeof input === 'string') {
-            if (input.trim().startsWith('[')) {
-                try {
-                    const json = JSON.parse(input);
-                    if (Array.isArray(json)) return convertObjectsToQuestions(json);
-                } catch (e) { /* fallback to Excel */ }
+                }
+                wb = XLSX.read(input, {type: 'string'});
             }
-            wb = XLSX.read(input, { type: 'string' });
+
+            if (wb) return processWorkbook(wb);
+            if (rows && rows.length > 0) return processRows(rows);
+            return [];
+
+        } catch (e) {
+            console.error("Parse Error:", e);
+            return [];
         }
-
-        if (wb) return processWorkbook(wb);
-        if (rows && rows.length > 0) return processRows(rows);
-        return [];
-
-    } catch (e) {
-        console.error("Parse Error:", e);
-        return [];
-    }
-};
-
-// ===============================
-// Workbook -> Rows
-// ===============================
-const processWorkbook = (wb) => {
-    if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) return [];
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    // header:1 保留原始索引，defval:'' 填充空单元格
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    return processRows(rows);
-};
-
-// ===============================
-// 核心行解析
-// ===============================
-const processRows = (rows) => {
-    if (!rows || rows.length < 2) return [];
-
-    const headers = rows[0].map(h => String(h || '').trim());
-
-    const getColIdx = (...names) => {
-        for (const name of names) {
-            const idx = headers.findIndex(h => {
-                const hClean = h.replace(/\s+/g, '').toLowerCase();
-                const nClean = name.replace(/\s+/g, '').toLowerCase();
-                return hClean === nClean || hClean.includes(nClean);
-            });
-            if (idx !== -1) return idx;
-        }
-        return -1;
     };
 
-    const idxType = getColIdx('题目类型', 'type');
-    const idxQuestion = getColIdx('大题题干', '小题题干', 'question', '题目');
-    const idxAnswer = getColIdx('正确答案', 'answer');
-    const idxExp = getColIdx('答案解析', 'explanation', '解析');
-    const idxOptA = getColIdx('选项A', 'optionA');
+    // ===============================
+    // Workbook -> Rows
+    // ===============================
+    const processWorkbook = (wb) => {
+        if (!wb || !wb.SheetNames || wb.SheetNames.length === 0) return [];
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        // header:1 保留原始索引，defval:'' 填充空单元格
+        const rows = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+        return processRows(rows);
+    };
 
-    if (idxType === -1) return [];
+    // ===============================
+    // 核心行解析
+    // ===============================
+    const processRows = (rows) => {
+        if (!rows || rows.length < 2) return [];
 
-    const result = [];
+        const headers = rows[0].map(h => String(h || '').trim());
 
-    for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
-
-        const typeStr = String(row[idxType] || '').trim();
-        if (!typeStr) continue;
-
-        let type = 'unknown';
-        if (typeStr.includes('单选')) type = 'single';
-        else if (typeStr.includes('多选')) type = 'multi';
-        else if (typeStr.includes('填空')) type = 'fill';
-        else if (typeStr.includes('简答') || typeStr.includes('大题')) type = 'essay';
-        else if (typeStr.includes('判断')) type = 'bool';
-        if (type === 'unknown') continue;
-
-        let rawAnswer = idxAnswer !== -1 ? String(row[idxAnswer] || '').trim() : '';
-
-        // === 优先使用选项A填充多行答案 ===
-        if ((type === 'fill' || type === 'essay') && idxOptA !== -1) {
-            const contentA = String(row[idxOptA] || '').trim();
-            if (contentA) rawAnswer = contentA.replace(/\\n/g, '\n');
-        }
-
-        const explanation = idxExp !== -1 ? String(row[idxExp] || '').trim() : '暂无详细解析';
-        const qStem = idxQuestion !== -1 ? String(row[idxQuestion] || '').trim() : '';
-
-        const question = {
-            id: i,
-            type,
-            question: qStem,
-            answer: rawAnswer,
-            explanation,
-            options: []
+        const getColIdx = (...names) => {
+            for (const name of names) {
+                const idx = headers.findIndex(h => {
+                    const hClean = h.replace(/\s+/g, '').toLowerCase();
+                    const nClean = name.replace(/\s+/g, '').toLowerCase();
+                    return hClean === nClean || hClean.includes(nClean);
+                });
+                if (idx !== -1) return idx;
+            }
+            return -1;
         };
 
-        // === 处理选项 ===
-        if (['single', 'multi'].includes(type)) {
-            ['A','B','C','D','E','F','G','H'].forEach(label => {
-                const idx = getColIdx(`选项${label}`, `option${label}`);
-                if (idx !== -1) {
-                    const val = String(row[idx] || '').trim();
-                    if (val) question.options.push({ label, text: val });
-                }
-            });
-        } else if (type === 'bool') {
-            question.options = [{label:'A',text:'正确'}, {label:'B',text:'错误'}];
-            const ans = question.answer.toUpperCase();
-            if (['正确','对','√','T'].some(k => ans.includes(k))) question.answer = 'A';
-            else if (['错误','错','×','F'].some(k => ans.includes(k))) question.answer = 'B';
+        const idxType = getColIdx('题目类型', 'type');
+        const idxQuestion = getColIdx('大题题干', '小题题干', 'question', '题目');
+        const idxAnswer = getColIdx('正确答案', 'answer');
+        const idxExp = getColIdx('答案解析', 'explanation', '解析');
+        const idxOptA = getColIdx('选项A', 'optionA');
+
+        if (idxType === -1) return [];
+
+        const result = [];
+
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
+
+            const typeStr = String(row[idxType] || '').trim();
+            if (!typeStr) continue;
+
+            let type = 'unknown';
+            if (typeStr.includes('单选')) type = 'single';
+            else if (typeStr.includes('多选')) type = 'multi';
+            else if (typeStr.includes('填空')) type = 'fill';
+            else if (typeStr.includes('简答') || typeStr.includes('大题')) type = 'essay';
+            else if (typeStr.includes('判断')) type = 'bool';
+            if (type === 'unknown') continue;
+
+            let rawAnswer = idxAnswer !== -1 ? String(row[idxAnswer] || '').trim() : '';
+
+            // === 优先使用选项A填充多行答案 ===
+            if ((type === 'fill' || type === 'essay') && idxOptA !== -1) {
+                const contentA = String(row[idxOptA] || '').trim();
+                if (contentA) rawAnswer = contentA.replace(/\\n/g, '\n');
+            }
+
+            const explanation = idxExp !== -1 ? String(row[idxExp] || '').trim() : '暂无详细解析';
+            const qStem = idxQuestion !== -1 ? String(row[idxQuestion] || '').trim() : '';
+
+            const question = {
+                id: i,
+                type,
+                question: qStem,
+                answer: rawAnswer,
+                explanation,
+                options: []
+            };
+
+            // === 处理选项 ===
+            if (['single', 'multi'].includes(type)) {
+                ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].forEach(label => {
+                    const idx = getColIdx(`选项${label}`, `option${label}`);
+                    if (idx !== -1) {
+                        const val = String(row[idx] || '').trim();
+                        if (val) question.options.push({label, text: val});
+                    }
+                });
+            } else if (type === 'bool') {
+                question.options = [{label: 'A', text: '正确'}, {label: 'B', text: '错误'}];
+                const ans = question.answer.toUpperCase();
+                if (['正确', '对', '√', 'T'].some(k => ans.includes(k))) question.answer = 'A';
+                else if (['错误', '错', '×', 'F'].some(k => ans.includes(k))) question.answer = 'B';
+            }
+
+            if (type === 'multi') {
+                question.answer = question.answer.replace(/[^A-Za-z]/g, '').toUpperCase().split('').sort().join('');
+            }
+
+            result.push(question);
         }
 
-        if (type === 'multi') {
-            question.answer = question.answer.replace(/[^A-Za-z]/g, '').toUpperCase().split('').sort().join('');
-        }
-
-        result.push(question);
-    }
-
-    return result;
-};
+        return result;
+    };
 
 
     const convertObjectsToQuestions = (rows) => {
@@ -690,7 +673,7 @@ const processRows = (rows) => {
                     // 2. 【备选】如果内容没完全匹配（可能改了标点），尝试 ID 匹配
                     // 但必须同时验证题目类型是否一致，防止严重错乱
                     if (!freshQ) {
-                        const idMatch = questions.find(q => q.id == savedQ.id);
+                        const idMatch = questions.find(q => q.id === savedQ.id);
                         // 只有当ID相同，且题目类型也相同时，才敢勉强认为是同一题
                         if (idMatch && idMatch.type === savedQ.type) {
                             freshQ = idMatch;
@@ -715,7 +698,7 @@ const processRows = (rows) => {
                 });
 
                 // 重新计算正确率等，防止数据不一致
-                return { ...session, list: refreshedList };
+                return {...session, list: refreshedList};
             };
 
             // 执行恢复
@@ -723,7 +706,7 @@ const processRows = (rows) => {
             // 错题本也需要刷新，防止错题本里的题在新题库里找不到
             // 这里做一个简化处理：保留 ID，但在进入错题本时会重新过滤
 
-            const newProg = { answered: [], correct: [], recited: [], ...(data.progress || {}) };
+            const newProg = {answered: [], correct: [], recited: [], ...(data.progress || {})};
             if (!data.progress && newWrong.length) newProg.answered = [...newWrong];
 
             // --- 执行智能匹配 ---
@@ -861,24 +844,28 @@ const processRows = (rows) => {
             }
         };
 
-        const handleFileUpload = (e) => {
+        const handleFileUpload = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
             e.target.value = null;
-            if (confirm(`检测到文件：${file.name}\n是否替换当前题库？\n(注意：这将重置所有刷题进度)`)) {
+
+            if (confirm(`检测到文件：${file.name}\n是否替换当前题库？`)) {
                 if (file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) {
                     const reader = new FileReader();
-                    reader.onload = (evt) => {
+                    reader.onload = async (evt) => {
                         try {
-                            importData(evt.target.result, file.name, true);
+                            await importData(evt.target.result, file.name, true);
                         } catch (err) {
-                            alert("❌ 解析失败: " + err.message);
+                            console.error('导入失败:', err);
+                            alert('文件解析失败');
                         }
                     };
                     reader.readAsArrayBuffer(file);
                 } else {
                     const reader = new FileReader();
-                    reader.onload = (evt) => importData(evt.target.result, file.name, false);
+                    reader.onload = async (evt) => {
+                        await importData(evt.target.result, file.name, false);
+                    };
                     reader.readAsText(file);
                 }
             }
@@ -889,7 +876,10 @@ const processRows = (rows) => {
             setIsLoading(true);
             try {
                 const response = await fetch(GITHUB_EXCEL_URL);
-                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+                if (!response.ok) {
+                    console.error(`HTTP Error: ${response.status}`);
+                    return;
+                }
                 const arrayBuffer = await response.arrayBuffer();
 
                 const wb = XLSX.read(new Uint8Array(arrayBuffer), {type: 'array'});
@@ -1257,7 +1247,7 @@ const processRows = (rows) => {
         );
     };
 
-    const QuizScreen = ({list, index, setIndex, answers, results, mode, onAnswer, onFinish, onBack}) => {
+    const QuizScreen = ({list, index, setIndex, answers, mode, onAnswer, onFinish, onBack}) => {
         const q = list[index];
         const isRecite = mode === 'recite';
         const userAns = answers[q.id];
@@ -1278,7 +1268,7 @@ const processRows = (rows) => {
             handleSubmit(myAns, myAns === q.answer);
         };
         const toggleFull = () => {
-            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {
             }); else if (document.exitFullscreen) document.exitFullscreen();
         };
 
@@ -1418,6 +1408,7 @@ const processRows = (rows) => {
             </div>
         </div>;
         return <div className="space-y-4"><textarea value={val} onChange={e => setVal(e.target.value)}
+                                                    aria-label="答案输入框"
                                                     className="w-full p-4 bg-gray-50 rounded-xl border-2 border-transparent focus:bg-white focus:border-blue-500 outline-none resize-none transition"
                                                     rows={6} placeholder="请输入答案..."/>
             <button onClick={() => {
