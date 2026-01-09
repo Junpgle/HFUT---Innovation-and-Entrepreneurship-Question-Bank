@@ -26,19 +26,19 @@
         });
     </script>
 
-    <!-- 2. 配置 Import Map -->
+    <!-- 2. 配置 Import Map (切换至 jsDelivr 以提高国内访问速度) -->
     <script type="importmap">
         {
             "imports": {
-                "react": "https://esm.sh/react@18.2.0",
-                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-                "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+                "react": "https://cdn.jsdelivr.net/npm/react@18.2.0/+esm",
+                "react-dom/client": "https://cdn.jsdelivr.net/npm/react-dom@18.2.0/client/+esm",
+                "lucide-react": "https://cdn.jsdelivr.net/npm/lucide-react@0.292.0/+esm"
             }
         }
     </script>
 
-    <!-- 3. 引入 Babel -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 3. 引入 Babel (切换至 cdnjs) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
     <!-- 自定义样式 -->
     <style>
@@ -67,6 +67,16 @@
     <div class="error-message" id="global-error"></div>
     <button id="retry-btn" onclick="window.location.reload()" style="display:none; margin-top: 15px; padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">刷新重试</button>
 </div>
+<!-- 超时检测脚本 -->
+<script>
+    setTimeout(() => {
+        const el = document.getElementById('loading-text');
+        if (el && el.innerText.includes('正在启动')) {
+            el.innerText = '连接 CDN 资源响应超时，请检查网络或点击刷新...';
+            document.getElementById('retry-btn').style.display = 'block';
+        }
+    }, 10000);
+</script>
 
 <div id="root" class="h-full"></div>
 
@@ -81,7 +91,7 @@
         Filter, ListChecks, AlertTriangle, PieChart, BarChart3,
         CheckSquare, GraduationCap, Zap, LayoutGrid, Check, Menu, X,
         UploadCloud, DownloadCloud, RefreshCw, Bookmark, Calendar, ArrowRight,
-        Database, Maximize, Minimize
+        Database, Maximize, Minimize, Trash2, AlertOctagon
     } from 'lucide-react';
 
     // --- 配置常量 ---
@@ -177,6 +187,7 @@
         const [errorMsg, setErrorMsg] = useState(null);
         const [syncStatus, setSyncStatus] = useState(null);
         const [syncMsg, setSyncMsg] = useState("");
+        const [showResetModal, setShowResetModal] = useState(false);
 
         const [brushedIds, setBrushedIds] = useState(loadSetFromLocal('app_brushedIds'));
         const [memorizedIds, setMemorizedIds] = useState(loadSetFromLocal('app_memorizedIds'));
@@ -196,11 +207,12 @@
             const initSDKs = async () => {
                 try {
                     updateLoadingUI("正在连接 LeanCloud...");
-                    await loadScript(["https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js", "https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"]);
+                    // 调整加载优先级：优先使用 jsDelivr，unpkg 作为备份
+                    await loadScript(["https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js", "https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js"]);
                     updateLoadingUI("加载 Excel 引擎...");
-                    await loadScript(["https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js", "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"]);
+                    await loadScript(["https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js", "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"]);
                     updateLoadingUI("初始化本地数据库...");
-                    await loadScript(["https://unpkg.com/localforage@1.10.0/dist/localforage.min.js", "https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"]);
+                    await loadScript(["https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js", "https://unpkg.com/localforage@1.10.0/dist/localforage.min.js"]);
 
                     if (window.AV) {
                         window.AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
@@ -385,39 +397,27 @@
         const handleManualSync = async (silent = false) => {
             if (!currentUser) return;
             if (!silent) { setSyncStatus('uploading'); setSyncMsg("备份中..."); }
-            try {
-                const AV = window.AV;
-                const query = new AV.Query('UserProgress');
-                query.equalTo('user', currentUser);
-                let progressRecord;
-                try { progressRecord = await query.first(); } catch (error) { progressRecord = null; }
 
-                if (!progressRecord) {
-                    const UserProgress = AV.Object.extend('UserProgress');
-                    progressRecord = new UserProgress();
-                    progressRecord.set('user', currentUser);
+            try {
+                // --- 改用云函数 secureSync 进行安全存储 ---
+                // 不再在前端直接操作数据库对象，而是将数据打包发给云引擎
+                const response = await window.AV.Cloud.run('secureSync', {
+                    brushedIds: Array.from(brushedIds),
+                    memorizedIds: Array.from(memorizedIds),
+                    masteredIds: Array.from(masteredIds),
+                    wrongIds: Array.from(wrongIds),
+                    history: history.slice(0, 500) // 限制长度，防止包太大
+                });
+
+                if (response && response.success) {
+                    if (!silent) { setSyncStatus('success'); setSyncMsg("备份成功"); }
+                } else {
+                    throw new Error(response ? response.message : "云端未返回成功状态");
                 }
 
-                // SECURITY: 每次保存时强制覆盖 ACL，确保权限不被篡改
-                // 防止用户虽有写权限，但误操作或恶意操作导致数据变为 Public
-                const acl = new AV.ACL();
-                acl.setPublicReadAccess(false);
-                acl.setPublicWriteAccess(false);
-                acl.setReadAccess(currentUser, true);
-                acl.setWriteAccess(currentUser, true);
-                progressRecord.setACL(acl);
-
-                progressRecord.set('brushedIds', Array.from(brushedIds));
-                progressRecord.set('memorizedIds', Array.from(memorizedIds));
-                progressRecord.set('masteredIds', Array.from(masteredIds));
-                progressRecord.set('wrongIds', Array.from(wrongIds));
-                progressRecord.set('history', history.slice(0, 500));
-
-                await progressRecord.save();
-                if (!silent) { setSyncStatus('success'); setSyncMsg("备份成功"); }
             } catch (e) {
                 if (!silent) { setSyncStatus('error'); setSyncMsg("备份失败"); }
-                console.error("Sync Error:", e);
+                console.error("云同步失败 (请检查云引擎部署状态):", e);
             }
         };
 
@@ -451,6 +451,27 @@
             } catch (err) {
                 if (!silent) { setSyncStatus('error'); setSyncMsg("失败"); }
             }
+        };
+
+        const performReset = () => {
+            setBrushedIds(new Set());
+            setMemorizedIds(new Set());
+            setMasteredIds(new Set());
+            setWrongIds(new Set());
+            setHistory([]);
+            setLastSession(null);
+
+            // 清理本地存储
+            localStorage.removeItem('app_brushedIds');
+            localStorage.removeItem('app_memorizedIds');
+            localStorage.removeItem('app_masteredIds');
+            localStorage.removeItem('app_wrongIds');
+            localStorage.removeItem('app_history');
+            localStorage.removeItem('app_lastSession');
+
+            setShowResetModal(false);
+            setSyncMsg("进度已重置");
+            setSyncStatus("success");
         };
 
         const generateAndStartQuiz = (mode = 'quiz') => {
@@ -646,6 +667,9 @@
                             <button onClick={() => handleManualRestore()} disabled={syncStatus === 'downloading'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
                                 {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16} /> : <DownloadCloud size={18} />} 恢复
                             </button>
+                            <button onClick={() => setShowResetModal(true)} className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all" title="重置进度">
+                                <Trash2 size={18} />
+                            </button>
                         </div>
                         <button onClick={() => {window.AV.User.logOut();setCurrentUser(null)}} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-red-600 transition-all border border-slate-100">
                             <LogOut size={18} className="md:w-5 md:h-5" />
@@ -664,6 +688,29 @@
                         <button onClick={() => handleManualRestore()} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                             <DownloadCloud size={14} /> 恢复
                         </button>
+                        <button onClick={() => setShowResetModal(true)} className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                            <Trash2 size={14} />
+                        </button>
+                    </div>
+                )}
+
+                {/* Reset Modal */}
+                {showResetModal && (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-enter">
+                        <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                                    <AlertOctagon size={32} />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800">确认重置进度？</h3>
+                                <p className="text-slate-500 mt-2 text-sm">这将清除本地所有的刷题记录、错题本和统计数据。此操作无法撤销。</p>
+                                {currentUser && <p className="text-orange-500 text-xs mt-2 bg-orange-50 p-2 rounded-lg text-left w-full">注意：云端数据不会自动清除。如需清空云端备份，请在重置后点击“备份”按钮以覆盖。</p>}
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => setShowResetModal(false)} className="py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">取消</button>
+                                <button onClick={performReset} className="py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">确认重置</button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
