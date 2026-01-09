@@ -26,19 +26,23 @@
         });
     </script>
 
-    <!-- 2. 配置 Import Map (切换至 jsDelivr 以提高国内访问速度) -->
-    <script type="importmap">
-        {
-            "imports": {
-                "react": "https://cdn.jsdelivr.net/npm/react@18.2.0/+esm",
-                "react-dom/client": "https://cdn.jsdelivr.net/npm/react-dom@18.2.0/client/+esm",
-                "lucide-react": "https://cdn.jsdelivr.net/npm/lucide-react@0.292.0/+esm"
-            }
-        }
-    </script>
+    <!-- 2. 国内极速 CDN 资源引入 (切换至 jsDelivr 作为主源) -->
 
-    <!-- 3. 引入 Babel (切换至 cdnjs) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <!-- React 核心 -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+
+    <!-- Babel 编译器 -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.5/babel.min.js"></script>
+
+    <!-- LeanCloud 存储 -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js"></script>
+
+    <!-- Excel 处理 -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- 本地存储 -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
 
     <!-- 自定义样式 -->
     <style>
@@ -69,22 +73,75 @@
 </div>
 <!-- 超时检测脚本 -->
 <script>
+    // 检测核心库是否加载成功
     setTimeout(() => {
+        const libs = [window.React, window.ReactDOM, window.AV];
+        const missing = libs.some(l => !l);
         const el = document.getElementById('loading-text');
-        if (el && el.innerText.includes('正在启动')) {
-            el.innerText = '连接 CDN 资源响应超时，请检查网络或点击刷新...';
+
+        if (missing && el && el.innerText.includes('正在启动')) {
+            el.innerHTML = '网络连接较慢，部分核心资源加载超时。<br>建议检查网络或点击下方按钮刷新。<br><br><small style="color:#999">请点击下方按钮刷新重试。</small>';
             document.getElementById('retry-btn').style.display = 'block';
         }
-    }, 10000);
+    }, 8000);
 </script>
 
 <div id="root" class="h-full"></div>
 
-<!-- 4. React 应用逻辑 -->
-<script type="text/babel" data-type="module">
-    import React, { useState, useEffect, useMemo, useRef } from 'react';
-    import { createRoot } from 'react-dom/client';
-    import {
+<!-- 4. React 应用逻辑 (移除 module 类型，使用全局变量) -->
+<script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+    const { createRoot } = ReactDOM;
+
+    // --- 内建精简图标库 (彻底解决 lucide-react CDN 报错问题) ---
+    const IconBase = ({ d, size = 24, className = "" }) => (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`lucide ${className}`}>
+            {Array.isArray(d) ? d.map((path, i) => <path key={i} d={path} />) : <path d={d} />}
+        </svg>
+    );
+
+    // 定义常用的 SVG 路径
+    const Icons = {
+        Brain: (p) => <IconBase {...p} d={["M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z", "M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"]} />,
+        CheckCircle: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+        XCircle: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>,
+        Settings: (p) => <IconBase {...p} d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />,
+        ChevronRight: (p) => <IconBase {...p} d="m9 18 6-6-6-6" />,
+        ChevronLeft: (p) => <IconBase {...p} d="m15 18-6-6 6-6" />,
+        RotateCcw: (p) => <IconBase {...p} d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />,
+        LogOut: (p) => <IconBase {...p} d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
+        AlertCircle: (p) => <IconBase {...p} d="M12 8v4M12 16h.01" />,
+        Layers: (p) => <IconBase {...p} d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" />,
+        Loader2: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`lucide animate-spin ${p.className || ''}`}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
+        PieChart: (p) => <IconBase {...p} d="M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z" />,
+        CheckSquare: (p) => <IconBase {...p} d="m9 11 3 3L22 4" />,
+        GraduationCap: (p) => <IconBase {...p} d="M22 10v6M2 10l10-5 10 5-10 5z" />,
+        Zap: (p) => <IconBase {...p} d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />,
+        UploadCloud: (p) => <IconBase {...p} d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9M16 16l-4-4-4 4" />,
+        DownloadCloud: (p) => <IconBase {...p} d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242M12 12v9M8 17l4 4 4-4" />,
+        RefreshCw: (p) => <IconBase {...p} d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M3 21v-5h5" />,
+        Bookmark: (p) => <IconBase {...p} d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />,
+        Calendar: (p) => <IconBase {...p} d="M8 2v4M16 2v4M3 10h18" />,
+        ArrowRight: (p) => <IconBase {...p} d="M5 12h14M12 5l7 7-7 7" />,
+        Database: (p) => <IconBase {...p} d="M3 5V19A9 3 0 0 0 21 19V5" />,
+        Maximize: (p) => <IconBase {...p} d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />,
+        Minimize: (p) => <IconBase {...p} d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />,
+        Trash2: (p) => <IconBase {...p} d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />,
+        AlertOctagon: (p) => <IconBase {...p} d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2zM12 8v4M12 16h.01" />,
+        AlertTriangle: (p) => <IconBase {...p} d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />,
+        BookOpen: (p) => <IconBase {...p} d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />,
+        Eye: (p) => <IconBase {...p} d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />,
+        BarChart3: (p) => <IconBase {...p} d="M3 3v18h18" />,
+    };
+
+    // 为其余图标提供默认回退，防止报错
+    const FallbackIcon = (p) => <svg width={p.size||24} height={p.size||24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide opacity-50"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+
+    // 使用 Proxy 或辅助函数处理缺失图标
+    const getIcon = (name) => Icons[name] || FallbackIcon;
+
+    // 解构图标，确保每个变量都有值
+    const {
         BookOpen, CheckCircle, XCircle, Brain, History, Settings,
         ChevronRight, ChevronLeft, RotateCcw, Clock, PlayCircle, Eye,
         User, Github, LogOut, AlertCircle, Layers, Loader2,
@@ -92,7 +149,8 @@
         CheckSquare, GraduationCap, Zap, LayoutGrid, Check, Menu, X,
         UploadCloud, DownloadCloud, RefreshCw, Bookmark, Calendar, ArrowRight,
         Database, Maximize, Minimize, Trash2, AlertOctagon
-    } from 'lucide-react';
+    } = new Proxy(Icons, { get: (target, prop) => target[prop] || FallbackIcon });
+
 
     // --- 配置常量 ---
     const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
@@ -111,10 +169,17 @@
         { id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx" },
     ];
 
+    // --- 动态加载脚本助手 ---
     const loadScript = async (sources) => {
         const loadOne = (src) => {
             return new Promise((resolve, reject) => {
-                if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+                if (document.querySelector(`script[src="${src}"]`)) {
+                    // 简单的检查可能不够，如果之前的脚本加载失败了，标签还在但功能不可用
+                    // 这里我们假设如果标签存在，尝试重新附加或不做处理
+                    // 为了稳健性，这里简单跳过，因为主要逻辑在 useEffect 的检测中
+                    resolve();
+                    return;
+                }
                 const script = document.createElement('script');
                 script.src = src;
                 script.crossOrigin = "anonymous";
@@ -206,31 +271,52 @@
         useEffect(() => {
             const initSDKs = async () => {
                 try {
-                    updateLoadingUI("正在连接 LeanCloud...");
-                    // 调整加载优先级：优先使用 jsDelivr，unpkg 作为备份
-                    await loadScript(["https://cdn.jsdelivr.net/npm/leancloud-storage@4.15.0/dist/av-min.js", "https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js"]);
-                    updateLoadingUI("加载 Excel 引擎...");
-                    await loadScript(["https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js", "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"]);
-                    updateLoadingUI("初始化本地数据库...");
-                    await loadScript(["https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js", "https://unpkg.com/localforage@1.10.0/dist/localforage.min.js"]);
+                    // --- 核心修复：SDK 加载容错机制 ---
+                    // 1. 检查 window.AV 是否存在
+                    if (!window.AV) {
+                        updateLoadingUI("LeanCloud SDK 加载中 (Attempting mirrors)...");
+                        // 尝试从备用 CDN 加载 (unpkg, staticfile)
+                        await loadScript([
+                            "https://unpkg.com/leancloud-storage@4.15.0/dist/av-min.js",
+                            "https://cdn.staticfile.net/leancloud-storage/4.15.0/av-min.js"
+                        ]);
+                    }
 
+                    // 2. 检查 XLSX
+                    if (!window.XLSX) {
+                        await loadScript([
+                            "https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js",
+                            "https://cdn.staticfile.net/xlsx/0.18.5/xlsx.full.min.js"
+                        ]);
+                    }
+
+                    // 3. 检查 localforage
+                    if (!window.localforage) {
+                        await loadScript([
+                            "https://unpkg.com/localforage@1.10.0/dist/localforage.min.js",
+                            "https://cdn.staticfile.net/localforage/1.10.0/localforage.min.js"
+                        ]);
+                    }
+
+                    // 4. 再次检查是否加载成功
                     if (window.AV) {
                         window.AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
                         const user = window.AV.User.current();
                         if (user) setCurrentUser(user);
                         setSdkReady(true);
 
-                        // 安全提示：虽然代码无法完全阻止控制台操作，但可以给出警告
                         if(window.console) {
-                            console.log("%c HFUT-Innovation-Startup-Pro %c 本应用已启用 ACL 访问控制，所有数据操作受云端权限策略保护。", "background:#3b82f6;color:white;padding:4px;border-radius:4px;", "color:#3b82f6;");
+                            console.log("%c HFUT-Innovation-Startup-Pro %c 系统已启动", "background:#3b82f6;color:white;padding:4px;border-radius:4px;", "color:#3b82f6;");
                         }
 
                         const loader = document.getElementById('app-loading');
                         if(loader) loader.style.display = 'none';
+                    } else {
+                        throw new Error("LeanCloud SDK (window.AV) 初始化失败，所有 CDN 源均不可用。");
                     }
                 } catch (err) {
                     console.error("SDK Load Error:", err);
-                    const msg = `核心组件加载失败: ${err.message}. 请检查网络。`;
+                    const msg = `资源加载失败: ${err.message}. 请检查网络连接。`;
                     setErrorMsg(msg);
                     updateLoadingUI(msg, true);
                 }
@@ -250,7 +336,7 @@
                 setBankStatus('loading');
                 try {
                     setBankProgress("检查本地缓存...");
-                    const cachedBank = await localforage.getItem('hf_question_bank');
+                    const cachedBank = await window.localforage.getItem('hf_question_bank');
 
                     let isCacheValid = false;
                     if (cachedBank && Object.keys(cachedBank).length > 0) {
@@ -265,7 +351,7 @@
                         setBankStatus('ready');
                         return;
                     } else {
-                        await localforage.removeItem('hf_question_bank');
+                        await window.localforage.removeItem('hf_question_bank');
                     }
 
                     setBankProgress("正在连接云端题库...");
@@ -297,7 +383,7 @@
                     if (successCount > 0) {
                         setAllQuestionBank(newBank);
                         setBankStatus('ready');
-                        await localforage.setItem('hf_question_bank', newBank);
+                        await window.localforage.setItem('hf_question_bank', newBank);
                     } else {
                         setBankStatus('error');
                         setErrorMsg("无法加载任何题库，请检查网络连接");
@@ -390,7 +476,7 @@
         };
 
         const forceUpdateBank = async () => {
-            await localforage.removeItem('hf_question_bank');
+            await window.localforage.removeItem('hf_question_bank');
             window.location.reload();
         };
 
@@ -399,7 +485,16 @@
             if (!silent) { setSyncStatus('uploading'); setSyncMsg("备份中..."); }
 
             try {
-                // --- 改用云函数 secureSync 进行安全存储 ---
+                const email = currentUser.get('email');
+                if (!email) {
+                    if (!silent) {
+                        setSyncStatus('error');
+                        setSyncMsg("需绑定邮箱");
+                        alert("同步失败：\n为了您的数据安全，系统要求必须绑定邮箱才能进行云端备份。\n\n请在注册/设置中绑定邮箱。");
+                    }
+                    return;
+                }
+
                 const response = await window.AV.Cloud.run('secureSync', {
                     brushedIds: Array.from(brushedIds),
                     memorizedIds: Array.from(memorizedIds),
@@ -418,18 +513,17 @@
                 if (!silent) {
                     setSyncStatus('error');
 
-                    // --- 智能错误提示逻辑 ---
                     let displayMsg = "备份失败";
                     const serverMsg = e.message || "";
 
                     if (serverMsg.includes("邮箱")) {
                         displayMsg = "需验证邮箱";
-                        alert("同步失败：\n" + serverMsg); // 弹窗强提醒验证邮箱
+                        alert("同步失败：\n" + serverMsg);
                     } else if (serverMsg.includes("速度过快") || serverMsg.includes("异常")) {
                         displayMsg = "被拦截";
-                        alert("同步被拒绝：\n" + serverMsg); // 弹窗警告作弊拦截
+                        alert("同步被拒绝：\n" + serverMsg);
                     } else if (serverMsg.includes("Forbidden") || e.code === 403) {
-                        displayMsg = "权限不足"; // 对应 ACL 拦截
+                        displayMsg = "权限不足";
                     }
 
                     setSyncMsg(displayMsg);
@@ -453,7 +547,6 @@
                     if (data.memorizedIds) setMemorizedIds(prev => new Set([...prev, ...data.memorizedIds]));
                     if (data.masteredIds) setMasteredIds(prev => new Set([...prev, ...data.masteredIds]));
                     if (data.wrongIds) setWrongIds(prev => new Set([...prev, ...data.wrongIds]));
-                    // 合并历史记录：ID去重，新纪录优先
                     if (data.history && Array.isArray(data.history)) {
                         setHistory(prev => {
                             const existingIds = new Set(prev.map(h => h.id));
@@ -478,7 +571,6 @@
             setHistory([]);
             setLastSession(null);
 
-            // 清理本地存储
             localStorage.removeItem('app_brushedIds');
             localStorage.removeItem('app_memorizedIds');
             localStorage.removeItem('app_masteredIds');
@@ -960,7 +1052,7 @@
                                                             ${status === 'selected' ? 'border-blue-500 bg-blue-50 text-blue-900' : ''}
                                                             ${status === 'correct' ? 'border-green-500 bg-green-50 text-green-900' : ''}
                                                             ${status === 'wrong' ? 'border-red-500 bg-red-50 text-red-900' : ''}
-                                                            ${status === 'dimmed' ? 'border-slate-50 bg-slate-50 opacity-50' : ''}
+                                                            ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
                                                         `}
                                                 >
                                                     <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0
