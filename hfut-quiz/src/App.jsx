@@ -113,6 +113,9 @@ function App() {
     const [selectedIndices, setSelectedIndices] = useState([]);
     const [isAnswered, setIsAnswered] = useState(false);
 
+    // 在线人数统计
+    const [onlineCount, setOnlineCount] = useState(null);
+
     // --- 数据加载工具 ---
     const fetchLectureArrayBuffer = async (lectureFile) => {
         const errors = [];
@@ -857,6 +860,9 @@ function App() {
                         <span>学习控制台</span>
                     </h1>
                     <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.getUsername()}</p>
+                    {onlineCount !== null && (
+                        <p className="text-xs text-slate-400 mt-1 pl-8 md:pl-11">当前在线刷题人数：<span className="font-semibold text-slate-600">{onlineCount}</span></p>
+                    )}
                 </div>
                 <div className="flex gap-2 md:gap-3 items-center">
                     <button onClick={toggleFullscreen}
@@ -1485,6 +1491,37 @@ function App() {
         </div>
     );
 
+
+    // 心跳与在线人数轮询
+    useEffect(() => {
+        if (!currentUser) return;
+        let cancelled = false;
+        const sendHeartbeat = async (mode = currentMode) => {
+            try { await AV.Cloud.run('heartbeat', { mode }); } catch (e) { /* 忽略心跳错误 */ }
+        };
+        const fetchCount = async () => {
+            try {
+                const res = await AV.Cloud.run('onlineCount', { windowSec: 180, modes: ['quiz','mistakes','memorize'] });
+                if (!cancelled) setOnlineCount(res?.count ?? 0);
+            } catch (e) { /* 忽略统计错误 */ }
+        };
+
+        // 首次立即上报与拉取
+        sendHeartbeat();
+        fetchCount();
+
+        // 心跳每 30 秒
+        const hTimer = setInterval(() => sendHeartbeat(), 30000);
+        // 统计每 20 秒
+        const cTimer = setInterval(() => fetchCount(), 20000);
+        return () => { cancelled = true; clearInterval(hTimer); clearInterval(cTimer); };
+    }, [currentUser, currentMode]);
+
+    // 在模式切换时立即发送心跳（确保 mode 最新）
+    useEffect(() => {
+        if (!currentUser) return;
+        AV.Cloud.run('heartbeat', { mode: currentMode }).catch(()=>{});
+    }, [currentMode, currentUser]);
 
     if (!currentUser) return renderLoginScreen();
 
