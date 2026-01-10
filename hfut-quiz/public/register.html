@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>注册账号 - HFUT 创新创业</title>
+
+  <!-- 替换为国内更快的 BootCDN 节点 -->
+  <script src="https://cdn.bootcdn.net/ajax/libs/leancloud-storage/4.15.0/av-min.js"></script>
+
+  <style>
+    /* Reset & Base */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: #0f172a; /* Slate 900 */
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      /* 静态背景图，比 JS 生成更快 */
+      background-image:
+              radial-gradient(at 0% 0%, rgba(30, 64, 175, 0.2) 0, transparent 50%),
+              radial-gradient(at 100% 100%, rgba(30, 58, 138, 0.2) 0, transparent 50%);
+      min-height: 100vh;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    /* 核心卡片样式 - 替代 Tailwind Utility Classes */
+    .register-card {
+      width: 100%;
+      max-width: 28rem; /* max-w-md */
+      padding: 2rem;
+      border-radius: 1.5rem; /* rounded-3xl */
+      background: rgba(30, 41, 59, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    /* 头部图标和文字 */
+    .header-icon {
+      width: 4rem;
+      height: 4rem;
+      background-color: #2563eb; /* blue-600 */
+      border-radius: 1rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1rem;
+      box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+    }
+
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; }
+
+    /* 表单元素 */
+    .form-group { margin-bottom: 1.25rem; }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+      margin-left: 0.25rem;
+    }
+
+    .required { color: #f87171; }
+
+    .form-input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      border-radius: 0.75rem;
+      color: white;
+      font-size: 1rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    /* 按钮样式 */
+    .submit-btn {
+      width: 100%;
+      padding: 0.875rem;
+      background-color: #2563eb;
+      color: white;
+      font-weight: 700;
+      border-radius: 0.75rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.2);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+
+    .submit-btn:hover { background-color: #1d4ed8; }
+    .submit-btn:active { transform: scale(0.98); }
+    .submit-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+    /* 链接 */
+    .login-link {
+      display: block;
+      text-align: center;
+      margin-top: 1.5rem;
+      font-size: 0.875rem;
+      color: #94a3b8;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .login-link:hover { color: white; }
+    .highlight { color: #60a5fa; }
+
+    /* 消息提示框 */
+    #msg-box {
+      padding: 0.75rem;
+      border-radius: 0.75rem;
+      font-size: 0.875rem;
+      text-align: center;
+      margin-bottom: 1.25rem;
+      display: none; /* 默认隐藏 */
+    }
+    .msg-error { background: rgba(239, 68, 68, 0.1); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2); }
+    .msg-success { background: rgba(34, 197, 94, 0.1); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.2); }
+
+    /* 加载动画 */
+    .spinner {
+      width: 1rem;
+      height: 1rem;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s linear infinite;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* 移动端优化 */
+    @media (max-width: 640px) {
+      .register-card { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="register-card">
+  <!-- Header -->
+  <div style="text-align: center; margin-bottom: 2rem;">
+    <div class="header-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white;"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+    </div>
+    <h1>注册新账号</h1>
+    <p class="subtitle">HFUT 创新创业题库 Pro</p>
+  </div>
+
+  <!-- Form -->
+  <div>
+    <div class="form-group">
+      <label for="username">用户名 <span class="required">*</span></label>
+      <input type="text" id="username" class="form-input" placeholder="6-15位字母或数字">
+    </div>
+
+    <div class="form-group">
+      <label for="email">电子邮箱 <span class="required">*</span></label>
+      <input type="email" id="email" class="form-input" placeholder="用于找回密码">
+    </div>
+
+    <div class="form-group">
+      <label for="password">密码 <span class="required">*</span></label>
+      <input type="password" id="password" class="form-input" placeholder="至少8位字符">
+    </div>
+
+    <!-- Message Area -->
+    <div id="msg-box"></div>
+
+    <button id="submit-btn" class="submit-btn">
+      立即注册
+    </button>
+
+    <a href="index.html" class="login-link">
+      已有账号？<span class="highlight">返回登录</span>
+    </a>
+  </div>
+</div>
+
+<script>
+  // 配置 LeanCloud
+  const APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
+  const APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
+  const SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
+
+  // 检查 SDK 是否加载成功
+  if (typeof AV === 'undefined') {
+    alert("网络连接错误：LeanCloud SDK 加载失败，请检查网络或刷新页面。");
+  } else {
+    AV.init({ appId: APP_ID, appKey: APP_KEY, serverURL: SERVER_URL });
+  }
+
+  const btn = document.getElementById('submit-btn');
+  const msgBox = document.getElementById('msg-box');
+
+  function showMessage(text, isError) {
+    msgBox.innerText = text;
+    // 使用原生 className 切换样式
+    msgBox.className = isError ? 'msg-error' : 'msg-success';
+    msgBox.style.display = 'block';
+  }
+
+  btn.onclick = async () => {
+    const user = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const pass = document.getElementById('password').value.trim();
+
+    // 本地验证
+    if (user.length < 6) return showMessage("用户名至少需要6位", true);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showMessage("请输入有效的邮箱地址", true);
+    if (pass.length < 8) return showMessage("密码至少需要8位", true);
+
+    // Loading 状态
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div> 注册中...';
+    msgBox.style.display = 'none';
+
+    const newUser = new AV.User();
+    newUser.setUsername(user);
+    newUser.setPassword(pass);
+    newUser.setEmail(email);
+
+    try {
+      await newUser.signUp();
+      showMessage("🎉 注册成功！即将跳转登录...", false);
+      setTimeout(() => {
+        window.location.href = "index.html";
+      }, 1500);
+    } catch (error) {
+      console.error(error);
+      let text = "注册失败，请稍后重试";
+      if (error.code === 202) text = "用户名已被占用";
+      if (error.code === 203) text = "该邮箱已被注册";
+      if (error.code === 125) text = "电子邮箱地址无效";
+      showMessage(text, true);
+
+      // 恢复按钮
+      btn.disabled = false;
+      btn.innerText = '立即注册';
+    }
+  };
+</script>
+</body>
+</html>

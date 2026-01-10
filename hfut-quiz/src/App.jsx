@@ -923,18 +923,6 @@ function App() {
                             className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                         <DownloadCloud size={14}/> 恢复
                     </button>
-                    <button onClick={handleManualLocalSave}
-                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <RefreshCw size={14}/> 本地保存
-                    </button>
-                    <button onClick={handleReloadLocal}
-                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <RefreshCw size={14}/> 重载
-                    </button>
-                    <button onClick={handleDebugDump}
-                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <Database size={14}/> 导出
-                    </button>
                     <button onClick={() => setShowResetModal(true)}
                             className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                         <Trash2 size={14}/>
