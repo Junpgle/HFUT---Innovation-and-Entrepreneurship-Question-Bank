@@ -860,11 +860,13 @@ function App() {
                         <span>学习控制台</span>
                     </h1>
                     <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.getUsername()}</p>
-                    {onlineCount !== null && (
-                        <p className="text-xs text-slate-400 mt-1 pl-8 md:pl-11">当前在线刷题人数：<span className="font-semibold text-slate-600">{onlineCount}</span></p>
-                    )}
                 </div>
                 <div className="flex gap-2 md:gap-3 items-center">
+                    {onlineCount !== null && (
+                        <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-200 text-xs md:text-sm font-medium flex items-center gap-2">
+                            <User size={16}/> 在线人数：{onlineCount}
+                        </div>
+                    )}
                     <button onClick={toggleFullscreen}
                             className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
                         {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
@@ -1071,7 +1073,7 @@ function App() {
                                 }}
                                 disabled={bankStatus !== 'ready'}
                                 className="py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base">
-                                {bankStatus === 'ready' ? <><Brain size={20} /> 开始刷题</> : <><Loader2 size={20} className="animate-spin" /> {bankProgress}</>}
+                                {bankStatus === 'ready' ? <><Brain size={20}/> 开始刷题</> : <><Loader2 size={20} className="animate-spin"/> {bankProgress}</>}
                             </button>
                             <button
                                 onClick={() => {
@@ -1484,7 +1486,7 @@ function App() {
                 <div className="mt-6 text-center">
                     <a href="register.html" target="_blank"
                        className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
-                        没有账号？<span className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span> <ChevronRight size={14} />
+                        没有账号？<span className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span> <ChevronRight size={14}/>
                     </a>
                 </div>
             </div>
@@ -1501,18 +1503,14 @@ function App() {
         };
         const fetchCount = async () => {
             try {
-                const res = await AV.Cloud.run('onlineCount', { windowSec: 180, modes: ['quiz','mistakes','memorize'] });
+                const res = await AV.Cloud.run('onlineCount', { windowSec: 180 }); // 不过滤模式，包含 dashboard
                 if (!cancelled) setOnlineCount(res?.count ?? 0);
             } catch (e) { /* 忽略统计错误 */ }
         };
-
         // 首次立即上报与拉取
         sendHeartbeat();
         fetchCount();
-
-        // 心跳每 30 秒
         const hTimer = setInterval(() => sendHeartbeat(), 30000);
-        // 统计每 20 秒
         const cTimer = setInterval(() => fetchCount(), 20000);
         return () => { cancelled = true; clearInterval(hTimer); clearInterval(cTimer); };
     }, [currentUser, currentMode]);
