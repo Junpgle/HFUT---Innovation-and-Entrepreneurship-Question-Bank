@@ -839,19 +839,6 @@ function App() {
                             {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16}/> :
                                 <DownloadCloud size={18}/>} 恢复
                         </button>
-                        <button onClick={handleManualLocalSave} disabled={syncStatus === 'saving-local'}
-                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            {syncStatus === 'saving-local' ? <Loader2 className="animate-spin" size={16}/> :
-                                <RefreshCw size={18}/>} 本地保存
-                        </button>
-                        <button onClick={handleReloadLocal}
-                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            <RefreshCw size={18}/> 重载本地
-                        </button>
-                        <button onClick={handleDebugDump}
-                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            <Database size={18}/> 导出缓存
-                        </button>
                         <button onClick={() => setShowResetModal(true)}
                                 className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all"
                                 title="重置进度">
@@ -1444,11 +1431,9 @@ function App() {
                     </button>
                 </form>
                 <div className="mt-6 text-center">
-                    <a href="https://junpgle.github.io/LearnWord/register.html" target="_blank"
+                    <a href="register.html" target="_blank"
                        className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
-                        没有账号？<span
-                        className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span>
-                        <ChevronRight size={14}/>
+                        没有账号？<span className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span> <ChevronRight size={14} />
                     </a>
                 </div>
             </div>
