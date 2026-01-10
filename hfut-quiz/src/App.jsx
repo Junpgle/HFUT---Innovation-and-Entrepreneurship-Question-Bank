@@ -1,0 +1,937 @@
+import { useState, useEffect } from 'react';
+import AV from 'leancloud-storage';
+import * as XLSX from 'xlsx';
+import localforage from 'localforage';
+import {
+    BookOpen, CheckCircle, XCircle, Brain, Settings,
+    ChevronRight, ChevronLeft, RotateCcw, LogOut, AlertCircle, Layers, Loader2,
+    AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
+    UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
+    Maximize, Minimize, Trash2, AlertOctagon, Eye
+} from 'lucide-react';
+
+// --- 配置常量 ---
+const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
+const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
+const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
+
+// 注意：在 Vite 中，静态资源不需要特殊的 URL 前缀，如果放在 public 文件夹，直接引用即可
+// 但这里保留原本的远程源以确保数据兼容
+const QUESTION_SOURCES = [
+    "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/"
+];
+const REPORT_URL = "report.html"; // 如果这是另一个页面，建议做成 React 路由组件
+
+const LECTURES = [
+    { id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx" },
+    { id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx" },
+    { id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx" },
+    { id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx" },
+    { id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx" },
+    { id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx" },
+    { id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx" },
+];
+
+// 初始化 SDK
+AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
+
+function App() {
+    const [currentUser, setCurrentUser] = useState(AV.User.current());
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [authLoading, setAuthLoading] = useState(false);
+    const [authError, setAuthError] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    // 题库状态
+    const [allQuestionBank, setAllQuestionBank] = useState({});
+    const [bankStatus, setBankStatus] = useState('idle');
+    const [bankProgress, setBankProgress] = useState("");
+    const [errorMsg, setErrorMsg] = useState(null);
+
+    // 学习数据
+    const [brushedIds, setBrushedIds] = useState(new Set());
+    const [memorizedIds, setMemorizedIds] = useState(new Set());
+    const [masteredIds, setMasteredIds] = useState(new Set());
+    const [wrongIds, setWrongIds] = useState(new Set());
+    const [history, setHistory] = useState([]);
+    const [lastSession, setLastSession] = useState(null);
+
+    // 交互状态
+    const [quizConfig, setQuizConfig] = useState({ lectureId: 0, count: 20, type: 'all', filter: 'all' });
+    const [questions, setQuestions] = useState([]);
+    const [syncStatus, setSyncStatus] = useState(null);
+    const [syncMsg, setSyncMsg] = useState("");
+    const [showResetModal, setShowResetModal] = useState(false);
+
+    const [currentMode, setCurrentMode] = useState('dashboard');
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [showExplanation, setShowExplanation] = useState(false);
+    const [selectedIndices, setSelectedIndices] = useState([]);
+    const [isAnswered, setIsAnswered] = useState(false);
+
+    // --- 数据加载工具 ---
+    const fetchLectureArrayBuffer = async (lectureFile) => {
+        const errors = [];
+        for (const base of QUESTION_SOURCES) {
+            try {
+                const url = `${base}${encodeURIComponent(lectureFile)}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return new Uint8Array(await res.arrayBuffer());
+            } catch (e) { errors.push(e.message); }
+        }
+        throw new Error(`所有题库源均不可用: ${errors.join(' | ')}`);
+    };
+
+    const parseExcelData = (rows, lectureId, lectureName) => {
+        const cleanRows = rows.filter(r => r && r.length > 0);
+        if (cleanRows.length === 0) return [];
+        const questions = [];
+        let startIndex = 0;
+        const headerStr = JSON.stringify(cleanRows[0]);
+        if (headerStr.includes("题型") || headerStr.includes("题干")) startIndex = 1;
+
+        for (let i = startIndex; i < cleanRows.length; i++) {
+            const row = cleanRows[i];
+            const typeRaw = String(row[0] || "").trim();
+            const content = String(row[1] || "").trim();
+            const answerRaw = String(row[2] || "").trim();
+            const explanation = String(row[3] || "").trim();
+            if (!content) continue;
+
+            let type = 'single';
+            if (typeRaw.includes("多选")) type = 'multiple';
+            else if (typeRaw.includes("判断")) type = 'judgment';
+
+            let options = [];
+            let correctAnswers = [];
+
+            if (type === 'judgment') {
+                options = ['正确', '错误'];
+                if (/^[对TtA√]/.test(answerRaw)) correctAnswers = [0];
+                else if (/^[错FfB×]/.test(answerRaw)) correctAnswers = [1];
+                else correctAnswers = [0];
+            } else {
+                const optA = row[6]; const optB = row[7]; const optC = row[8]; const optD = row[9]; const optE = row[10];
+                if (optA) options.push(String(optA).trim());
+                if (optB) options.push(String(optB).trim());
+                if (optC) options.push(String(optC).trim());
+                if (optD) options.push(String(optD).trim());
+                if (optE) options.push(String(optE).trim());
+
+                const normalizedAns = answerRaw.toUpperCase().replace(/[^A-E]/g, '');
+                for (let char of normalizedAns) {
+                    const idx = char.charCodeAt(0) - 65;
+                    if (idx >= 0 && idx < options.length) correctAnswers.push(idx);
+                }
+            }
+            if (options.length === 0) continue;
+
+            questions.push({
+                id: `L${lectureId}-${i}`, type, question: content, options,
+                rawAnswer: correctAnswers.sort((a,b)=>a-b),
+                explanation: explanation || "暂无解析",
+                category: lectureName, lectureId: lectureId
+            });
+        }
+        return questions;
+    };
+
+    // --- Hooks ---
+    // 加载本地数据
+    useEffect(() => {
+        const loadLocal = async () => {
+            try {
+                const getSet = async (k) => {
+                    const val = await localforage.getItem(k);
+                    return val ? new Set(val) : new Set();
+                }
+                setBrushedIds(await getSet('app_brushedIds'));
+                setMemorizedIds(await getSet('app_memorizedIds'));
+                setMasteredIds(await getSet('app_masteredIds'));
+                setWrongIds(await getSet('app_wrongIds'));
+
+                const hist = await localforage.getItem('app_history');
+                if(hist) setHistory(hist);
+
+                const sess = await localforage.getItem('app_lastSession');
+                if(sess) setLastSession(sess);
+            } catch(e) { console.error(e); }
+        };
+        loadLocal();
+    }, []);
+
+    // 保存本地数据
+    useEffect(() => { localforage.setItem('app_brushedIds', Array.from(brushedIds)); }, [brushedIds]);
+    useEffect(() => { localforage.setItem('app_memorizedIds', Array.from(memorizedIds)); }, [memorizedIds]);
+    useEffect(() => { localforage.setItem('app_masteredIds', Array.from(masteredIds)); }, [masteredIds]);
+    useEffect(() => { localforage.setItem('app_wrongIds', Array.from(wrongIds)); }, [wrongIds]);
+    useEffect(() => { localforage.setItem('app_history', history); }, [history]);
+    useEffect(() => {
+        if(lastSession) localforage.setItem('app_lastSession', lastSession);
+        else localforage.removeItem('app_lastSession');
+    }, [lastSession]);
+
+    // 加载题库
+    useEffect(() => {
+        const loadBankData = async () => {
+            // UI 优先渲染
+            await new Promise(r => setTimeout(r, 100));
+
+            setBankStatus('loading');
+            try {
+                setBankProgress("检查本地缓存...");
+                const cachedBank = await localforage.getItem('hf_question_bank');
+
+                let isCacheValid = false;
+                if (cachedBank && Object.keys(cachedBank).length > 0) {
+                    const firstChapter = Object.values(cachedBank)[0];
+                    if (firstChapter && firstChapter.length > 0 && Object.hasOwn(firstChapter[0], 'rawAnswer')) {
+                        isCacheValid = true;
+                    }
+                }
+
+                if (isCacheValid) {
+                    setAllQuestionBank(cachedBank);
+                    setBankStatus('ready');
+                    return;
+                } else {
+                    await localforage.removeItem('hf_question_bank');
+                }
+
+                setBankProgress("正在下载题库...");
+                const newBank = {};
+                let successCount = 0;
+
+                const loadPromises = LECTURES.map(async (lecture) => {
+                    try {
+                        const data = await fetchLectureArrayBuffer(lecture.file);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                        const parsed = parseExcelData(rawData, lecture.id, lecture.name);
+                        if (parsed.length > 0) {
+                            newBank[lecture.id] = parsed;
+                            successCount++;
+                        }
+                    } catch (error) { console.warn(`Load failed: ${lecture.file}`, error); }
+                });
+
+                await Promise.all(loadPromises);
+
+                if (successCount > 0) {
+                    setAllQuestionBank(newBank);
+                    setBankStatus('ready');
+                    await localforage.setItem('hf_question_bank', newBank);
+                } else {
+                    setBankStatus('error');
+                    setErrorMsg("无法加载任何题库，请检查网络连接");
+                }
+            } catch (error) {
+                setBankStatus('error');
+                setErrorMsg("题库初始化失败: " + error.message);
+            }
+        };
+        loadBankData();
+    }, []);
+
+    // 消息提示清除
+    useEffect(() => {
+        if (syncMsg) {
+            const timer = setTimeout(() => { setSyncMsg(""); setSyncStatus(null); }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [syncMsg]);
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setAuthLoading(true);
+        setAuthError(null);
+        try {
+            const u = await AV.User.logIn(username, password);
+            setCurrentUser(u);
+        } catch (err) {
+            setAuthError(err.message || "登录失败");
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    const forceUpdateBank = async () => {
+        await localforage.removeItem('hf_question_bank');
+        location.reload();
+    };
+
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(e => console.log(e));
+            setIsFullscreen(true);
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            setIsFullscreen(false);
+        }
+    };
+
+    const handleManualSync = async (silent = false) => {
+        if (!currentUser) return;
+        if (!silent) { setSyncStatus('uploading'); setSyncMsg("备份中..."); }
+
+        try {
+            const email = currentUser.get('email');
+            if (!email) {
+                if (!silent) {
+                    setSyncStatus('error');
+                    setSyncMsg("需绑定邮箱");
+                    alert("同步失败：\n为了您的数据安全，系统要求必须绑定邮箱才能进行云端备份。\n\n请在注册/设置中绑定邮箱。");
+                }
+                return;
+            }
+
+            const response = await AV.Cloud.run('secureSync', {
+                brushedIds: Array.from(brushedIds),
+                memorizedIds: Array.from(memorizedIds),
+                masteredIds: Array.from(masteredIds),
+                wrongIds: Array.from(wrongIds),
+                history: history.slice(0, 500) // 限制长度，防止包太大
+            });
+
+            if (response && response.success) {
+                if (!silent) { setSyncStatus('success'); setSyncMsg("备份成功"); }
+            } else {
+                throw new Error(response ? response.message : "云端未返回成功状态");
+            }
+
+        } catch (e) {
+            if (!silent) {
+                setSyncStatus('error');
+
+                let displayMsg = "备份失败";
+                const serverMsg = e.message || "";
+
+                if (serverMsg.includes("邮箱")) {
+                    displayMsg = "需验证邮箱";
+                    alert("同步失败：\n" + serverMsg);
+                } else if (serverMsg.includes("速度过快") || serverMsg.includes("异常")) {
+                    displayMsg = "被拦截";
+                    alert("同步被拒绝：\n" + serverMsg);
+                } else if (serverMsg.includes("Forbidden") || e.code === 403) {
+                    displayMsg = "权限不足";
+                }
+
+                setSyncMsg(displayMsg);
+            }
+            console.error("云同步失败:", e);
+        }
+    };
+
+
+    const handleManualRestore = async (silent = false) => {
+        if (!currentUser) return;
+        if (!silent) { setSyncStatus('downloading'); setSyncMsg("恢复中..."); }
+        try {
+            const query = new AV.Query('UserProgress');
+            query.equalTo('user', currentUser);
+            let result;
+            try { result = await query.first(); } catch { result = null; }
+
+            if (result) {
+                const data = result.toJSON();
+                if (data.brushedIds) setBrushedIds(prev => new Set([...prev, ...data.brushedIds]));
+                if (data.memorizedIds) setMemorizedIds(prev => new Set([...prev, ...data.memorizedIds]));
+                if (data.masteredIds) setMasteredIds(prev => new Set([...prev, ...data.masteredIds]));
+                if (data.wrongIds) setWrongIds(prev => new Set([...prev, ...data.wrongIds]));
+                if (data.history && Array.isArray(data.history)) {
+                    setHistory(prev => {
+                        const existingIds = new Set(prev.map(h => h.id));
+                        const newItems = data.history.filter(h => !existingIds.has(h.id));
+                        return [...newItems, ...prev].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    });
+                }
+                if (!silent) { setSyncStatus('success'); setSyncMsg("同步完成"); }
+            } else {
+                if (!silent) { setSyncMsg("无数据"); setSyncStatus(null); }
+            }
+        } catch {
+            if (!silent) { setSyncStatus('error'); setSyncMsg("失败"); }
+        }
+    };
+
+    const performReset = () => {
+        setBrushedIds(new Set());
+        setMemorizedIds(new Set());
+        setMasteredIds(new Set());
+        setWrongIds(new Set());
+        setHistory([]);
+        setLastSession(null);
+
+        localStorage.removeItem('app_brushedIds');
+        localStorage.removeItem('app_memorizedIds');
+        localStorage.removeItem('app_masteredIds');
+        localStorage.removeItem('app_wrongIds');
+        localStorage.removeItem('app_history');
+        localStorage.removeItem('app_lastSession');
+
+        setShowResetModal(false);
+        setSyncMsg("进度已重置");
+        setSyncStatus("success");
+    };
+
+    const generateAndStartQuiz = (mode = 'quiz') => {
+        if (bankStatus !== 'ready') return;
+        setLastSession(null);
+        let sourcePool = quizConfig.lectureId === 0 ? Object.values(allQuestionBank).flat() : (allQuestionBank[quizConfig.lectureId] || []);
+
+        if (quizConfig.type !== 'all') {
+            sourcePool = sourcePool.filter(q => q.type === quizConfig.type);
+        }
+        if (quizConfig.filter === 'new') sourcePool = sourcePool.filter(q => !brushedIds.has(q.id));
+        else if (quizConfig.filter === 'wrong') sourcePool = sourcePool.filter(q => wrongIds.has(q.id));
+
+        if (sourcePool.length === 0) { alert("该条件下没有可用题目"); return; }
+        const shuffled = [...sourcePool].sort(() => 0.5 - Math.random());
+        const limit = quizConfig.count === 'all' ? shuffled.length : Number(quizConfig.count);
+        setQuestions(shuffled.slice(0, limit));
+        startMode(mode);
+    };
+
+    const resumeLastSession = () => {
+        if (!lastSession) return;
+        setQuestions(lastSession.questions);
+        setCurrentIndex(lastSession.currentIndex);
+        setQuizConfig(lastSession.quizConfig);
+        startMode(lastSession.mode);
+    };
+
+    const startMistakeNotebook = () => {
+        if (bankStatus !== 'ready') return;
+        setLastSession(null);
+        const allQs = Object.values(allQuestionBank).flat();
+        const wrongQs = allQs.filter(q => wrongIds.has(q.id));
+        if (wrongQs.length === 0) { alert("暂无错题记录，继续保持！"); return; }
+        wrongQs.sort(() => 0.5 - Math.random());
+        setQuestions(wrongQs);
+        startMode('mistakes');
+    };
+
+    const handleOptionClick = (idx) => {
+        if (currentMode === 'memorize' || isAnswered) return;
+        const currentQ = questions[currentIndex];
+        if (currentQ.type === 'multiple') {
+            setSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+        } else {
+            submitAnswer([idx]);
+        }
+    };
+
+    const submitAnswer = (finalSelection = selectedIndices) => {
+        if (finalSelection.length === 0) return;
+        const currentQ = questions[currentIndex];
+        const correctSet = new Set(currentQ.rawAnswer);
+        const userSet = new Set(finalSelection);
+        const isCorrect = correctSet.size === userSet.size && [...correctSet].every(x => userSet.has(x));
+
+        setIsAnswered(true);
+        setSelectedIndices(finalSelection);
+        setShowExplanation(true);
+        setBrushedIds(prev => new Set(prev).add(currentQ.id));
+
+        if (isCorrect) {
+            setWrongIds(prev => { const n = new Set(prev); n.delete(currentQ.id); return n; });
+            setMasteredIds(prev => new Set(prev).add(currentQ.id));
+        } else {
+            setMasteredIds(prev => { const n = new Set(prev); n.delete(currentQ.id); return n; });
+            setWrongIds(prev => new Set(prev).add(currentQ.id));
+        }
+
+        const answerText = finalSelection.sort().map(i => ['A','B','C','D','E'][i]).join('');
+        setHistory(prev => [{
+            id: Date.now(),
+            questionId: currentQ.id,
+            questionTitle: currentQ.question,
+            action: 'answer',
+            isCorrect,
+            userAnswer: answerText,
+            timestamp: new Date().toISOString(),
+        }, ...prev]);
+    };
+
+    const handleMemorizeCheck = () => {
+        setMemorizedIds(prev => new Set(prev).add(questions[currentIndex].id));
+        setHistory(prev => [{
+            id: Date.now(),
+            questionId: questions[currentIndex].id,
+            questionTitle: questions[currentIndex].question,
+            action: 'memorize',
+            timestamp: new Date().toISOString(),
+        }, ...prev]);
+        setTimeout(() => nextQuestion(), 400);
+    };
+
+    const startMode = (mode) => {
+        setCurrentMode(mode);
+        if (mode !== currentMode) {
+            setSelectedIndices([]);
+            setIsAnswered(false);
+            setShowExplanation(false);
+        }
+    };
+
+    const changeQuestion = (idx) => {
+        setCurrentIndex(idx);
+        setSelectedIndices([]);
+        setIsAnswered(false);
+        setShowExplanation(false);
+    };
+
+    const nextQuestion = () => {
+        if (currentIndex < questions.length - 1) changeQuestion(currentIndex + 1);
+        else {
+            alert("本组练习完成！");
+            setLastSession(null);
+            setCurrentMode('dashboard');
+        }
+    };
+    const prevQuestion = () => { if (currentIndex > 0) changeQuestion(currentIndex - 1); };
+    const exitToDashboard = () => {
+        if (['quiz', 'memorize', 'mistakes'].includes(currentMode) && questions.length > 0 && currentIndex < questions.length - 1) {
+            setLastSession({ mode: currentMode, questions, currentIndex, quizConfig });
+        } else {
+            setLastSession(null);
+        }
+        setCurrentMode('dashboard');
+    };
+
+
+    // Helper renderers moved out of JSX return
+    const renderDashboard = () => (
+        <div className="h-screen flex flex-col max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-6 overflow-hidden">
+            <header className="flex justify-between items-center mb-6 md:mb-8 shrink-0">
+                <div>
+                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
+                        <GraduationCap className="text-blue-600 w-6 h-6 md:w-8 md:h-8" />
+                        <span>学习控制台</span>
+                    </h1>
+                    <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.getUsername()}</p>
+                </div>
+                <div className="flex gap-2 md:gap-3 items-center">
+                    <button onClick={toggleFullscreen} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
+                        {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                    </button>
+                    <button onClick={() => location.href = 'profile.html'} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100" title="个人中心">
+                        <User size={18} className="md:w-5 md:h-5" />
+                    </button>
+                    <div className="hidden md:flex gap-3">
+                        {bankStatus === 'ready' && (
+                            <div className="px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-sm font-medium flex items-center gap-2">
+                                <Database size={16} /> 题库已就绪
+                            </div>
+                        )}
+                        <button onClick={() => handleManualSync()} disabled={syncStatus === 'uploading'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            {syncStatus === 'uploading' ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={18} />} 备份
+                        </button>
+                        <button onClick={() => handleManualRestore()} disabled={syncStatus === 'downloading'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16} /> : <DownloadCloud size={18} />} 恢复
+                        </button>
+                        <button onClick={() => setShowResetModal(true)} className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all" title="重置进度">
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+                    <button onClick={() => {AV.User.logOut();setCurrentUser(null)}} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-red-600 transition-all border border-slate-100">
+                        <LogOut size={18} className="md:w-5 md:h-5" />
+                    </button>
+                </div>
+            </header>
+
+            {bankStatus === 'ready' && (
+                <div className="md:hidden mb-4 flex gap-2">
+                    <div className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <Database size={14} /> 题库就绪
+                    </div>
+                    <button onClick={() => handleManualSync()} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <UploadCloud size={14} /> 备份
+                    </button>
+                    <button onClick={() => handleManualRestore()} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <DownloadCloud size={14} /> 恢复
+                    </button>
+                    <button onClick={() => setShowResetModal(true)} className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <Trash2 size={14} />
+                    </button>
+                </div>
+            )}
+
+            {/* Reset Modal */}
+            {showResetModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-enter">
+                    <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                        <div className="flex flex-col items-center text-center mb-6">
+                            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                                <AlertOctagon size={32} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-800">确认重置进度？</h3>
+                            <p className="text-slate-500 mt-2 text-sm">这将清除本地所有的刷题记录、错题本和统计数据。此操作无法撤销。</p>
+                            {currentUser && <p className="text-orange-500 text-xs mt-2 bg-orange-50 p-2 rounded-lg text-left w-full">注意：云端数据不会自动清除。如需清空云端备份，请在重置后点击“备份”按钮以覆盖。</p>}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button onClick={() => setShowResetModal(false)} className="py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">取消</button>
+                            <button onClick={performReset} className="py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">确认重置</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {lastSession && (
+                <div onClick={resumeLastSession} className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl"><Bookmark size={24} /></div>
+                        <div>
+                            <h3 className="font-bold text-lg">继续上次的学习</h3>
+                            <p className="text-indigo-100 text-xs md:text-sm">{lastSession.mode === 'memorize' ? '背题模式' : (lastSession.mode === 'mistakes' ? '错题攻坚' : '刷题模式')} · 剩余 {lastSession.questions.length - lastSession.currentIndex} 题</p>
+                        </div>
+                    </div>
+                    <div className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors"><ChevronRight size={24} /></div>
+                </div>
+            )}
+
+            {syncMsg && (
+                <div className={`mb-6 px-4 py-3 rounded-2xl flex items-center gap-3 border text-sm animate-enter transition-all ${syncStatus === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                    {syncStatus === 'success' ? <CheckCircle size={18} /> : <RefreshCw size={18} className="animate-spin" />} {syncMsg}
+                </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
+                {errorMsg && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 border border-red-100"><AlertCircle />{errorMsg}</div>}
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+                    <div className="lg:col-span-8 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 flex flex-col justify-between relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50 blur-3xl"></div>
+                        <div className="relative z-10">
+                            <div className="mb-6 md:mb-8 flex items-center gap-3 border-b border-slate-100 pb-4">
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Settings size={20} /></div>
+                                <div>
+                                    <h2 className="font-bold text-lg md:text-xl text-slate-800">开始新的练习</h2>
+                                    <p className="text-xs md:text-sm text-slate-400">自定义你的刷题计划</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题库章节</label>
+                                    <select value={quizConfig.lectureId} onChange={e => setQuizConfig({...quizConfig, lectureId: Number(e.target.value)})} className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
+                                        <option value={0}>📚 综合练习 (所有章节)</option>
+                                        {LECTURES.map(l => <option key={l.id} value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目数量</label>
+                                    <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                        {[10, 20, 50, 'all'].map(n => (
+                                            <button key={n} onClick={() => setQuizConfig({...quizConfig, count: n})} className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.count === n ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{n === 'all' ? '全部' : n}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目类型</label>
+                                    <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                        {[{v:'all', l:'全部'}, {v:'single', l:'单选'}, {v:'multiple', l:'多选'}, {v:'judgment', l:'判断'}].map(t => (
+                                            <button key={t.v} onClick={() => setQuizConfig({...quizConfig, type: t.v})} className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.type === t.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{t.l}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">模式</label>
+                                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                        {[{v:'all', l:'随机'}, {v:'new', l:'未做'}, {v:'wrong', l:'错题'}].map(m => (
+                                            <button key={m.v} onClick={() => setQuizConfig({...quizConfig, filter: m.v})} className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.filter === m.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{m.l}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-slate-100 relative z-10">
+                            <button
+                                onClick={() => { setCurrentIndex(0); generateAndStartQuiz('quiz'); }}
+                                disabled={bankStatus !== 'ready'}
+                                className="py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base">
+                                {bankStatus === 'ready' ? <><Brain size={20} /> 开始刷题</> : <><Loader2 size={20} className="animate-spin" /> {bankProgress}</>}
+                            </button>
+                            <button
+                                onClick={() => { setCurrentIndex(0); generateAndStartQuiz('memorize'); }}
+                                disabled={bankStatus !== 'ready'}
+                                className="py-3 md:py-4 bg-white border-2 border-slate-100 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base">
+                                <BookOpen size={20} /> 背题模式
+                            </button>
+                        </div>
+                        {bankStatus === 'ready' && (
+                            <div className="mt-2 text-center">
+                                <button onClick={forceUpdateBank} className="text-xs text-slate-300 hover:text-blue-500 underline decoration-dotted">发现题库旧? 点击强制更新缓存</button>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="lg:col-span-4 flex flex-col gap-6">
+                        <div onClick={startMistakeNotebook} className="bg-gradient-to-br from-red-500 to-rose-600 p-6 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform relative overflow-hidden group">
+                            <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
+                            <div className="relative z-10 flex flex-col h-full justify-between">
+                                <div className="flex justify-between items-start">
+                                    <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm"><AlertTriangle size={24} /></div>
+                                    <span className="font-mono text-4xl font-bold">{wrongIds.size}</span>
+                                </div>
+                                <div className="mt-4">
+                                    <h3 className="text-xl font-bold mb-1">错题攻坚</h3>
+                                    <p className="text-red-100 text-sm">点击开始专项复习</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a href={REPORT_URL} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex-1 flex flex-col justify-center no-underline">
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><PieChart size={24} /></div>
+                                <div>
+                                    <div className="font-bold text-lg text-slate-800">数据报表</div>
+                                    <div className="text-sm text-slate-400">查看详细统计</div>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center">
+                                    <div className="text-xs text-slate-400 mb-1">已刷</div>
+                                    <div className="font-bold text-slate-700">{brushedIds.size}</div>
+                                </div>
+                                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center">
+                                    <div className="text-xs text-slate-400 mb-1">掌握</div>
+                                    <div className="font-bold text-green-600">{masteredIds.size}</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { label: '总题库', val: bankStatus === 'ready' ? Object.values(allQuestionBank).flat().length : '-', icon: Layers, color: 'text-slate-600', bg: 'bg-slate-100' },
+                        { label: '已掌握', val: masteredIds.size, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
+                        { label: '已背诵', val: memorizedIds.size, icon: Eye, color: 'text-purple-600', bg: 'bg-purple-50' },
+                        { label: '正确率', val: brushedIds.size ? Math.round(masteredIds.size/brushedIds.size*100)+'%' : '-', icon: BarChart3, color: 'text-orange-600', bg: 'bg-orange-50' }
+                    ].map((item, i) => (
+                        <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}>
+                                <item.icon size={20} />
+                            </div>
+                            <div>
+                                <div className="text-xl md:text-2xl font-bold text-slate-800 leading-none mb-1">{item.val}</div>
+                                <span className="text-xs font-bold text-slate-400 uppercase">{item.label}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderCard = () => {
+        if (!questions.length) return <div className="h-screen flex items-center justify-center text-slate-400">题库为空</div>;
+        const currentQ = questions[currentIndex];
+        const isQuiz = currentMode !== 'memorize';
+        const showContent = !isQuiz || showExplanation;
+
+        return (
+            <div className="h-screen flex flex-col md:flex-row bg-slate-100">
+                <div className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col">
+                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                        <button onClick={exitToDashboard} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
+                            <RotateCcw size={18} /> 退出练习
+                        </button>
+                        <button onClick={toggleFullscreen} className="p-2 text-slate-400 hover:text-slate-600">{isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4">
+                        <div className="grid grid-cols-5 gap-2">
+                            {questions.map((_, i) => {
+                                let statusColor = 'bg-slate-50 text-slate-400 hover:bg-slate-100';
+                                if (i === currentIndex) statusColor = 'bg-blue-600 text-white shadow-md ring-2 ring-blue-200';
+                                return (
+                                    <button key={i} onClick={() => changeQuestion(i)}
+                                            className={`aspect-square rounded-lg text-sm font-bold flex items-center justify-center transition-all ${statusColor}`}>
+                                        {i + 1}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                    <div className="p-4 border-t border-slate-100 text-xs text-center text-slate-400">
+                        {currentMode === 'mistakes' ? '错题复习模式' : (isQuiz ? '刷题模式' : '背题模式')}
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col h-screen relative">
+                    <div className="md:hidden p-4 bg-white border-b flex justify-between items-center shadow-sm z-10">
+                        <button onClick={exitToDashboard} className="p-2 -ml-2 text-slate-600"><RotateCcw size={20} /></button>
+                        <span className="font-bold text-slate-700">{currentIndex + 1}/{questions.length}</span>
+                        <button onClick={toggleFullscreen} className="p-2 -mr-2 text-slate-600">{isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}</button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-24 mobile-safe-bottom">
+                        <div className="w-full max-w-3xl space-y-6 md:space-y-8">
+                            <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter">
+                                <div className="flex items-center gap-3 mb-4 md:mb-6">
+                                    <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${currentQ.type==='multiple'?'bg-purple-100 text-purple-700':(currentQ.type==='judgment'?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700')}`}>
+                                        {currentQ.type === 'multiple' ? '多选题' : (currentQ.type === 'judgment' ? '判断题' : '单选题')}
+                                    </span>
+                                    <span className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers size={14}/> {currentQ.category}</span>
+                                </div>
+                                <h2 className="text-lg md:text-2xl font-bold text-slate-900 leading-relaxed mb-4">
+                                    {currentQ.question}
+                                </h2>
+
+                                <div className="grid gap-3">
+                                    {currentQ.options.map((opt, idx) => {
+                                        let status = 'default';
+
+                                        if (isQuiz) {
+                                            if (isAnswered) {
+                                                if (currentQ.rawAnswer?.includes(idx)) status = 'correct';
+                                                else if (selectedIndices.includes(idx)) status = 'wrong';
+                                                else status = 'dimmed';
+                                            } else {
+                                                if (selectedIndices.includes(idx)) status = 'selected';
+                                            }
+                                        } else {
+                                            if (currentQ.rawAnswer?.includes(idx)) status = 'correct';
+                                        }
+
+                                        return (
+                                            <button key={idx}
+                                                    onClick={() => handleOptionClick(idx)}
+                                                    className={`w-full p-4 md:p-5 rounded-xl text-left border-2 transition-all flex items-start gap-3 md:gap-4 group relative
+                                                                        ${status === 'default' ? 'border-slate-100 bg-white hover:border-blue-200 hover:bg-slate-50' : ''}
+                                                                        ${status === 'selected' ? 'border-blue-500 bg-blue-50 text-blue-900' : ''}
+                                                                        ${status === 'correct' ? 'border-green-500 bg-green-50 text-green-900' : ''}
+                                                                        ${status === 'wrong' ? 'border-red-500 bg-red-50 text-red-900' : ''}
+                                                                        ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
+                                                                    `}
+                                            >
+                                                <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0
+                                                                        ${status === 'selected' ? 'bg-blue-500 border-blue-500 text-white' : ''}
+                                                                        ${status === 'correct' ? 'bg-green-500 border-green-500 text-white' : ''}
+                                                                        ${status === 'wrong' ? 'bg-red-500 border-red-500 text-white' : ''}
+                                                                        ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
+                                                                    `}>
+                                                {['A','B','C','D','E'][idx]}
+                                            </div>
+                                            <span className="flex-1 text-base md:text-lg leading-snug">{opt}</span>
+                                            {status === 'correct' && <CheckCircle className="text-green-500 shrink-0 w-5 h-5 md:w-6 md:h-6" />}
+                                            {status === 'wrong' && <XCircle className="text-red-500 shrink-0 w-5 h-5 md:w-6 md:h-6" />}
+                                        </button>
+                                    )
+                                    })}
+                                </div>
+                            </div>
+
+                            {isQuiz && !isAnswered && currentQ.type === 'multiple' && (
+                                <div className="flex justify-end animate-enter pb-4">
+                                    <button onClick={() => submitAnswer()}
+                                            className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2
+                                                            ${selectedIndices.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                                    >
+                                        确认提交 <CheckSquare size={18} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {showContent && (
+                                <div className="animate-enter bg-indigo-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-indigo-100 mb-8">
+                                    <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
+                                        <Zap size={20} className="text-indigo-500 fill-current" /> 答案解析
+                                    </div>
+                                    <p className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base">{currentQ.explanation}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {(
+                        <div
+                            className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-white/90 backdrop-blur border-t border-slate-200 flex justify-between items-center z-20 mobile-safe-bottom">
+                            <button onClick={prevQuestion} disabled={currentIndex === 0}
+                                    className="px-4 md:px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-all flex items-center gap-2 text-sm md:text-base">
+                                <ChevronLeft size={20}/> <span className="hidden md:inline">上一题</span>
+                            </button>
+
+                            {!isQuiz && (
+                                <button onClick={handleMemorizeCheck}
+                                        className="px-6 md:px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all text-sm md:text-base flex-1 mx-4 md:flex-none">
+                                    记住了，下一题
+                                </button>
+                            )}
+
+                            {isQuiz && (
+                                <button onClick={nextQuestion}
+                                        className="px-4 md:px-6 py-2.5 rounded-xl font-bold text-slate-900 hover:bg-slate-100 transition-all flex items-center gap-2 text-sm md:text-base">
+                                    {currentIndex === questions.length - 1 ? '完成练习' : '下一题'} <ChevronRight
+                                    size={20}/>
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // --- UI 渲染 ---
+
+    const LoadingScreen = ({ msg }) => (
+        <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-gray-50">
+            <div className="relative mb-6">
+                <div className="w-16 h-16 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center"><Loader2 size={24} className="text-blue-600" /></div>
+            </div>
+            <h2 className="text-xl font-bold text-gray-800">{msg}</h2>
+        </div>
+    );
+
+    const renderLoginScreen = () => (
+        <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
+            <div className="glass p-6 md:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50">
+                <div className="text-center mb-8">
+                    <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
+                        <Brain size={32} className="md:w-10 md:h-10" />
+                    </div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 创新创业</h1>
+                    <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">Pro 学习系统</p>
+                    {brushedIds.size > 0 && <p className="text-xs text-blue-500 mt-2">本地缓存: {brushedIds.size} 题记录</p>}
+                </div>
+                <form onSubmit={(e) => { e.preventDefault(); setAuthLoading(true); setAuthError(null); AV.User.logIn(username,password).then(u=>{setCurrentUser(u);setAuthLoading(false)}).catch(err=>{setAuthError(err.message||"登录失败");setAuthLoading(false)}) }} className="space-y-4 md:space-y-5">
+                    <div className="space-y-4">
+                        <input type="text" required placeholder="用户名" className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" value={username} onChange={e => setUsername(e.target.value)} />
+                        <input type="password" required placeholder="密码" className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" value={password} onChange={e => setPassword(e.target.value)} />
+                    </div>
+                    {authError && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2"><AlertCircle size={16} />{authError}</div>}
+                    <button disabled={authLoading} className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:shadow-xl transition-all disabled:opacity-70">
+                        {authLoading ? '请稍候...' : '立即登录'}
+                    </button>
+                </form>
+                <div className="mt-6 text-center">
+                    <a href="https://junpgle.github.io/LearnWord/register.html" target="_blank" className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
+                        没有账号？<span className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span> <ChevronRight size={14} />
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+
+    
+    if (!currentUser) return renderLoginScreen();
+
+    return (
+        <div className="h-full bg-slate-50 font-sans text-slate-900">
+            {currentMode === 'dashboard' && renderDashboard()}
+            {['quiz', 'memorize', 'mistakes'].includes(currentMode) && renderCard()}
+        </div>
+    );
+
+}
+
+export default App;
+
