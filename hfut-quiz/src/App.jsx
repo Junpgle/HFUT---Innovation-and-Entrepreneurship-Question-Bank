@@ -88,6 +88,7 @@ function App() {
     const [allQuestionBank, setAllQuestionBank] = useState({});
     const [bankStatus, setBankStatus] = useState('idle');
     const [bankProgress, setBankProgress] = useState("");
+    const [bankPercent, setBankPercent] = useState(0);
     const [errorMsg, setErrorMsg] = useState(null);
 
     // 学习数据
@@ -347,8 +348,8 @@ function App() {
         const loadBankData = async () => {
             // UI 优先渲染
             await new Promise(r => setTimeout(r, 100));
-
             setBankStatus('loading');
+            setBankPercent(0);
             try {
                 setBankProgress("检查本地缓存...");
                 const cachedBank = await safeGet(BANK_CACHE_KEY);
@@ -357,6 +358,8 @@ function App() {
                     if (isValidBank(cachedBank)) {
                         setAllQuestionBank(cachedBank);
                         setBankStatus('ready');
+                        setBankProgress('题库已就绪');
+                        setBankPercent(100);
                         return;
                     } else {
                         const repaired = tryRepairBank(cachedBank);
@@ -365,47 +368,52 @@ function App() {
                             setBankStatus('ready');
                             await safeSet(BANK_CACHE_KEY, repaired);
                             await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                            setBankProgress('题库已就绪');
+                            setBankPercent(100);
                             return;
                         }
-                        // 不再立刻删除，保留以便后续分析，仅在成功拉取新题库后覆盖
                     }
                 }
 
-                setBankProgress("正在下载题库...");
+                const total = LECTURES.length;
                 const newBank = {};
-                let successCount = 0;
+                let done = 0;
+                setBankProgress(`正在下载题库... (0/${total})`);
 
-                const loadPromises = LECTURES.map(async (lecture) => {
+                for (const lecture of LECTURES) {
                     try {
                         const data = await fetchLectureArrayBuffer(lecture.file);
-                        const workbook = XLSX.read(data, {type: 'array'});
+                        const workbook = XLSX.read(data, { type: 'array' });
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-
+                        const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                         const parsed = parseExcelData(rawData, lecture.id, lecture.name);
-                        if (parsed.length > 0) {
-                            newBank[lecture.id] = parsed;
-                            successCount++;
-                        }
+                        if (parsed.length > 0) newBank[lecture.id] = parsed;
                     } catch (error) {
                         console.warn(`Load failed: ${lecture.file}`, error);
+                    } finally {
+                        done += 1;
+                        const percent = Math.round(done / total * 100);
+                        setBankPercent(percent);
+                        setBankProgress(`正在下载题库... (${done}/${total}) ${percent}%`);
                     }
-                });
+                }
 
-                await Promise.all(loadPromises);
-
-                if (successCount > 0) {
+                if (Object.keys(newBank).length > 0) {
                     setAllQuestionBank(newBank);
                     setBankStatus('ready');
                     await safeSet(BANK_CACHE_KEY, newBank);
                     await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                    setBankProgress('题库已更新');
+                    setBankPercent(100);
                 } else {
                     setBankStatus('error');
                     setErrorMsg("无法加载任何题库，请检查网络连接");
+                    setBankPercent(0);
                 }
             } catch (error) {
                 setBankStatus('error');
                 setErrorMsg("题库初始化失败: " + error.message);
+                setBankPercent(0);
             }
         };
         loadBankData();
@@ -422,9 +430,47 @@ function App() {
         }
     }, [syncMsg]);
 
+    const refreshBankFromServer = async () => {
+        setBankStatus('loading');
+        setBankProgress('正在强制更新题库... (0%)');
+        setBankPercent(0);
+        const newBank = {};
+        const total = LECTURES.length;
+        let done = 0;
+        for (const lecture of LECTURES) {
+            try {
+                const data = await fetchLectureArrayBuffer(lecture.file);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                const parsed = parseExcelData(rawData, lecture.id, lecture.name);
+                if (parsed.length > 0) newBank[lecture.id] = parsed;
+            } catch (error) {
+                console.warn(`强制更新失败: ${lecture.file}`, error);
+            } finally {
+                done += 1;
+                const percent = Math.round(done / total * 100);
+                setBankPercent(percent);
+                setBankProgress(`正在强制更新题库... (${done}/${total}) ${percent}%`);
+            }
+        }
+
+        if (Object.keys(newBank).length > 0) {
+            setAllQuestionBank(newBank);
+            setBankStatus('ready');
+            await safeSet(BANK_CACHE_KEY, newBank);
+            await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+            setBankProgress('题库已更新');
+            setBankPercent(100);
+        } else {
+            setBankStatus('error');
+            setErrorMsg('强制更新失败：所有来源均不可用');
+            setBankPercent(0);
+        }
+    };
+
     const forceUpdateBank = async () => {
-        await localforage.removeItem('hf_question_bank');
-        location.reload();
+        await refreshBankFromServer();
     };
 
     const toggleFullscreen = () => {
@@ -1019,8 +1065,7 @@ function App() {
                                 }}
                                 disabled={bankStatus !== 'ready'}
                                 className="py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base">
-                                {bankStatus === 'ready' ? <><Brain size={20}/> 开始刷题</> : <><Loader2 size={20}
-                                                                                                        className="animate-spin"/> {bankProgress}</>}
+                                {bankStatus === 'ready' ? <><Brain size={20} /> 开始刷题</> : <><Loader2 size={20} className="animate-spin" /> {bankProgress}</>}
                             </button>
                             <button
                                 onClick={() => {
