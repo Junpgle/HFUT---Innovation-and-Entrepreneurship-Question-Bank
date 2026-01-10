@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import {useState, useEffect} from 'react';
 import AV from 'leancloud-storage';
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
@@ -23,13 +23,13 @@ const QUESTION_SOURCES = [
 const REPORT_URL = "report.html"; // 如果这是另一个页面，建议做成 React 路由组件
 
 const LECTURES = [
-    { id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx" },
-    { id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx" },
-    { id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx" },
-    { id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx" },
-    { id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx" },
-    { id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx" },
-    { id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx" },
+    {id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx"},
+    {id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx"},
+    {id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx"},
+    {id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx"},
+    {id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx"},
+    {id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx"},
+    {id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx"},
 ];
 
 // 版本号用于兼容未来结构变更
@@ -38,27 +38,42 @@ const BANK_CACHE_VERSION_KEY = 'hf_bank_version';
 const BANK_CACHE_VERSION = 1;
 
 // 初始化 SDK
-AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
+AV.init({appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL});
 
 // 安全存储封装：IndexedDB 不可用时回退到 localStorage
 const safeGet = async (key, fallback = null) => {
     try {
         const v = await localforage.getItem(key);
         if (v !== null && v !== undefined) {
-            try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
+            try {
+                localStorage.setItem(key, JSON.stringify(v));
+            } catch {
+            }
             return v;
         }
-    } catch (err) { console.warn(`localforage.getItem(${key}) failed`, err); }
+    } catch (err) {
+        console.warn(`localforage.getItem(${key}) failed`, err);
+    }
     try {
         const raw = localStorage.getItem(key);
         if (raw !== null) return JSON.parse(raw);
-    } catch (err) { console.warn(`localStorage.getItem(${key}) failed`, err); }
+    } catch (err) {
+        console.warn(`localStorage.getItem(${key}) failed`, err);
+    }
     return fallback;
 };
 
 const safeSet = async (key, value) => {
-    try { await localforage.setItem(key, value); } catch (err) { console.warn(`localforage.setItem(${key}) failed`, err); }
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) { console.warn(`localStorage.setItem(${key}) failed`, err); }
+    try {
+        await localforage.setItem(key, value);
+    } catch (err) {
+        console.warn(`localforage.setItem(${key}) failed`, err);
+    }
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+    } catch (err) {
+        console.warn(`localStorage.setItem(${key}) failed`, err);
+    }
 };
 
 function App() {
@@ -85,7 +100,7 @@ function App() {
     const [hydrated, setHydrated] = useState(false);
 
     // 交互状态
-    const [quizConfig, setQuizConfig] = useState({ lectureId: 0, count: 20, type: 'all', filter: 'all' });
+    const [quizConfig, setQuizConfig] = useState({lectureId: 0, count: 20, type: 'all', filter: 'all'});
     const [questions, setQuestions] = useState([]);
     const [syncStatus, setSyncStatus] = useState(null);
     const [syncMsg, setSyncMsg] = useState("");
@@ -104,9 +119,14 @@ function App() {
             try {
                 const url = `${base}${encodeURIComponent(lectureFile)}`;
                 const res = await fetch(url);
-                if (!res.ok) { errors.push(`HTTP ${res.status}`); continue; }
+                if (!res.ok) {
+                    errors.push(`HTTP ${res.status}`);
+                    continue;
+                }
                 return new Uint8Array(await res.arrayBuffer());
-            } catch (e) { errors.push(e.message); }
+            } catch (e) {
+                errors.push(e.message);
+            }
         }
         return Promise.reject(new Error(`所有题库源均不可用: ${errors.join(' | ')}`));
     };
@@ -140,7 +160,11 @@ function App() {
                 else if (/^[错FfB×]/.test(answerRaw)) correctAnswers = [1];
                 else correctAnswers = [0];
             } else {
-                const optA = row[6]; const optB = row[7]; const optC = row[8]; const optD = row[9]; const optE = row[10];
+                const optA = row[6];
+                const optB = row[7];
+                const optC = row[8];
+                const optD = row[9];
+                const optE = row[10];
                 if (optA) options.push(String(optA).trim());
                 if (optB) options.push(String(optB).trim());
                 if (optC) options.push(String(optC).trim());
@@ -157,7 +181,7 @@ function App() {
 
             questions.push({
                 id: `L${lectureId}-${i}`, type, question: content, options,
-                rawAnswer: correctAnswers.sort((a,b)=>a-b),
+                rawAnswer: correctAnswers.sort((a, b) => a - b),
                 explanation: explanation || "暂无解析",
                 category: lectureName, lectureId: lectureId
             });
@@ -180,49 +204,65 @@ function App() {
                 setWrongIds(await getSet('app_wrongIds'));
 
                 const hist = await safeGet('app_history');
-                if(hist) setHistory(hist);
+                if (hist) setHistory(hist);
 
                 const sess = await safeGet('app_lastSession');
-                if(sess) setLastSession(sess);
+                if (sess) setLastSession(sess);
                 setHydrated(true);
-            } catch(e) { console.error(e); setHydrated(true); }
+            } catch (e) {
+                console.error(e);
+                setHydrated(true);
+            }
         };
         loadLocal();
     }, []);
 
     // 保存本地数据
     useEffect(() => {
-        if(!hydrated) return;
-        const save = async () => { await safeSet('app_brushedIds', Array.from(brushedIds)); };
+        if (!hydrated) return;
+        const save = async () => {
+            await safeSet('app_brushedIds', Array.from(brushedIds));
+        };
         save().catch(console.error);
     }, [brushedIds, hydrated]);
     useEffect(() => {
-        if(!hydrated) return;
-        const save = async () => { await safeSet('app_memorizedIds', Array.from(memorizedIds)); };
+        if (!hydrated) return;
+        const save = async () => {
+            await safeSet('app_memorizedIds', Array.from(memorizedIds));
+        };
         save().catch(console.error);
     }, [memorizedIds, hydrated]);
     useEffect(() => {
-        if(!hydrated) return;
-        const save = async () => { await safeSet('app_masteredIds', Array.from(masteredIds)); };
+        if (!hydrated) return;
+        const save = async () => {
+            await safeSet('app_masteredIds', Array.from(masteredIds));
+        };
         save().catch(console.error);
     }, [masteredIds, hydrated]);
     useEffect(() => {
-        if(!hydrated) return;
-        const save = async () => { await safeSet('app_wrongIds', Array.from(wrongIds)); };
+        if (!hydrated) return;
+        const save = async () => {
+            await safeSet('app_wrongIds', Array.from(wrongIds));
+        };
         save().catch(console.error);
     }, [wrongIds, hydrated]);
     useEffect(() => {
-        if(!hydrated) return;
-        const save = async () => { await safeSet('app_history', history); };
+        if (!hydrated) return;
+        const save = async () => {
+            await safeSet('app_history', history);
+        };
         save().catch(console.error);
     }, [history, hydrated]);
     useEffect(() => {
-        if(!hydrated) return;
+        if (!hydrated) return;
         const save = async () => {
-            if(lastSession) await safeSet('app_lastSession', lastSession);
+            if (lastSession) await safeSet('app_lastSession', lastSession);
             else {
                 await localforage.removeItem('app_lastSession').catch(console.warn);
-                try { localStorage.removeItem('app_lastSession'); } catch {}
+                try {
+                    localStorage.removeItem('app_lastSession');
+                } catch {
+                }
             }
         };
         save().catch(console.error);
@@ -299,7 +339,9 @@ function App() {
                     })).filter(q => q.question && q.options && q.options.length > 0);
                 });
                 return repaired;
-            } catch { return null; }
+            } catch {
+                return null;
+            }
         };
 
         const loadBankData = async () => {
@@ -336,16 +378,18 @@ function App() {
                 const loadPromises = LECTURES.map(async (lecture) => {
                     try {
                         const data = await fetchLectureArrayBuffer(lecture.file);
-                        const workbook = XLSX.read(data, { type: 'array' });
+                        const workbook = XLSX.read(data, {type: 'array'});
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
 
                         const parsed = parseExcelData(rawData, lecture.id, lecture.name);
                         if (parsed.length > 0) {
                             newBank[lecture.id] = parsed;
                             successCount++;
                         }
-                    } catch (error) { console.warn(`Load failed: ${lecture.file}`, error); }
+                    } catch (error) {
+                        console.warn(`Load failed: ${lecture.file}`, error);
+                    }
                 });
 
                 await Promise.all(loadPromises);
@@ -370,7 +414,10 @@ function App() {
     // 消息提示清除
     useEffect(() => {
         if (syncMsg) {
-            const timer = setTimeout(() => { setSyncMsg(""); setSyncStatus(null); }, 3000);
+            const timer = setTimeout(() => {
+                setSyncMsg("");
+                setSyncStatus(null);
+            }, 3000);
             return () => clearTimeout(timer);
         }
     }, [syncMsg]);
@@ -392,7 +439,10 @@ function App() {
 
     const handleManualSync = async (silent = false) => {
         if (!currentUser) return;
-        if (!silent) { setSyncStatus('uploading'); setSyncMsg("备份中..."); }
+        if (!silent) {
+            setSyncStatus('uploading');
+            setSyncMsg("备份中...");
+        }
 
         try {
             const email = currentUser.get('email');
@@ -414,7 +464,10 @@ function App() {
             });
 
             if (response && response.success) {
-                if (!silent) { setSyncStatus('success'); setSyncMsg("备份成功"); }
+                if (!silent) {
+                    setSyncStatus('success');
+                    setSyncMsg("备份成功");
+                }
             } else {
                 return Promise.reject(new Error(response ? response.message : "云端未返回成功状态"));
             }
@@ -445,12 +498,19 @@ function App() {
 
     const handleManualRestore = async (silent = false) => {
         if (!currentUser) return;
-        if (!silent) { setSyncStatus('downloading'); setSyncMsg("恢复中..."); }
+        if (!silent) {
+            setSyncStatus('downloading');
+            setSyncMsg("恢复中...");
+        }
         try {
             const query = new AV.Query('UserProgress');
             query.equalTo('user', currentUser);
             let result;
-            try { result = await query.first(); } catch { result = null; }
+            try {
+                result = await query.first();
+            } catch {
+                result = null;
+            }
 
             if (result) {
                 const data = result.toJSON();
@@ -468,7 +528,7 @@ function App() {
                 if (data.history && Array.isArray(data.history)) {
                     const existingIds = new Set(newHistory.map(h => h.id));
                     const merged = [...data.history.filter(h => !existingIds.has(h.id)), ...newHistory]
-                        .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                     newHistory = merged;
                 }
 
@@ -487,12 +547,21 @@ function App() {
                     safeSet('app_history', newHistory)
                 ]);
 
-                if (!silent) { setSyncStatus('success'); setSyncMsg("同步完成"); }
+                if (!silent) {
+                    setSyncStatus('success');
+                    setSyncMsg("同步完成");
+                }
             } else {
-                if (!silent) { setSyncMsg("无数据"); setSyncStatus(null); }
+                if (!silent) {
+                    setSyncMsg("无数据");
+                    setSyncStatus(null);
+                }
             }
         } catch {
-            if (!silent) { setSyncStatus('error'); setSyncMsg("失败"); }
+            if (!silent) {
+                setSyncStatus('error');
+                setSyncMsg("失败");
+            }
         }
     };
 
@@ -508,7 +577,12 @@ function App() {
                 safeSet('app_history', history),
                 lastSession ? safeSet('app_lastSession', lastSession) : localforage.removeItem('app_lastSession')
             ]);
-            if (!lastSession) { try { localStorage.removeItem('app_lastSession'); } catch {} }
+            if (!lastSession) {
+                try {
+                    localStorage.removeItem('app_lastSession');
+                } catch {
+                }
+            }
             setSyncStatus('success');
             setSyncMsg("本地已保存");
         } catch (err) {
@@ -526,7 +600,11 @@ function App() {
                 masteredIds: Array.from(masteredIds),
                 wrongIds: Array.from(wrongIds),
                 historyCount: history.length,
-                lastSession: lastSession ? { mode: lastSession.mode, idx: lastSession.currentIndex, qlen: lastSession.questions?.length } : null,
+                lastSession: lastSession ? {
+                    mode: lastSession.mode,
+                    idx: lastSession.currentIndex,
+                    qlen: lastSession.questions?.length
+                } : null,
                 localStorageKeys: Object.keys(localStorage)
             };
             console.log('本地缓存导出', payload);
@@ -548,9 +626,9 @@ function App() {
             setMasteredIds(await getSet('app_masteredIds'));
             setWrongIds(await getSet('app_wrongIds'));
             const hist = await safeGet('app_history');
-            if(hist) setHistory(hist); else setHistory([]);
+            if (hist) setHistory(hist); else setHistory([]);
             const sess = await safeGet('app_lastSession');
-            if(sess) setLastSession(sess); else setLastSession(null);
+            if (sess) setLastSession(sess); else setLastSession(null);
             setHydrated(true);
             setSyncStatus('success');
             setSyncMsg('本地已重载');
@@ -592,7 +670,10 @@ function App() {
         if (quizConfig.filter === 'new') sourcePool = sourcePool.filter(q => !brushedIds.has(q.id));
         else if (quizConfig.filter === 'wrong') sourcePool = sourcePool.filter(q => wrongIds.has(q.id));
 
-        if (sourcePool.length === 0) { alert("该条件下没有可用题目"); return; }
+        if (sourcePool.length === 0) {
+            alert("该条件下没有可用题目");
+            return;
+        }
         const shuffled = [...sourcePool].sort(() => 0.5 - Math.random());
         const limit = quizConfig.count === 'all' ? shuffled.length : Number(quizConfig.count);
         setQuestions(shuffled.slice(0, limit));
@@ -612,7 +693,10 @@ function App() {
         setLastSession(null);
         const allQs = Object.values(allQuestionBank).flat();
         const wrongQs = allQs.filter(q => wrongIds.has(q.id));
-        if (wrongQs.length === 0) { alert("暂无错题记录，继续保持！"); return; }
+        if (wrongQs.length === 0) {
+            alert("暂无错题记录，继续保持！");
+            return;
+        }
         wrongQs.sort(() => 0.5 - Math.random());
         setQuestions(wrongQs);
         startMode('mistakes');
@@ -641,14 +725,22 @@ function App() {
         setBrushedIds(prev => new Set(prev).add(currentQ.id));
 
         if (isCorrect) {
-            setWrongIds(prev => { const n = new Set(prev); n.delete(currentQ.id); return n; });
+            setWrongIds(prev => {
+                const n = new Set(prev);
+                n.delete(currentQ.id);
+                return n;
+            });
             setMasteredIds(prev => new Set(prev).add(currentQ.id));
         } else {
-            setMasteredIds(prev => { const n = new Set(prev); n.delete(currentQ.id); return n; });
+            setMasteredIds(prev => {
+                const n = new Set(prev);
+                n.delete(currentQ.id);
+                return n;
+            });
             setWrongIds(prev => new Set(prev).add(currentQ.id));
         }
 
-        const answerText = finalSelection.sort().map(i => ['A','B','C','D','E'][i]).join('');
+        const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
         setHistory(prev => [{
             id: Date.now(),
             questionId: currentQ.id,
@@ -696,10 +788,12 @@ function App() {
             setCurrentMode('dashboard');
         }
     };
-    const prevQuestion = () => { if (currentIndex > 0) changeQuestion(currentIndex - 1); };
+    const prevQuestion = () => {
+        if (currentIndex > 0) changeQuestion(currentIndex - 1);
+    };
     const exitToDashboard = () => {
         if (['quiz', 'memorize', 'mistakes'].includes(currentMode) && questions.length > 0 && currentIndex < questions.length - 1) {
-            setLastSession({ mode: currentMode, questions, currentIndex, quizConfig });
+            setLastSession({mode: currentMode, questions, currentIndex, quizConfig});
         } else {
             setLastSession(null);
         }
@@ -713,71 +807,96 @@ function App() {
             <header className="flex justify-between items-center mb-6 md:mb-8 shrink-0">
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
-                        <GraduationCap className="text-blue-600 w-6 h-6 md:w-8 md:h-8" />
+                        <GraduationCap className="text-blue-600 w-6 h-6 md:w-8 md:h-8"/>
                         <span>学习控制台</span>
                     </h1>
                     <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.getUsername()}</p>
                 </div>
                 <div className="flex gap-2 md:gap-3 items-center">
-                    <button onClick={toggleFullscreen} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
-                        {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+                    <button onClick={toggleFullscreen}
+                            className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
+                        {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
                     </button>
-                    <button onClick={() => location.href = 'profile.html'} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100" title="个人中心">
-                        <User size={18} className="md:w-5 md:h-5" />
+                    <button onClick={() => location.href = 'profile.html'}
+                            className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100"
+                            title="个人中心">
+                        <User size={18} className="md:w-5 md:h-5"/>
                     </button>
                     <div className="hidden md:flex gap-3">
                         {bankStatus === 'ready' && (
-                            <div className="px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-sm font-medium flex items-center gap-2">
-                                <Database size={16} /> 题库已就绪
+                            <div
+                                className="px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-sm font-medium flex items-center gap-2">
+                                <Database size={16}/> 题库已就绪
                             </div>
                         )}
-                        <button onClick={() => handleManualSync()} disabled={syncStatus === 'uploading'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            {syncStatus === 'uploading' ? <Loader2 className="animate-spin" size={16} /> : <UploadCloud size={18} />} 备份
+                        <button onClick={() => handleManualSync()} disabled={syncStatus === 'uploading'}
+                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            {syncStatus === 'uploading' ? <Loader2 className="animate-spin" size={16}/> :
+                                <UploadCloud size={18}/>} 备份
                         </button>
-                        <button onClick={() => handleManualRestore()} disabled={syncStatus === 'downloading'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16} /> : <DownloadCloud size={18} />} 恢复
+                        <button onClick={() => handleManualRestore()} disabled={syncStatus === 'downloading'}
+                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16}/> :
+                                <DownloadCloud size={18}/>} 恢复
                         </button>
-                        <button onClick={handleManualLocalSave} disabled={syncStatus === 'saving-local'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            {syncStatus === 'saving-local' ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={18} />} 本地保存
+                        <button onClick={handleManualLocalSave} disabled={syncStatus === 'saving-local'}
+                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            {syncStatus === 'saving-local' ? <Loader2 className="animate-spin" size={16}/> :
+                                <RefreshCw size={18}/>} 本地保存
                         </button>
-                        <button onClick={handleReloadLocal} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            <RefreshCw size={18} /> 重载本地
+                        <button onClick={handleReloadLocal}
+                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            <RefreshCw size={18}/> 重载本地
                         </button>
-                        <button onClick={handleDebugDump} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            <Database size={18} /> 导出缓存
+                        <button onClick={handleDebugDump}
+                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            <Database size={18}/> 导出缓存
                         </button>
-                        <button onClick={() => setShowResetModal(true)} className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all" title="重置进度">
-                            <Trash2 size={18} />
+                        <button onClick={() => setShowResetModal(true)}
+                                className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all"
+                                title="重置进度">
+                            <Trash2 size={18}/>
                         </button>
                     </div>
-                    <button onClick={() => {AV.User.logOut();setCurrentUser(null)}} className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-red-600 transition-all border border-slate-100">
-                        <LogOut size={18} className="md:w-5 md:h-5" />
+                    <button onClick={() => {
+                        AV.User.logOut();
+                        setCurrentUser(null)
+                    }}
+                            className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-red-600 transition-all border border-slate-100">
+                        <LogOut size={18} className="md:w-5 md:h-5"/>
                     </button>
                 </div>
             </header>
 
             {bankStatus === 'ready' && (
                 <div className="md:hidden mb-4 flex gap-2">
-                    <div className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <Database size={14} /> 题库就绪
+                    <div
+                        className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <Database size={14}/> 题库就绪
                     </div>
-                    <button onClick={() => handleManualSync()} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <UploadCloud size={14} /> 备份
+                    <button onClick={() => handleManualSync()}
+                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <UploadCloud size={14}/> 备份
                     </button>
-                    <button onClick={() => handleManualRestore()} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <DownloadCloud size={14} /> 恢复
+                    <button onClick={() => handleManualRestore()}
+                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <DownloadCloud size={14}/> 恢复
                     </button>
-                    <button onClick={handleManualLocalSave} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <RefreshCw size={14} /> 本地保存
+                    <button onClick={handleManualLocalSave}
+                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <RefreshCw size={14}/> 本地保存
                     </button>
-                    <button onClick={handleReloadLocal} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <RefreshCw size={14} /> 重载
+                    <button onClick={handleReloadLocal}
+                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <RefreshCw size={14}/> 重载
                     </button>
-                    <button onClick={handleDebugDump} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <Database size={14} /> 导出
+                    <button onClick={handleDebugDump}
+                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <Database size={14}/> 导出
                     </button>
-                    <button onClick={() => setShowResetModal(true)} className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <Trash2 size={14} />
+                    <button onClick={() => setShowResetModal(true)}
+                            className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <Trash2 size={14}/>
                     </button>
                 </div>
             )}
@@ -787,49 +906,64 @@ function App() {
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-enter">
                     <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
                         <div className="flex flex-col items-center text-center mb-6">
-                            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
-                                <AlertOctagon size={32} />
+                            <div
+                                className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                                <AlertOctagon size={32}/>
                             </div>
                             <h3 className="text-xl font-bold text-slate-800">确认重置进度？</h3>
                             <p className="text-slate-500 mt-2 text-sm">这将清除本地所有的刷题记录、错题本和统计数据。此操作无法撤销。</p>
-                            {currentUser && <p className="text-orange-500 text-xs mt-2 bg-orange-50 p-2 rounded-lg text-left w-full">注意：云端数据不会自动清除。如需清空云端备份，请在重置后点击“备份”按钮以覆盖。</p>}
+                            {currentUser &&
+                                <p className="text-orange-500 text-xs mt-2 bg-orange-50 p-2 rounded-lg text-left w-full">注意：云端数据不会自动清除。如需清空云端备份，请在重置后点击“备份”按钮以覆盖。</p>}
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => setShowResetModal(false)} className="py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">取消</button>
-                            <button onClick={performReset} className="py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">确认重置</button>
+                            <button onClick={() => setShowResetModal(false)}
+                                    className="py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">取消
+                            </button>
+                            <button onClick={performReset}
+                                    className="py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">确认重置
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
             {lastSession && (
-                <div onClick={resumeLastSession} className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
+                <div onClick={resumeLastSession}
+                     className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl"><Bookmark size={24} /></div>
+                        <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl"><Bookmark size={24}/></div>
                         <div>
                             <h3 className="font-bold text-lg">继续上次的学习</h3>
-                            <p className="text-indigo-100 text-xs md:text-sm">{lastSession.mode === 'memorize' ? '背题模式' : (lastSession.mode === 'mistakes' ? '错题攻坚' : '刷题模式')} · 剩余 {lastSession.questions.length - lastSession.currentIndex} 题</p>
+                            <p className="text-indigo-100 text-xs md:text-sm">{lastSession.mode === 'memorize' ? '背题模式' : (lastSession.mode === 'mistakes' ? '错题攻坚' : '刷题模式')} ·
+                                剩余 {lastSession.questions.length - lastSession.currentIndex} 题</p>
                         </div>
                     </div>
-                    <div className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors"><ChevronRight size={24} /></div>
+                    <div className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors"><ChevronRight
+                        size={24}/></div>
                 </div>
             )}
 
             {syncMsg && (
-                <div className={`mb-6 px-4 py-3 rounded-2xl flex items-center gap-3 border text-sm animate-enter transition-all ${syncStatus === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-                    {syncStatus === 'success' ? <CheckCircle size={18} /> : <RefreshCw size={18} className="animate-spin" />} {syncMsg}
+                <div
+                    className={`mb-6 px-4 py-3 rounded-2xl flex items-center gap-3 border text-sm animate-enter transition-all ${syncStatus === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                    {syncStatus === 'success' ? <CheckCircle size={18}/> :
+                        <RefreshCw size={18} className="animate-spin"/>} {syncMsg}
                 </div>
             )}
 
             <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
-                {errorMsg && <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 border border-red-100"><AlertCircle />{errorMsg}</div>}
+                {errorMsg && <div
+                    className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 border border-red-100">
+                    <AlertCircle/>{errorMsg}</div>}
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-                    <div className="lg:col-span-8 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 flex flex-col justify-between relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50 blur-3xl"></div>
+                    <div
+                        className="lg:col-span-8 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 flex flex-col justify-between relative overflow-hidden">
+                        <div
+                            className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50 blur-3xl"></div>
                         <div className="relative z-10">
                             <div className="mb-6 md:mb-8 flex items-center gap-3 border-b border-slate-100 pb-4">
-                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Settings size={20} /></div>
+                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Settings size={20}/></div>
                                 <div>
                                     <h2 className="font-bold text-lg md:text-xl text-slate-800">开始新的练习</h2>
                                     <p className="text-xs md:text-sm text-slate-400">自定义你的刷题计划</p>
@@ -838,33 +972,52 @@ function App() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题库章节</label>
-                                    <select value={quizConfig.lectureId} onChange={e => setQuizConfig({...quizConfig, lectureId: Number(e.target.value)})} className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
+                                    <label
+                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题库章节</label>
+                                    <select value={quizConfig.lectureId} onChange={e => setQuizConfig({
+                                        ...quizConfig,
+                                        lectureId: Number(e.target.value)
+                                    })}
+                                            className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
                                         <option value={0}>📚 综合练习 (所有章节)</option>
-                                        {LECTURES.map(l => <option key={l.id} value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
+                                        {LECTURES.map(l => <option key={l.id}
+                                                                   value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目数量</label>
+                                    <label
+                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目数量</label>
                                     <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
                                         {[10, 20, 50, 'all'].map(n => (
-                                            <button key={n} onClick={() => setQuizConfig({...quizConfig, count: n})} className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.count === n ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{n === 'all' ? '全部' : n}</button>
+                                            <button key={n} onClick={() => setQuizConfig({...quizConfig, count: n})}
+                                                    className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.count === n ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{n === 'all' ? '全部' : n}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目类型</label>
+                                    <label
+                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目类型</label>
                                     <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
-                                        {[{v:'all', l:'全部'}, {v:'single', l:'单选'}, {v:'multiple', l:'多选'}, {v:'judgment', l:'判断'}].map(t => (
-                                            <button key={t.v} onClick={() => setQuizConfig({...quizConfig, type: t.v})} className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.type === t.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{t.l}</button>
+                                        {[{v: 'all', l: '全部'}, {v: 'single', l: '单选'}, {
+                                            v: 'multiple',
+                                            l: '多选'
+                                        }, {v: 'judgment', l: '判断'}].map(t => (
+                                            <button key={t.v} onClick={() => setQuizConfig({...quizConfig, type: t.v})}
+                                                    className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.type === t.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{t.l}</button>
                                         ))}
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">模式</label>
+                                    <label
+                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">模式</label>
                                     <div className="grid grid-cols-3 gap-2 bg-slate-50 p-1.5 rounded-2xl">
-                                        {[{v:'all', l:'随机'}, {v:'new', l:'未做'}, {v:'wrong', l:'错题'}].map(m => (
-                                            <button key={m.v} onClick={() => setQuizConfig({...quizConfig, filter: m.v})} className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.filter === m.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{m.l}</button>
+                                        {[{v: 'all', l: '随机'}, {v: 'new', l: '未做'}, {
+                                            v: 'wrong',
+                                            l: '错题'
+                                        }].map(m => (
+                                            <button key={m.v}
+                                                    onClick={() => setQuizConfig({...quizConfig, filter: m.v})}
+                                                    className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.filter === m.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{m.l}</button>
                                         ))}
                                     </div>
                                 </div>
@@ -873,89 +1026,120 @@ function App() {
 
                         <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-slate-100 relative z-10">
                             <button
-                                onClick={() => { setCurrentIndex(0); generateAndStartQuiz('quiz'); }}
+                                onClick={() => {
+                                    setCurrentIndex(0);
+                                    generateAndStartQuiz('quiz');
+                                }}
                                 disabled={bankStatus !== 'ready'}
                                 className="py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base">
-                                {bankStatus === 'ready' ? <><Brain size={20} /> 开始刷题</> : <><Loader2 size={20} className="animate-spin" /> {bankProgress}</>}
+                                {bankStatus === 'ready' ? <><Brain size={20}/> 开始刷题</> : <><Loader2 size={20}
+                                                                                                        className="animate-spin"/> {bankProgress}</>}
                             </button>
                             <button
-                                onClick={() => { setCurrentIndex(0); generateAndStartQuiz('memorize'); }}
+                                onClick={() => {
+                                    setCurrentIndex(0);
+                                    generateAndStartQuiz('memorize');
+                                }}
                                 disabled={bankStatus !== 'ready'}
                                 className="py-3 md:py-4 bg-white border-2 border-slate-100 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base">
-                                <BookOpen size={20} /> 背题模式
+                                <BookOpen size={20}/> 背题模式
                             </button>
                         </div>
                         {bankStatus === 'ready' && (
                             <div className="mt-2 text-center">
-                                <button onClick={forceUpdateBank} className="text-xs text-slate-300 hover:text-blue-500 underline decoration-dotted">发现题库旧? 点击强制更新缓存</button>
+                                <button onClick={forceUpdateBank}
+                                        className="text-xs text-slate-300 hover:text-blue-500 underline decoration-dotted">发现题库旧?
+                                    点击强制更新缓存
+                                </button>
                             </div>
                         )}
                     </div>
 
-                    <div className="lg:col-span-4 flex flex-col gap-6">
-                        <div onClick={startMistakeNotebook} className="bg-gradient-to-br from-red-500 to-rose-600 p-6 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform relative overflow-hidden group">
-                            <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
-                            <div className="relative z-10 flex flex-col h-full justify-between">
+                    {/* 右侧栏：错题攻坚 + 数据报表 */}
+                    <div className="lg:col-span-4 flex flex-col gap-6 h-full">
+
+                        {/* 1. 错题攻坚卡片 - 稍微紧凑一点，去掉多余留白 */}
+                        <div onClick={startMistakeNotebook}
+                             className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform relative overflow-hidden group shrink-0">
+                            <div
+                                className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
+                            <div className="relative z-10 flex flex-col h-full justify-between gap-4">
                                 <div className="flex justify-between items-start">
-                                    <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm"><AlertTriangle size={24} /></div>
-                                    <span className="font-mono text-4xl font-bold">{wrongIds.size}</span>
+                                    <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"><AlertTriangle
+                                        size={20}/></div>
+                                    <span className="font-mono text-3xl font-bold opacity-90">{wrongIds.size}</span>
                                 </div>
-                                <div className="mt-4">
-                                    <h3 className="text-xl font-bold mb-1">错题攻坚</h3>
-                                    <p className="text-red-100 text-sm">点击开始专项复习</p>
+                                <div>
+                                    <h3 className="text-lg font-bold mb-0.5">错题攻坚</h3>
+                                    <p className="text-red-100 text-xs opacity-90">点击开始专项复习</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* 紧凑版数据报表卡片 - 已调低高度 */}
-                        <a href={REPORT_URL} className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex flex-col justify-between no-underline group h-full">
-                            <div>
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform"><PieChart size={18} /></div>
-                                    <div>
-                                        <div className="font-bold text-sm md:text-base text-slate-800">数据报表</div>
-                                        <div className="text-[10px] md:text-xs text-slate-400">近7天趋势</div>
-                                    </div>
-                                </div>
+                        {/* 2. 数据报表卡片 - 恢复标准卡片样式，填充剩余空间 */}
+                        <a href={REPORT_URL}
+                           className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex flex-col no-underline group flex-1 min-h-0">
 
-                                <div className="flex gap-2 mb-2">
-                                    <div className="flex-1 bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
-                                        <div className="text-[10px] text-slate-400 mb-0.5 uppercase tracking-wider">累计已刷</div>
-                                        <div className="font-bold text-base md:text-lg text-slate-700 leading-none">{brushedIds.size}</div>
+                            {/* 头部：标题与核心数据并排 */}
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><PieChart size={20}/>
                                     </div>
-                                    <div className="flex-1 bg-green-50 rounded-xl p-2 text-center border border-green-100">
-                                        <div className="text-[10px] text-green-600/70 mb-0.5 uppercase tracking-wider">已掌握</div>
-                                        <div className="font-bold text-base md:text-lg text-green-600 leading-none">{masteredIds.size}</div>
+                                    <div>
+                                        <div className="font-bold text-base text-slate-800">数据报表</div>
+                                        <div className="text-xs text-slate-400">近7天学习趋势</div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* 核心修改：h-24 改为 h-16，并减少顶部padding */}
-                            <div className="flex items-end justify-between gap-2 h-16 pt-1 border-t border-slate-50">
+                            {/* 中间：统计数据块 */}
+                            <div className="flex gap-3 mb-4">
+                                <div
+                                    className="flex-1 bg-slate-50 rounded-xl p-3 text-center border border-slate-100 flex flex-col justify-center">
+                                    <div className="text-[10px] text-slate-400 mb-1 uppercase font-bold">累计已刷</div>
+                                    <div
+                                        className="font-bold text-xl text-slate-700 leading-none">{brushedIds.size}</div>
+                                </div>
+                                <div
+                                    className="flex-1 bg-green-50 rounded-xl p-3 text-center border border-green-100 flex flex-col justify-center">
+                                    <div className="text-[10px] text-green-600/70 mb-1 uppercase font-bold">已掌握</div>
+                                    <div
+                                        className="font-bold text-xl text-green-600 leading-none">{masteredIds.size}</div>
+                                </div>
+                            </div>
+
+                            {/* 底部：图表 - 使用 flex-1 自动填充卡片剩余高度 */}
+                            <div
+                                className="flex items-end justify-between gap-2 border-t border-slate-50 pt-4 flex-1 min-h-[80px]">
                                 {weeklyStats.data.map((day, idx) => {
+                                    // 重新调整高度逻辑，让图表看起来更舒展
                                     const rawPercent = (day.count / weeklyStats.max) * 100;
-                                    // 稍微调整最小高度，因为整体变矮了
-                                    const heightPercent = day.count === 0 ? 10 : Math.max(20, rawPercent);
+                                    const heightPercent = day.count === 0 ? 8 : Math.max(15, rawPercent);
 
                                     return (
-                                        <div key={idx} className="flex-1 h-full flex flex-col justify-end items-center gap-0.5 group/bar">
+                                        <div key={idx}
+                                             className="flex-1 h-full flex flex-col justify-end items-center gap-1 group/bar">
                                             <div className="w-full flex items-end justify-center relative flex-1">
+                                                {/* Tooltip */}
                                                 {day.count > 0 && (
-                                                    <div className="absolute -top-5 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-800 text-white text-[9px] py-0.5 px-1.5 rounded mb-1 whitespace-nowrap z-10 pointer-events-none">
-                                                        {day.count}
+                                                    <div
+                                                        className="absolute -top-7 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] py-1 px-1.5 rounded mb-1 whitespace-nowrap z-10 pointer-events-none">
+                                                        {day.count}题
                                                     </div>
                                                 )}
+                                                {/* 柱子 */}
                                                 <div
-                                                    style={{ height: `${heightPercent}%` }}
-                                                    className={`w-2.5 md:w-3 rounded-t-[4px] transition-all duration-500 ease-out relative
+                                                    style={{height: `${heightPercent}%`}}
+                                                    className={`w-3 md:w-3.5 rounded-t-[4px] transition-all duration-500 ease-out relative
                                                         ${day.isToday
-                                                        ? 'bg-gradient-to-t from-blue-500 to-indigo-400 shadow shadow-blue-200'
+                                                        ? 'bg-gradient-to-t from-blue-500 to-indigo-400 shadow-lg shadow-blue-200'
                                                         : (day.count > 0 ? 'bg-blue-200 group-hover/bar:bg-blue-400' : 'bg-slate-100')}
                                                     `}
                                                 >
                                                 </div>
                                             </div>
-                                            <div className={`text-[8px] transform scale-95 ${day.isToday ? 'font-bold text-blue-600' : 'text-slate-300'}`}>
+                                            <div
+                                                className={`text-[10px] ${day.isToday ? 'font-bold text-blue-600' : 'text-slate-300'}`}>
                                                 {day.date}
                                             </div>
                                         </div>
@@ -968,17 +1152,44 @@ function App() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                        { label: '总题库', val: bankStatus === 'ready' ? Object.values(allQuestionBank).flat().length : '-', icon: Layers, color: 'text-slate-600', bg: 'bg-slate-100' },
-                        { label: '已掌握', val: masteredIds.size, icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50' },
-                        { label: '已背诵', val: memorizedIds.size, icon: Eye, color: 'text-purple-600', bg: 'bg-purple-50' },
-                        { label: '正确率', val: brushedIds.size ? Math.round(masteredIds.size/brushedIds.size*100)+'%' : '-', icon: BarChart3, color: 'text-orange-600', bg: 'bg-orange-50' }
+                        {
+                            label: '总题库',
+                            val: bankStatus === 'ready' ? Object.values(allQuestionBank).flat().length : '-',
+                            icon: Layers,
+                            color: 'text-slate-600',
+                            bg: 'bg-slate-100'
+                        },
+                        {
+                            label: '已掌握',
+                            val: masteredIds.size,
+                            icon: CheckCircle,
+                            color: 'text-green-600',
+                            bg: 'bg-green-50'
+                        },
+                        {
+                            label: '已背诵',
+                            val: memorizedIds.size,
+                            icon: Eye,
+                            color: 'text-purple-600',
+                            bg: 'bg-purple-50'
+                        },
+                        {
+                            label: '正确率',
+                            val: brushedIds.size ? Math.round(masteredIds.size / brushedIds.size * 100) + '%' : '-',
+                            icon: BarChart3,
+                            color: 'text-orange-600',
+                            bg: 'bg-orange-50'
+                        }
                     ].map((item, i) => (
-                        <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}>
-                                <item.icon size={20} />
+                        <div key={i}
+                             className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm">
+                            <div
+                                className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}>
+                                <item.icon size={20}/>
                             </div>
                             <div>
-                                <div className="text-xl md:text-2xl font-bold text-slate-800 leading-none mb-1">{item.val}</div>
+                                <div
+                                    className="text-xl md:text-2xl font-bold text-slate-800 leading-none mb-1">{item.val}</div>
                                 <span className="text-xs font-bold text-slate-400 uppercase">{item.label}</span>
                             </div>
                         </div>
@@ -1000,7 +1211,7 @@ function App() {
             // 重置时间部分，只比较日期，解决时区和时间戳不一致问题
             d.setHours(0, 0, 0, 0);
 
-            const dateStr = d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+            const dateStr = d.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'});
 
             // 筛选当天的数据
             const count = history.filter(h => {
@@ -1010,14 +1221,15 @@ function App() {
             }).length;
 
             if (count > maxCount) maxCount = count;
-            stats.push({ date: dateStr, count, isToday: i === 0 });
+            stats.push({date: dateStr, count, isToday: i === 0});
         }
 
-        return { data: stats, max: maxCount };
+        return {data: stats, max: maxCount};
     })();
 
     const renderCard = () => {
-        if (!questions.length) return <div className="h-screen flex items-center justify-center text-slate-400">题库为空</div>;
+        if (!questions.length) return <div
+            className="h-screen flex items-center justify-center text-slate-400">题库为空</div>;
         const currentQ = questions[currentIndex];
         const isQuiz = currentMode !== 'memorize';
         const showContent = !isQuiz || showExplanation;
@@ -1026,10 +1238,13 @@ function App() {
             <div className="h-screen flex flex-col md:flex-row bg-slate-100">
                 <div className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col">
                     <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                        <button onClick={exitToDashboard} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
-                            <RotateCcw size={18} /> 退出练习
+                        <button onClick={exitToDashboard}
+                                className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
+                            <RotateCcw size={18}/> 退出练习
                         </button>
-                        <button onClick={toggleFullscreen} className="p-2 text-slate-400 hover:text-slate-600">{isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}</button>
+                        <button onClick={toggleFullscreen}
+                                className="p-2 text-slate-400 hover:text-slate-600">{isFullscreen ?
+                            <Minimize size={18}/> : <Maximize size={18}/>}</button>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4">
                         <div className="grid grid-cols-5 gap-2">
@@ -1052,19 +1267,26 @@ function App() {
 
                 <div className="flex-1 flex flex-col h-screen relative">
                     <div className="md:hidden p-4 bg-white border-b flex justify-between items-center shadow-sm z-10">
-                        <button onClick={exitToDashboard} className="p-2 -ml-2 text-slate-600"><RotateCcw size={20} /></button>
+                        <button onClick={exitToDashboard} className="p-2 -ml-2 text-slate-600"><RotateCcw size={20}/>
+                        </button>
                         <span className="font-bold text-slate-700">{currentIndex + 1}/{questions.length}</span>
-                        <button onClick={toggleFullscreen} className="p-2 -mr-2 text-slate-600">{isFullscreen ? <Minimize size={20}/> : <Maximize size={20}/>}</button>
+                        <button onClick={toggleFullscreen} className="p-2 -mr-2 text-slate-600">{isFullscreen ?
+                            <Minimize size={20}/> : <Maximize size={20}/>}</button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-24 mobile-safe-bottom">
+                    <div
+                        className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-24 mobile-safe-bottom">
                         <div className="w-full max-w-3xl space-y-6 md:space-y-8">
-                            <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter">
+                            <div
+                                className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter">
                                 <div className="flex items-center gap-3 mb-4 md:mb-6">
-                                    <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${currentQ.type==='multiple'?'bg-purple-100 text-purple-700':(currentQ.type==='judgment'?'bg-orange-100 text-orange-700':'bg-blue-100 text-blue-700')}`}>
+                                    <span
+                                        className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${currentQ.type === 'multiple' ? 'bg-purple-100 text-purple-700' : (currentQ.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')}`}>
                                         {currentQ.type === 'multiple' ? '多选题' : (currentQ.type === 'judgment' ? '判断题' : '单选题')}
                                     </span>
-                                    <span className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers size={14}/> {currentQ.category}</span>
+                                    <span
+                                        className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers
+                                        size={14}/> {currentQ.category}</span>
                                 </div>
                                 <h2 className="text-lg md:text-2xl font-bold text-slate-900 leading-relaxed mb-4">
                                     {currentQ.question}
@@ -1103,13 +1325,15 @@ function App() {
                                                                         ${status === 'wrong' ? 'bg-red-500 border-red-500 text-white' : ''}
                                                                         ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
                                                                     `}>
-                                                {['A','B','C','D','E'][idx]}
-                                            </div>
-                                            <span className="flex-1 text-base md:text-lg leading-snug">{opt}</span>
-                                            {status === 'correct' && <CheckCircle className="text-green-500 shrink-0 w-5 h-5 md:w-6 md:h-6" />}
-                                            {status === 'wrong' && <XCircle className="text-red-500 shrink-0 w-5 h-5 md:w-6 md:h-6" />}
-                                        </button>
-                                    )
+                                                    {['A', 'B', 'C', 'D', 'E'][idx]}
+                                                </div>
+                                                <span className="flex-1 text-base md:text-lg leading-snug">{opt}</span>
+                                                {status === 'correct' && <CheckCircle
+                                                    className="text-green-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
+                                                {status === 'wrong' &&
+                                                    <XCircle className="text-red-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
+                                            </button>
+                                        )
                                     })}
                                 </div>
                             </div>
@@ -1120,15 +1344,16 @@ function App() {
                                             className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2
                                                             ${selectedIndices.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
                                     >
-                                        确认提交 <CheckSquare size={18} />
+                                        确认提交 <CheckSquare size={18}/>
                                     </button>
                                 </div>
                             )}
 
                             {showContent && (
-                                <div className="animate-enter bg-indigo-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-indigo-100 mb-8">
+                                <div
+                                    className="animate-enter bg-indigo-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-indigo-100 mb-8">
                                     <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
-                                        <Zap size={20} className="text-indigo-500 fill-current" /> 答案解析
+                                        <Zap size={20} className="text-indigo-500 fill-current"/> 答案解析
                                     </div>
                                     <p className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base">{currentQ.explanation}</p>
                                 </div>
@@ -1181,26 +1406,49 @@ function App() {
         <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
             <div className="glass p-6 md:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50">
                 <div className="text-center mb-8">
-                    <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
-                        <Brain size={32} className="md:w-10 md:h-10" />
+                    <div
+                        className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
+                        <Brain size={32} className="md:w-10 md:h-10"/>
                     </div>
                     <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 创新创业</h1>
                     <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">Pro 学习系统</p>
-                    {brushedIds.size > 0 && <p className="text-xs text-blue-500 mt-2">本地缓存: {brushedIds.size} 题记录</p>}
+                    {brushedIds.size > 0 &&
+                        <p className="text-xs text-blue-500 mt-2">本地缓存: {brushedIds.size} 题记录</p>}
                 </div>
-                <form onSubmit={(e) => { e.preventDefault(); setAuthLoading(true); setAuthError(null); AV.User.logIn(username,password).then(u=>{setCurrentUser(u);setAuthLoading(false)}).catch(err=>{setAuthError(err.message||"登录失败");setAuthLoading(false)}) }} className="space-y-4 md:space-y-5">
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    setAuthLoading(true);
+                    setAuthError(null);
+                    AV.User.logIn(username, password).then(u => {
+                        setCurrentUser(u);
+                        setAuthLoading(false)
+                    }).catch(err => {
+                        setAuthError(err.message || "登录失败");
+                        setAuthLoading(false)
+                    })
+                }} className="space-y-4 md:space-y-5">
                     <div className="space-y-4">
-                        <input type="text" required placeholder="用户名" className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" value={username} onChange={e => setUsername(e.target.value)} />
-                        <input type="password" required placeholder="密码" className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none" value={password} onChange={e => setPassword(e.target.value)} />
+                        <input type="text" required placeholder="用户名"
+                               className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none"
+                               value={username} onChange={e => setUsername(e.target.value)}/>
+                        <input type="password" required placeholder="密码"
+                               className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none"
+                               value={password} onChange={e => setPassword(e.target.value)}/>
                     </div>
-                    {authError && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2"><AlertCircle size={16} />{authError}</div>}
-                    <button disabled={authLoading} className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:shadow-xl transition-all disabled:opacity-70">
+                    {authError &&
+                        <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
+                            <AlertCircle size={16}/>{authError}</div>}
+                    <button disabled={authLoading}
+                            className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:shadow-xl transition-all disabled:opacity-70">
                         {authLoading ? '请稍候...' : '立即登录'}
                     </button>
                 </form>
                 <div className="mt-6 text-center">
-                    <a href="https://junpgle.github.io/LearnWord/register.html" target="_blank" className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
-                        没有账号？<span className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span> <ChevronRight size={14} />
+                    <a href="https://junpgle.github.io/LearnWord/register.html" target="_blank"
+                       className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
+                        没有账号？<span
+                        className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span>
+                        <ChevronRight size={14}/>
                     </a>
                 </div>
             </div>
