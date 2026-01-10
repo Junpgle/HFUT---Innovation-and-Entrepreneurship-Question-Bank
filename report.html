@@ -40,8 +40,21 @@
     import { createRoot } from 'react-dom/client';
     import {
         ChevronLeft, Calendar, BarChart3, CheckCircle, XCircle,
-        Clock, ArrowRight, BookOpen, Layers, Zap, AlertCircle
+        Clock, ArrowRight, BookOpen, Layers, Zap, AlertCircle, Eye, X
     } from 'lucide-react';
+
+    const safeGoHome = () => {
+      const sameOrigin = document.referrer && document.referrer.startsWith(location.origin);
+      const current = location.href;
+      if (sameOrigin && window.history.length > 1) {
+        history.back();
+        // Fallback if history.back() is blocked/no-op
+        setTimeout(() => { if (location.href === current) location.href = 'index.html'; }, 500);
+      } else {
+        location.href = 'index.html';
+      }
+    };
+
 
     const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
     const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
@@ -101,6 +114,7 @@
         const [bank, setBank] = useState({});
         const [selectedDate, setSelectedDate] = useState(null);
         const [viewingQuestion, setViewingQuestion] = useState(null); // Modal state
+        const [gateReason, setGateReason] = useState('');
 
         // Init
         useEffect(() => {
@@ -114,7 +128,13 @@
                         window.AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
                         const user = window.AV.User.current();
                         if (!user) {
-                            window.location.href = 'index.html'; // Redirect if not logged in
+                            setGateReason('尚未登录，请先登录后查看报表');
+                            document.getElementById('loading').style.display = 'none';
+                            return;
+                        }
+                        if (!user.getEmail() || !user.get('emailVerified')) {
+                            setGateReason('需要绑定并验证邮箱后才能查看学习报表');
+                            document.getElementById('loading').style.display = 'none';
                             return;
                         }
 
@@ -193,13 +213,29 @@
             else alert("题库中未找到该题（可能属于未加载章节或版本不匹配）");
         };
 
+        if (gateReason) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+                    <div className="bg-white border border-slate-200 shadow-lg rounded-2xl p-6 w-full max-w-md space-y-4 text-center">
+                        <AlertCircle className="mx-auto text-amber-500" size={32}/>
+                        <div className="text-lg font-bold text-slate-800">访问受限</div>
+                        <p className="text-slate-600 text-sm">{gateReason}</p>
+                        <div className="grid grid-cols-1 gap-2">
+                            <button onClick={() => location.href='profile.html'} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-bold">前往账号中心绑定邮箱</button>
+                            <button onClick={safeGoHome} className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold">返回主页</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
         if (!ready) return null;
 
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col">
                 {/* Navbar */}
                 <div className="sticky top-0 bg-white border-b border-slate-200 z-10 px-4 py-3 flex items-center justify-between shadow-sm">
-                    <button onClick={() => window.location.href='index.html'} className="p-2 -ml-2 text-slate-600 hover:bg-slate-50 rounded-full flex items-center gap-1">
+                    <button onClick={safeGoHome} className="p-2 -ml-2 text-slate-600 hover:bg-slate-50 rounded-full flex items-center gap-1">
                         <ChevronLeft size={20} /> <span className="text-sm font-bold">返回主页</span>
                     </button>
                     <h1 className="font-bold text-slate-800">数据报表</h1>

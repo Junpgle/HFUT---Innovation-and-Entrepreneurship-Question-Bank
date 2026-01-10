@@ -156,8 +156,13 @@
     const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
     const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
     const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-    const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
-    const REPORT_URL = "https://junpgle.github.io/HFUT---Innovation-and-Entrepreneurship-Question-Bank/report.html";
+    const QUESTION_SOURCES = [
+        // 依次尝试：腾讯云、GitHub Raw,
+        "https://cloud1-5gy1rzs4bcd5f256.9057-static-cloud1-5gy1rzs4bcd5f256-1395095281/cxcy/questions/",
+        "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/"
+    ];
+    const GITHUB_BASE = QUESTION_SOURCES[QUESTION_SOURCES.length - 1];
+    const REPORT_URL = "report.html";
 
     const LECTURES = [
         { id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx" },
@@ -194,6 +199,19 @@
             catch (e) { console.warn(`Source failed, trying next: ${url}`); continue; }
         }
         throw new Error(`所有源加载失败: ${urls.join(', ')}`);
+    };
+
+    const fetchLectureArrayBuffer = async (lectureFile) => {
+        const errors = [];
+        for (const base of QUESTION_SOURCES) {
+            try {
+                const url = `${base}${encodeURIComponent(lectureFile)}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return new Uint8Array(await res.arrayBuffer());
+            } catch (e) { errors.push(e.message); }
+        }
+        throw new Error(`所有题库源均不可用: ${errors.join(' | ')}`);
     };
 
     const loadSetFromLocal = (key) => {
@@ -362,12 +380,7 @@
                         const lecture = LECTURES[i];
                         setBankProgress(`下载解析: ${lecture.name} (${i + 1}/${LECTURES.length})`);
                         try {
-                            const url = `${GITHUB_BASE}${encodeURIComponent(lecture.file)}`;
-                            const response = await fetch(url);
-                            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                            const blob = await response.blob();
-                            const arrayBuffer = await blob.arrayBuffer();
-                            const data = new Uint8Array(arrayBuffer);
+                            const data = await fetchLectureArrayBuffer(lecture.file);
                             const workbook = window.XLSX.read(data, { type: 'array' });
                             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                             const rawData = window.XLSX.utils.sheet_to_json(worksheet, { header: 1 });
@@ -931,7 +944,7 @@
                                 </div>
                             </div>
 
-                            <a href={REPORT_URL} target="_blank" className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex-1 flex flex-col justify-center no-underline">
+                            <a href={REPORT_URL} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex-1 flex flex-col justify-center no-underline">
                                 <div className="flex items-center gap-4 mb-4">
                                     <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><PieChart size={24} /></div>
                                     <div>
