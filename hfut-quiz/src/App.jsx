@@ -32,8 +32,34 @@ const LECTURES = [
     { id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx" },
 ];
 
+// 版本号用于兼容未来结构变更
+const BANK_CACHE_KEY = 'hf_question_bank';
+const BANK_CACHE_VERSION_KEY = 'hf_bank_version';
+const BANK_CACHE_VERSION = 1;
+
 // 初始化 SDK
 AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
+
+// 安全存储封装：IndexedDB 不可用时回退到 localStorage
+const safeGet = async (key, fallback = null) => {
+    try {
+        const v = await localforage.getItem(key);
+        if (v !== null && v !== undefined) {
+            try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
+            return v;
+        }
+    } catch (err) { console.warn(`localforage.getItem(${key}) failed`, err); }
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw !== null) return JSON.parse(raw);
+    } catch (err) { console.warn(`localStorage.getItem(${key}) failed`, err); }
+    return fallback;
+};
+
+const safeSet = async (key, value) => {
+    try { await localforage.setItem(key, value); } catch (err) { console.warn(`localforage.setItem(${key}) failed`, err); }
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (err) { console.warn(`localStorage.setItem(${key}) failed`, err); }
+};
 
 function App() {
     const [currentUser, setCurrentUser] = useState(AV.User.current());
@@ -56,6 +82,7 @@ function App() {
     const [wrongIds, setWrongIds] = useState(new Set());
     const [history, setHistory] = useState([]);
     const [lastSession, setLastSession] = useState(null);
+    const [hydrated, setHydrated] = useState(false);
 
     // 交互状态
     const [quizConfig, setQuizConfig] = useState({ lectureId: 0, count: 20, type: 'all', filter: 'all' });
@@ -77,11 +104,11 @@ function App() {
             try {
                 const url = `${base}${encodeURIComponent(lectureFile)}`;
                 const res = await fetch(url);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) { errors.push(`HTTP ${res.status}`); continue; }
                 return new Uint8Array(await res.arrayBuffer());
             } catch (e) { errors.push(e.message); }
         }
-        throw new Error(`所有题库源均不可用: ${errors.join(' | ')}`);
+        return Promise.reject(new Error(`所有题库源均不可用: ${errors.join(' | ')}`));
     };
 
     const parseExcelData = (rows, lectureId, lectureName) => {
@@ -144,37 +171,137 @@ function App() {
         const loadLocal = async () => {
             try {
                 const getSet = async (k) => {
-                    const val = await localforage.getItem(k);
-                    return val ? new Set(val) : new Set();
+                    const val = await safeGet(k);
+                    return Array.isArray(val) ? new Set(val) : (val instanceof Set ? val : new Set());
                 }
                 setBrushedIds(await getSet('app_brushedIds'));
                 setMemorizedIds(await getSet('app_memorizedIds'));
                 setMasteredIds(await getSet('app_masteredIds'));
                 setWrongIds(await getSet('app_wrongIds'));
 
-                const hist = await localforage.getItem('app_history');
+                const hist = await safeGet('app_history');
                 if(hist) setHistory(hist);
 
-                const sess = await localforage.getItem('app_lastSession');
+                const sess = await safeGet('app_lastSession');
                 if(sess) setLastSession(sess);
-            } catch(e) { console.error(e); }
+                setHydrated(true);
+            } catch(e) { console.error(e); setHydrated(true); }
         };
         loadLocal();
     }, []);
 
     // 保存本地数据
-    useEffect(() => { localforage.setItem('app_brushedIds', Array.from(brushedIds)); }, [brushedIds]);
-    useEffect(() => { localforage.setItem('app_memorizedIds', Array.from(memorizedIds)); }, [memorizedIds]);
-    useEffect(() => { localforage.setItem('app_masteredIds', Array.from(masteredIds)); }, [masteredIds]);
-    useEffect(() => { localforage.setItem('app_wrongIds', Array.from(wrongIds)); }, [wrongIds]);
-    useEffect(() => { localforage.setItem('app_history', history); }, [history]);
     useEffect(() => {
-        if(lastSession) localforage.setItem('app_lastSession', lastSession);
-        else localforage.removeItem('app_lastSession');
-    }, [lastSession]);
+        if(!hydrated) return;
+        const save = async () => { await safeSet('app_brushedIds', Array.from(brushedIds)); };
+        save().catch(console.error);
+    }, [brushedIds, hydrated]);
+    useEffect(() => {
+        if(!hydrated) return;
+        const save = async () => { await safeSet('app_memorizedIds', Array.from(memorizedIds)); };
+        save().catch(console.error);
+    }, [memorizedIds, hydrated]);
+    useEffect(() => {
+        if(!hydrated) return;
+        const save = async () => { await safeSet('app_masteredIds', Array.from(masteredIds)); };
+        save().catch(console.error);
+    }, [masteredIds, hydrated]);
+    useEffect(() => {
+        if(!hydrated) return;
+        const save = async () => { await safeSet('app_wrongIds', Array.from(wrongIds)); };
+        save().catch(console.error);
+    }, [wrongIds, hydrated]);
+    useEffect(() => {
+        if(!hydrated) return;
+        const save = async () => { await safeSet('app_history', history); };
+        save().catch(console.error);
+    }, [history, hydrated]);
+    useEffect(() => {
+        if(!hydrated) return;
+        const save = async () => {
+            if(lastSession) await safeSet('app_lastSession', lastSession);
+            else {
+                await localforage.removeItem('app_lastSession').catch(console.warn);
+                try { localStorage.removeItem('app_lastSession'); } catch {}
+            }
+        };
+        save().catch(console.error);
+    }, [lastSession, hydrated]);
+
+    // 一次性迁移（从 localStorage 迁移到 localforage，并修复旧格式）
+    useEffect(() => {
+        (async () => {
+            try {
+                const v = await localforage.getItem(BANK_CACHE_VERSION_KEY);
+                if (v === BANK_CACHE_VERSION) return; // 已是最新
+
+                const legacy = localStorage.getItem(BANK_CACHE_KEY);
+                if (legacy) {
+                    try {
+                        const obj = JSON.parse(legacy);
+                        // 尝试修复：确保每章节是数组且项包含 id/options/rawAnswer
+                        const repaired = {};
+                        Object.keys(obj || {}).forEach(k => {
+                            const arr = Array.isArray(obj[k]) ? obj[k] : [];
+                            repaired[k] = arr.filter(x => x && typeof x === 'object').map((x, i) => ({
+                                id: x.id || `L${k}-${i}`,
+                                type: x.type || 'single',
+                                question: x.question || String(x.q || x.title || ''),
+                                options: Array.isArray(x.options) ? x.options : (Array.isArray(x.opts) ? x.opts : []),
+                                rawAnswer: Array.isArray(x.rawAnswer) ? x.rawAnswer : (Array.isArray(x.answer) ? x.answer : []),
+                                explanation: x.explanation || x.exp || '',
+                                category: x.category || '',
+                                lectureId: Number(k)
+                            })).filter(q => q.question && q.options && q.options.length > 0);
+                        });
+                        await safeSet(BANK_CACHE_KEY, repaired);
+                        await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                    } catch (err) {
+                        console.warn('Legacy cache parse failed', err);
+                    }
+                } else {
+                    // 若无 legacy，但也未设置版本，则仅设置版本避免重复迁移
+                    await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                }
+            } catch (err) {
+                console.warn('Migration step failed', err);
+            }
+        })();
+    }, []);
 
     // 加载题库
     useEffect(() => {
+        const isValidBank = (bank) => {
+            if (!bank || typeof bank !== 'object') return false;
+            const chapters = Object.values(bank);
+            if (!chapters.length) return false;
+            const firstChapter = chapters[0];
+            if (!Array.isArray(firstChapter) || firstChapter.length === 0) return false;
+            const item = firstChapter[0];
+            // 兼容较旧结构：存在 id 和 options 即认为可用；若有 rawAnswer 更佳
+            return !!(item && typeof item === 'object' && item.id && Array.isArray(item.options));
+        };
+
+        const tryRepairBank = (bank) => {
+            try {
+                const repaired = {};
+                Object.keys(bank || {}).forEach(k => {
+                    const arr = Array.isArray(bank[k]) ? bank[k] : [];
+                    repaired[k] = arr.map((x, i) => ({
+                        id: x.id || `L${k}-${i}`,
+                        type: x.type || 'single',
+                        question: x.question || String(x.q || x.title || ''),
+                        options: Array.isArray(x.options) ? x.options : (Array.isArray(x.opts) ? x.opts : []),
+                        rawAnswer: Array.isArray(x.rawAnswer) ? x.rawAnswer : (Array.isArray(x.answer) ? x.answer : []),
+                        explanation: x.explanation || x.exp || '',
+                        category: x.category || '',
+                        lectureId: Number(k)
+                    })).filter(q => q.question && q.options && q.options.length > 0);
+                });
+                return repaired;
+            } catch { return null; }
+        };
+
         const loadBankData = async () => {
             // UI 优先渲染
             await new Promise(r => setTimeout(r, 100));
@@ -182,22 +309,24 @@ function App() {
             setBankStatus('loading');
             try {
                 setBankProgress("检查本地缓存...");
-                const cachedBank = await localforage.getItem('hf_question_bank');
+                const cachedBank = await safeGet(BANK_CACHE_KEY);
 
-                let isCacheValid = false;
-                if (cachedBank && Object.keys(cachedBank).length > 0) {
-                    const firstChapter = Object.values(cachedBank)[0];
-                    if (firstChapter && firstChapter.length > 0 && Object.hasOwn(firstChapter[0], 'rawAnswer')) {
-                        isCacheValid = true;
+                if (cachedBank) {
+                    if (isValidBank(cachedBank)) {
+                        setAllQuestionBank(cachedBank);
+                        setBankStatus('ready');
+                        return;
+                    } else {
+                        const repaired = tryRepairBank(cachedBank);
+                        if (repaired && isValidBank(repaired)) {
+                            setAllQuestionBank(repaired);
+                            setBankStatus('ready');
+                            await safeSet(BANK_CACHE_KEY, repaired);
+                            await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                            return;
+                        }
+                        // 不再立刻删除，保留以便后续分析，仅在成功拉取新题库后覆盖
                     }
-                }
-
-                if (isCacheValid) {
-                    setAllQuestionBank(cachedBank);
-                    setBankStatus('ready');
-                    return;
-                } else {
-                    await localforage.removeItem('hf_question_bank');
                 }
 
                 setBankProgress("正在下载题库...");
@@ -224,7 +353,8 @@ function App() {
                 if (successCount > 0) {
                     setAllQuestionBank(newBank);
                     setBankStatus('ready');
-                    await localforage.setItem('hf_question_bank', newBank);
+                    await safeSet(BANK_CACHE_KEY, newBank);
+                    await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
                 } else {
                     setBankStatus('error');
                     setErrorMsg("无法加载任何题库，请检查网络连接");
@@ -244,20 +374,6 @@ function App() {
             return () => clearTimeout(timer);
         }
     }, [syncMsg]);
-
-    const handleLogin = async (e) => {
-        e.preventDefault();
-        setAuthLoading(true);
-        setAuthError(null);
-        try {
-            const u = await AV.User.logIn(username, password);
-            setCurrentUser(u);
-        } catch (err) {
-            setAuthError(err.message || "登录失败");
-        } finally {
-            setAuthLoading(false);
-        }
-    };
 
     const forceUpdateBank = async () => {
         await localforage.removeItem('hf_question_bank');
@@ -300,7 +416,7 @@ function App() {
             if (response && response.success) {
                 if (!silent) { setSyncStatus('success'); setSyncMsg("备份成功"); }
             } else {
-                throw new Error(response ? response.message : "云端未返回成功状态");
+                return Promise.reject(new Error(response ? response.message : "云端未返回成功状态"));
             }
 
         } catch (e) {
@@ -338,23 +454,110 @@ function App() {
 
             if (result) {
                 const data = result.toJSON();
-                if (data.brushedIds) setBrushedIds(prev => new Set([...prev, ...data.brushedIds]));
-                if (data.memorizedIds) setMemorizedIds(prev => new Set([...prev, ...data.memorizedIds]));
-                if (data.masteredIds) setMasteredIds(prev => new Set([...prev, ...data.masteredIds]));
-                if (data.wrongIds) setWrongIds(prev => new Set([...prev, ...data.wrongIds]));
+
+                let newBrushed = new Set(brushedIds);
+                let newMemorized = new Set(memorizedIds);
+                let newMastered = new Set(masteredIds);
+                let newWrong = new Set(wrongIds);
+                let newHistory = [...history];
+
+                if (data.brushedIds) newBrushed = new Set([...newBrushed, ...data.brushedIds]);
+                if (data.memorizedIds) newMemorized = new Set([...newMemorized, ...data.memorizedIds]);
+                if (data.masteredIds) newMastered = new Set([...newMastered, ...data.masteredIds]);
+                if (data.wrongIds) newWrong = new Set([...newWrong, ...data.wrongIds]);
                 if (data.history && Array.isArray(data.history)) {
-                    setHistory(prev => {
-                        const existingIds = new Set(prev.map(h => h.id));
-                        const newItems = data.history.filter(h => !existingIds.has(h.id));
-                        return [...newItems, ...prev].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
-                    });
+                    const existingIds = new Set(newHistory.map(h => h.id));
+                    const merged = [...data.history.filter(h => !existingIds.has(h.id)), ...newHistory]
+                        .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    newHistory = merged;
                 }
+
+                setBrushedIds(newBrushed);
+                setMemorizedIds(newMemorized);
+                setMasteredIds(newMastered);
+                setWrongIds(newWrong);
+                setHistory(newHistory);
+
+                // 立即持久化，避免刷新丢失
+                await Promise.all([
+                    safeSet('app_brushedIds', Array.from(newBrushed)),
+                    safeSet('app_memorizedIds', Array.from(newMemorized)),
+                    safeSet('app_masteredIds', Array.from(newMastered)),
+                    safeSet('app_wrongIds', Array.from(newWrong)),
+                    safeSet('app_history', newHistory)
+                ]);
+
                 if (!silent) { setSyncStatus('success'); setSyncMsg("同步完成"); }
             } else {
                 if (!silent) { setSyncMsg("无数据"); setSyncStatus(null); }
             }
         } catch {
             if (!silent) { setSyncStatus('error'); setSyncMsg("失败"); }
+        }
+    };
+
+    const handleManualLocalSave = async () => {
+        setSyncStatus('saving-local');
+        setSyncMsg("本地保存中...");
+        try {
+            await Promise.all([
+                safeSet('app_brushedIds', Array.from(brushedIds)),
+                safeSet('app_memorizedIds', Array.from(memorizedIds)),
+                safeSet('app_masteredIds', Array.from(masteredIds)),
+                safeSet('app_wrongIds', Array.from(wrongIds)),
+                safeSet('app_history', history),
+                lastSession ? safeSet('app_lastSession', lastSession) : localforage.removeItem('app_lastSession')
+            ]);
+            if (!lastSession) { try { localStorage.removeItem('app_lastSession'); } catch {} }
+            setSyncStatus('success');
+            setSyncMsg("本地已保存");
+        } catch (err) {
+            console.error('手动本地保存失败', err);
+            setSyncStatus('error');
+            setSyncMsg("本地保存失败");
+        }
+    };
+
+    const handleDebugDump = async () => {
+        try {
+            const payload = {
+                brushedIds: Array.from(brushedIds),
+                memorizedIds: Array.from(memorizedIds),
+                masteredIds: Array.from(masteredIds),
+                wrongIds: Array.from(wrongIds),
+                historyCount: history.length,
+                lastSession: lastSession ? { mode: lastSession.mode, idx: lastSession.currentIndex, qlen: lastSession.questions?.length } : null,
+                localStorageKeys: Object.keys(localStorage)
+            };
+            console.log('本地缓存导出', payload);
+            alert(`已在控制台打印本地缓存摘要\n已刷:${payload.brushedIds.length}\n错题:${payload.wrongIds.length}\n掌握:${payload.masteredIds.length}`);
+        } catch (err) {
+            console.error('导出本地缓存失败', err);
+            alert('导出本地缓存失败');
+        }
+    };
+
+    const handleReloadLocal = async () => {
+        try {
+            const getSet = async (k) => {
+                const val = await safeGet(k);
+                return Array.isArray(val) ? new Set(val) : (val instanceof Set ? val : new Set());
+            }
+            setBrushedIds(await getSet('app_brushedIds'));
+            setMemorizedIds(await getSet('app_memorizedIds'));
+            setMasteredIds(await getSet('app_masteredIds'));
+            setWrongIds(await getSet('app_wrongIds'));
+            const hist = await safeGet('app_history');
+            if(hist) setHistory(hist); else setHistory([]);
+            const sess = await safeGet('app_lastSession');
+            if(sess) setLastSession(sess); else setLastSession(null);
+            setHydrated(true);
+            setSyncStatus('success');
+            setSyncMsg('本地已重载');
+        } catch (err) {
+            console.error('重载本地缓存失败', err);
+            setSyncStatus('error');
+            setSyncMsg('重载失败');
         }
     };
 
@@ -534,6 +737,15 @@ function App() {
                         <button onClick={() => handleManualRestore()} disabled={syncStatus === 'downloading'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
                             {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16} /> : <DownloadCloud size={18} />} 恢复
                         </button>
+                        <button onClick={handleManualLocalSave} disabled={syncStatus === 'saving-local'} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            {syncStatus === 'saving-local' ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={18} />} 本地保存
+                        </button>
+                        <button onClick={handleReloadLocal} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            <RefreshCw size={18} /> 重载本地
+                        </button>
+                        <button onClick={handleDebugDump} className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
+                            <Database size={18} /> 导出缓存
+                        </button>
                         <button onClick={() => setShowResetModal(true)} className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all" title="重置进度">
                             <Trash2 size={18} />
                         </button>
@@ -554,6 +766,15 @@ function App() {
                     </button>
                     <button onClick={() => handleManualRestore()} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                         <DownloadCloud size={14} /> 恢复
+                    </button>
+                    <button onClick={handleManualLocalSave} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <RefreshCw size={14} /> 本地保存
+                    </button>
+                    <button onClick={handleReloadLocal} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <RefreshCw size={14} /> 重载
+                    </button>
+                    <button onClick={handleDebugDump} className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
+                        <Database size={14} /> 导出
                     </button>
                     <button onClick={() => setShowResetModal(true)} className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                         <Trash2 size={14} />
@@ -686,23 +907,60 @@ function App() {
                             </div>
                         </div>
 
-                        <a href={REPORT_URL} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex-1 flex flex-col justify-center no-underline">
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl"><PieChart size={24} /></div>
-                                <div>
-                                    <div className="font-bold text-lg text-slate-800">数据报表</div>
-                                    <div className="text-sm text-slate-400">查看详细统计</div>
+                        {/* 紧凑版数据报表卡片 - 已调低高度 */}
+                        <a href={REPORT_URL} className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex flex-col justify-between no-underline group h-full">
+                            <div>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform"><PieChart size={18} /></div>
+                                    <div>
+                                        <div className="font-bold text-sm md:text-base text-slate-800">数据报表</div>
+                                        <div className="text-[10px] md:text-xs text-slate-400">近7天趋势</div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 mb-2">
+                                    <div className="flex-1 bg-slate-50 rounded-xl p-2 text-center border border-slate-100">
+                                        <div className="text-[10px] text-slate-400 mb-0.5 uppercase tracking-wider">累计已刷</div>
+                                        <div className="font-bold text-base md:text-lg text-slate-700 leading-none">{brushedIds.size}</div>
+                                    </div>
+                                    <div className="flex-1 bg-green-50 rounded-xl p-2 text-center border border-green-100">
+                                        <div className="text-[10px] text-green-600/70 mb-0.5 uppercase tracking-wider">已掌握</div>
+                                        <div className="font-bold text-base md:text-lg text-green-600 leading-none">{masteredIds.size}</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
-                                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center">
-                                    <div className="text-xs text-slate-400 mb-1">已刷</div>
-                                    <div className="font-bold text-slate-700">{brushedIds.size}</div>
-                                </div>
-                                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center">
-                                    <div className="text-xs text-slate-400 mb-1">掌握</div>
-                                    <div className="font-bold text-green-600">{masteredIds.size}</div>
-                                </div>
+
+                            {/* 核心修改：h-24 改为 h-16，并减少顶部padding */}
+                            <div className="flex items-end justify-between gap-2 h-16 pt-1 border-t border-slate-50">
+                                {weeklyStats.data.map((day, idx) => {
+                                    const rawPercent = (day.count / weeklyStats.max) * 100;
+                                    // 稍微调整最小高度，因为整体变矮了
+                                    const heightPercent = day.count === 0 ? 10 : Math.max(20, rawPercent);
+
+                                    return (
+                                        <div key={idx} className="flex-1 h-full flex flex-col justify-end items-center gap-0.5 group/bar">
+                                            <div className="w-full flex items-end justify-center relative flex-1">
+                                                {day.count > 0 && (
+                                                    <div className="absolute -top-5 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-800 text-white text-[9px] py-0.5 px-1.5 rounded mb-1 whitespace-nowrap z-10 pointer-events-none">
+                                                        {day.count}
+                                                    </div>
+                                                )}
+                                                <div
+                                                    style={{ height: `${heightPercent}%` }}
+                                                    className={`w-2.5 md:w-3 rounded-t-[4px] transition-all duration-500 ease-out relative
+                                                        ${day.isToday
+                                                        ? 'bg-gradient-to-t from-blue-500 to-indigo-400 shadow shadow-blue-200'
+                                                        : (day.count > 0 ? 'bg-blue-200 group-hover/bar:bg-blue-400' : 'bg-slate-100')}
+                                                    `}
+                                                >
+                                                </div>
+                                            </div>
+                                            <div className={`text-[8px] transform scale-95 ${day.isToday ? 'font-bold text-blue-600' : 'text-slate-300'}`}>
+                                                {day.date}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </a>
                     </div>
@@ -727,8 +985,36 @@ function App() {
                     ))}
                 </div>
             </div>
-        </div>
-    );
+        </div>)
+
+// --- 修复版：计算最近7天刷题数据 ---
+    const weeklyStats = (() => {
+        const stats = [];
+        const today = new Date();
+        // 设置基准最大值，防止全是0的时候图表不显示
+        let maxCount = 5;
+
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(today.getDate() - i);
+            // 重置时间部分，只比较日期，解决时区和时间戳不一致问题
+            d.setHours(0, 0, 0, 0);
+
+            const dateStr = d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+
+            // 筛选当天的数据
+            const count = history.filter(h => {
+                const hDate = new Date(h.timestamp);
+                hDate.setHours(0, 0, 0, 0);
+                return hDate.getTime() === d.getTime();
+            }).length;
+
+            if (count > maxCount) maxCount = count;
+            stats.push({ date: dateStr, count, isToday: i === 0 });
+        }
+
+        return { data: stats, max: maxCount };
+    })();
 
     const renderCard = () => {
         if (!questions.length) return <div className="h-screen flex items-center justify-center text-slate-400">题库为空</div>;
@@ -881,15 +1167,15 @@ function App() {
 
     // --- UI 渲染 ---
 
-    const LoadingScreen = ({ msg }) => (
-        <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-gray-50">
-            <div className="relative mb-6">
-                <div className="w-16 h-16 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
-                <div className="absolute inset-0 flex items-center justify-center"><Loader2 size={24} className="text-blue-600" /></div>
-            </div>
-            <h2 className="text-xl font-bold text-gray-800">{msg}</h2>
-        </div>
-    );
+    // const LoadingScreen = ({ msg }) => (
+    //     <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-gray-50">
+    //         <div className="relative mb-6">
+    //             <div className="w-16 h-16 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin"></div>
+    //             <div className="absolute inset-0 flex items-center justify-center"><Loader2 size={24} className="text-blue-600" /></div>
+    //         </div>
+    //         <h2 className="text-xl font-bold text-gray-800">{msg}</h2>
+    //     </div>
+    // );
 
     const renderLoginScreen = () => (
         <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
@@ -921,7 +1207,7 @@ function App() {
         </div>
     );
 
-    
+
     if (!currentUser) return renderLoginScreen();
 
     return (
