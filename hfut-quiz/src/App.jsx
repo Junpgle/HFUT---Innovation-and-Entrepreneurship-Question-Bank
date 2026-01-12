@@ -933,9 +933,9 @@ function App() {
             timestamp: new Date().toISOString(),
         }, ...prev]);
 
-        // 加载评论和用户解析
-        if (!isCorrect) {
-            loadQuestionComments(currentQ.id);
+        // 加载评论和用户解析（对所有答题都加载，保持用户体验一致）
+        loadQuestionComments(currentQ.id);
+        if (!isCorrect || !currentQ.explanation || currentQ.explanation === '暂无解析') {
             loadUserExplanations(currentQ.id);
         }
     };
@@ -1757,13 +1757,21 @@ function App() {
         if (!currentUser) return;
         let cancelled = false;
         const sendHeartbeat = async (mode = currentMode) => {
-            try { await AV.Cloud.run('heartbeat', { mode }); } catch { /* 忽略心跳错误 */ }
+            try { 
+                await AV.Cloud.run('heartbeat', { mode }); 
+            } catch (error) { 
+                // Silently ignore heartbeat errors to avoid disrupting user experience
+                console.debug('Heartbeat failed:', error);
+            }
         };
         const fetchCount = async () => {
             try {
                 const res = await AV.Cloud.run('onlineCount', { windowSec: 180 }); // 不过滤模式，包含 dashboard
                 if (!cancelled) setOnlineCount(res?.count ?? 0);
-            } catch { /* 忽略统计错误 */ }
+            } catch (error) { 
+                // Silently ignore online count errors as it's not critical functionality
+                console.debug('Online count fetch failed:', error);
+            }
         };
         // 首次立即上报与拉取
         sendHeartbeat();
