@@ -132,6 +132,7 @@
         BookOpen: (p) => <IconBase {...p} d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />,
         Eye: (p) => <IconBase {...p} d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />,
         BarChart3: (p) => <IconBase {...p} d="M3 3v18h18" />,
+        Trophy: (p) => <IconBase {...p} d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z" />,
     };
 
     // 为其余图标提供默认回退，防止报错
@@ -148,7 +149,7 @@
         Filter, ListChecks, AlertTriangle, PieChart, BarChart3,
         CheckSquare, GraduationCap, Zap, LayoutGrid, Check, Menu, X,
         UploadCloud, DownloadCloud, RefreshCw, Bookmark, Calendar, ArrowRight,
-        Database, Maximize, Minimize, Trash2, AlertOctagon
+        Database, Maximize, Minimize, Trash2, AlertOctagon, Trophy
     } = new Proxy(Icons, { get: (target, prop) => target[prop] || FallbackIcon });
 
 
@@ -285,6 +286,11 @@
         const [showExplanation, setShowExplanation] = useState(false);
         const [selectedIndices, setSelectedIndices] = useState([]);
         const [isAnswered, setIsAnswered] = useState(false);
+        
+        // Leaderboard states
+        const [wrongQuestionRanking, setWrongQuestionRanking] = useState([]);
+        const [rankingLoading, setRankingLoading] = useState(false);
+        const [viewingRankQuestion, setViewingRankQuestion] = useState(null);
 
         useEffect(() => {
             const initSDKs = async () => {
@@ -425,6 +431,13 @@
             if (lastSession) localStorage.setItem('app_lastSession', JSON.stringify(lastSession));
             else localStorage.removeItem('app_lastSession');
         }, [lastSession]);
+        
+        // Fetch wrong question ranking when user is logged in and on dashboard
+        useEffect(() => {
+            if (currentUser && currentMode === 'dashboard' && bankStatus === 'ready') {
+                fetchWrongQuestionRanking();
+            }
+        }, [currentUser, currentMode, bankStatus]);
 
         const toggleFullscreen = () => {
             if (!document.fullscreenElement) {
@@ -661,6 +674,15 @@
             } else {
                 setMasteredIds(prev => { const n = new Set(prev); n.delete(currentQ.id); return n; });
                 setWrongIds(prev => new Set(prev).add(currentQ.id));
+                
+                // Record wrong answer to cloud
+                if (currentUser && window.AV) {
+                    window.AV.Cloud.run('recordWrongAnswer', {
+                        questionId: currentQ.id,
+                        questionTitle: currentQ.question,
+                        category: currentQ.category
+                    }).catch(err => console.warn('Record wrong answer failed:', err));
+                }
             }
 
             const answerText = finalSelection.sort().map(i => ['A','B','C','D','E'][i]).join('');
@@ -685,6 +707,42 @@
                 timestamp: new Date().toISOString(),
             }, ...prev]);
             setTimeout(() => nextQuestion(), 400);
+        };
+        
+        // Fetch wrong question ranking from cloud
+        const fetchWrongQuestionRanking = async () => {
+            if (!currentUser || !window.AV) return;
+            setRankingLoading(true);
+            try {
+                const result = await window.AV.Cloud.run('getWrongQuestionRanking', { limit: 20 });
+                if (result && result.success && result.ranking) {
+                    setWrongQuestionRanking(result.ranking);
+                }
+            } catch (err) {
+                console.warn('Fetch ranking failed:', err);
+            } finally {
+                setRankingLoading(false);
+            }
+        };
+        
+        // Find question details from the question bank
+        const getQuestionDetails = (questionId) => {
+            for (const lectureId in allQuestionBank) {
+                const questions = allQuestionBank[lectureId];
+                const question = questions.find(q => q.id === questionId);
+                if (question) return question;
+            }
+            return null;
+        };
+        
+        // Open question detail modal for ranking item
+        const openRankingQuestion = (rankItem) => {
+            const questionDetail = getQuestionDetails(rankItem.questionId);
+            if (questionDetail) {
+                setViewingRankQuestion({ ...questionDetail, rankInfo: rankItem });
+            } else {
+                alert('题库中未找到该题（可能属于未加载章节或版本不匹配）');
+            }
         };
 
         const startMode = (mode) => {
@@ -984,6 +1042,57 @@
                             </div>
                         ))}
                     </div>
+                    
+                    {/* Wrong Questions Leaderboard */}
+                    {wrongQuestionRanking.length > 0 && (
+                        <div className="mt-8">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <Trophy size={20} className="text-amber-500" />
+                                    <h2 className="text-lg font-bold text-slate-800">错题排行榜</h2>
+                                </div>
+                                <button 
+                                    onClick={fetchWrongQuestionRanking} 
+                                    disabled={rankingLoading}
+                                    className="text-xs text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1">
+                                    {rankingLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                                    <span>刷新</span>
+                                </button>
+                            </div>
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                <div className="max-h-96 overflow-y-auto">
+                                    {wrongQuestionRanking.map((item, index) => {
+                                        const isTop3 = index < 3;
+                                        const medalColors = ['text-amber-400', 'text-slate-400', 'text-orange-400'];
+                                        return (
+                                            <div 
+                                                key={item.questionId} 
+                                                onClick={() => openRankingQuestion(item)}
+                                                className="flex items-center gap-4 p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer group"
+                                            >
+                                                <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm shrink-0 ${
+                                                    isTop3 ? 'bg-gradient-to-br from-amber-100 to-amber-50' : 'bg-slate-50'
+                                                }`}>
+                                                    {isTop3 ? <Trophy size={16} className={medalColors[index]} /> : <span className="text-slate-400">{item.rank}</span>}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-slate-800 text-sm line-clamp-2 group-hover:text-blue-600 transition-colors">
+                                                        {item.questionTitle}
+                                                    </div>
+                                                    <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
+                                                        <span className="px-2 py-0.5 bg-slate-100 rounded">{item.category}</span>
+                                                        <span className="text-red-600 font-medium">错误 {item.errorCount} 次</span>
+                                                        <span className="text-slate-400">错误率 {item.errorRate}%</span>
+                                                    </div>
+                                                </div>
+                                                <ChevronRight size={18} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -1146,6 +1255,93 @@
             <div className="h-full bg-slate-50 font-sans text-slate-900">
                 {currentMode === 'dashboard' && renderDashboard()}
                 {['quiz', 'memorize', 'mistakes'].includes(currentMode) && renderCard()}
+                
+                {/* Question Detail Modal for Leaderboard */}
+                {viewingRankQuestion && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-enter" onClick={() => setViewingRankQuestion(null)}>
+                        <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-start z-10">
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Trophy size={18} className="text-amber-500" />
+                                        <span className="text-xs font-bold text-slate-500">错题排行榜 #{viewingRankQuestion.rankInfo.rank}</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <span className={`text-xs px-2 py-1 rounded font-bold ${
+                                            viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' : 
+                                            (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')
+                                        }`}>
+                                            {viewingRankQuestion.type === 'multiple' ? '多选题' : (viewingRankQuestion.type === 'judgment' ? '判断题' : '单选题')}
+                                        </span>
+                                        <span className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
+                                        <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded font-bold">
+                                            错误 {viewingRankQuestion.rankInfo.errorCount} 次 · 错误率 {viewingRankQuestion.rankInfo.errorRate}%
+                                        </span>
+                                    </div>
+                                </div>
+                                <button onClick={() => setViewingRankQuestion(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors ml-4">
+                                    <X size={20} className="text-slate-400" />
+                                </button>
+                            </div>
+                            
+                            <div className="p-6">
+                                <h3 className="text-xl font-bold text-slate-900 mb-6 leading-relaxed">
+                                    {viewingRankQuestion.question}
+                                </h3>
+                                
+                                <div className="space-y-3 mb-6">
+                                    {viewingRankQuestion.options.map((opt, i) => {
+                                        const isCorrect = viewingRankQuestion.rawAnswer.includes(i);
+                                        return (
+                                            <div 
+                                                key={i} 
+                                                className={`p-4 rounded-xl border-2 text-sm flex gap-3 transition-all ${
+                                                    isCorrect 
+                                                        ? 'bg-green-50 border-green-300 text-green-900 shadow-sm' 
+                                                        : 'bg-white border-slate-100 text-slate-600'
+                                                }`}
+                                            >
+                                                <span className={`font-bold shrink-0 ${isCorrect ? 'text-green-700' : 'text-slate-400'}`}>
+                                                    {['A', 'B', 'C', 'D', 'E'][i]}.
+                                                </span>
+                                                <span className="flex-1">{opt}</span>
+                                                {isCorrect && (
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <CheckCircle size={18} className="text-green-600" />
+                                                        <span className="text-xs font-bold text-green-700">正确答案</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                
+                                <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                                    <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
+                                        <Zap size={18} className="text-indigo-600" /> 
+                                        <span>答案解析</span>
+                                    </div>
+                                    <p className="text-indigo-800 text-sm leading-relaxed">
+                                        {viewingRankQuestion.explanation}
+                                    </p>
+                                </div>
+                                
+                                <div className="mt-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                                    <div className="flex items-center gap-2 text-amber-900 text-sm font-bold mb-2">
+                                        <AlertTriangle size={16} className="text-amber-600" />
+                                        <span>易错提示</span>
+                                    </div>
+                                    <p className="text-amber-800 text-xs leading-relaxed">
+                                        该题已被 <span className="font-bold">{viewingRankQuestion.rankInfo.totalAttempts}</span> 人次作答，
+                                        其中 <span className="font-bold text-red-600">{viewingRankQuestion.rankInfo.errorCount}</span> 次答错，
+                                        错误率高达 <span className="font-bold text-red-600">{viewingRankQuestion.rankInfo.errorRate}%</span>。
+                                        请仔细理解题意和正确答案！
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
