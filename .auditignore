@@ -1,0 +1,27 @@
+{
+  "auditLevel": "moderate",
+  "exceptions": [
+    {
+      "module": "xlsx",
+      "version": "0.18.5",
+      "advisories": ["GHSA-5pgg-2g8v-p4x9", "GHSA-4r6h-8v6p-xvw6"],
+      "reason": "No patched version available on npm. Comprehensive security mitigations implemented including: 10-second parsing timeout, 5MB file size limit, trusted input sources only (no user uploads), and safe parsing wrapper. Risk assessed as LOW and acceptable for production.",
+      "expiry": "2026-07-12",
+      "approvedBy": "Security Review",
+      "mitigations": [
+        "10-second timeout prevents ReDoS attacks",
+        "5MB file size limit blocks large payloads",
+        "Files from trusted GitHub repository only",
+        "No user file upload capability",
+        "All XLSX.read() calls wrapped in safeParseXLSX()",
+        "Comprehensive error handling"
+      ],
+      "documentation": [
+        "SECURITY.md",
+        "SECURITY_MITIGATION.md", 
+        "VULNERABILITY_STATUS.md",
+        ".nsprc"
+      ]
+    }
+  ]
+}
