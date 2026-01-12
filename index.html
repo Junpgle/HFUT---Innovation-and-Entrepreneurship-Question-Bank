@@ -660,9 +660,9 @@
 
             let results = allQs.filter(q => {
                 // 搜索题目内容、选项和解析
-                const questionMatch = q.question.toLowerCase().includes(lowerKeyword);
-                const optionsMatch = q.options.some(opt => opt.toLowerCase().includes(lowerKeyword));
-                const explanationMatch = q.explanation.toLowerCase().includes(lowerKeyword);
+                const questionMatch = q.question?.toLowerCase().includes(lowerKeyword) || false;
+                const optionsMatch = q.options?.some(opt => opt && opt.toLowerCase().includes(lowerKeyword)) || false;
+                const explanationMatch = q.explanation?.toLowerCase().includes(lowerKeyword) || false;
                 
                 return questionMatch || optionsMatch || explanationMatch;
             });
@@ -674,11 +674,18 @@
             if (searchFilters.type !== 'all') {
                 results = results.filter(q => q.type === searchFilters.type);
             }
-            if (!searchFilters.includeAnswered) {
-                results = results.filter(q => !brushedIds.has(q.id));
-            }
-            if (!searchFilters.includeUnanswered) {
-                results = results.filter(q => brushedIds.has(q.id));
+            
+            // 处理答题状态筛选的边界情况
+            if (!searchFilters.includeAnswered && !searchFilters.includeUnanswered) {
+                // 两个都不选时，显示所有题目
+                // 不应用任何过滤
+            } else {
+                if (!searchFilters.includeAnswered) {
+                    results = results.filter(q => !brushedIds.has(q.id));
+                }
+                if (!searchFilters.includeUnanswered) {
+                    results = results.filter(q => brushedIds.has(q.id));
+                }
             }
 
             setSearchResults(results);
