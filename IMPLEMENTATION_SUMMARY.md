@@ -156,6 +156,24 @@ All implementations follow the "minimal changes" principle:
 - Dependencies only added when necessary
 - Documentation provided for backend setup
 
+## Security Considerations
+
+The `xlsx` package (v0.18.5) used for parsing Excel question files has known vulnerabilities:
+- ReDoS (Regular Expression Denial of Service) - CVE GHSA-5pgg-2g8v-p4x9
+- Prototype Pollution - CVE GHSA-4r6h-8v6p-xvw6
+
+**Risk Assessment**: LOW to MEDIUM
+- Excel files are from trusted sources (GitHub repository) only
+- No user file uploads are accepted
+- Files are created and maintained by repository owner
+- See SECURITY.md for detailed analysis and mitigation strategies
+
+**Recommended Actions**:
+1. Review SECURITY.md for comprehensive security analysis
+2. Consider migrating to JSON format for question storage (long-term)
+3. Monitor for xlsx package updates with security fixes
+4. Implement file size validation and parsing timeouts (optional)
+
 ## Conclusion
 
-All three requested features have been successfully implemented and are ready for use once the backend is configured. The implementation is clean, well-documented, and follows best practices for React and LeanCloud integration.
+All three requested features have been successfully implemented and are ready for use once the backend is configured. The implementation is clean, well-documented, and follows best practices for React and LeanCloud integration. Security considerations have been documented and assessed, with the current risk level being acceptable given the controlled input sources.
