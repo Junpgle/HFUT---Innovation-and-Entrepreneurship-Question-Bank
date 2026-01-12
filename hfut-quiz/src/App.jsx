@@ -2,13 +2,14 @@ import {useState, useEffect, useRef} from 'react';
 import AV from 'leancloud-storage';
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
+import ReactMarkdown from 'react-markdown';
 import {
     BookOpen, CheckCircle, XCircle, Brain, Settings,
     ChevronRight, ChevronLeft, RotateCcw, LogOut, AlertCircle, Layers, Loader2,
     AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
     UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
     Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
-    ThumbsUp, Send, Edit3, Award, Search, X, Filter
+    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy
 } from 'lucide-react';
 import { validateContent } from './contentFilter.js';
 
@@ -1826,6 +1827,31 @@ function App() {
 
                             {showContent && (
                                 <>
+                                    {/* 用户贡献的解析 - 当官方解析为"暂无解析"时优先显示 */}
+                                    {userExplanations[currentQ.id] && userExplanations[currentQ.id].length > 0 && (
+                                        <div className="animate-enter bg-purple-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-purple-100 mb-4">
+                                            <div className="flex items-center gap-2 mb-3 text-purple-900 font-bold">
+                                                <Award size={20} className="text-purple-500"/> 用户贡献的解析
+                                            </div>
+                                            <div className="space-y-3">
+                                                {userExplanations[currentQ.id].map((exp) => (
+                                                    <div key={exp.id} className="bg-white/70 p-4 rounded-lg border border-purple-100">
+                                                        <div className="text-purple-900 text-sm mb-2 prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
+                                                            <ReactMarkdown>{exp.content}</ReactMarkdown>
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-xs text-purple-600">
+                                                            <span>— {exp.author}</span>
+                                                            <div className="flex items-center gap-1">
+                                                                <ThumbsUp size={12}/> {exp.votes}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* 官方答案解析 */}
                                     <div
                                         className="animate-enter bg-indigo-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-indigo-100 mb-4">
                                         <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
@@ -1847,7 +1873,7 @@ function App() {
                                                         <textarea
                                                             value={newExplanation}
                                                             onChange={(e) => setNewExplanation(e.target.value)}
-                                                            placeholder="分享你对这道题的理解..."
+                                                            placeholder="分享你对这道题的理解（支持Markdown格式）..."
                                                             className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                                                             rows={4}
                                                         />
@@ -1868,28 +1894,6 @@ function App() {
                                             </div>
                                         )}
                                     </div>
-
-                                    {/* 用户贡献的解析 */}
-                                    {userExplanations[currentQ.id] && userExplanations[currentQ.id].length > 0 && (
-                                        <div className="animate-enter bg-purple-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-purple-100 mb-4">
-                                            <div className="flex items-center gap-2 mb-3 text-purple-900 font-bold">
-                                                <Award size={20} className="text-purple-500"/> 用户贡献的解析
-                                            </div>
-                                            <div className="space-y-3">
-                                                {userExplanations[currentQ.id].map((exp) => (
-                                                    <div key={exp.id} className="bg-white/70 p-4 rounded-lg border border-purple-100">
-                                                        <p className="text-purple-900 text-sm mb-2">{exp.content}</p>
-                                                        <div className="flex items-center justify-between text-xs text-purple-600">
-                                                            <span>— {exp.author}</span>
-                                                            <div className="flex items-center gap-1">
-                                                                <ThumbsUp size={12}/> {exp.votes}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {/* 评论区 */}
                                     {currentQ.explanation && currentQ.explanation !== '暂无解析' && (
