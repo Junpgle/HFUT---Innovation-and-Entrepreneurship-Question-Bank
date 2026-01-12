@@ -10,6 +10,7 @@ import {
     Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
     ThumbsUp, Send, Edit3, Award, Search, X, Filter
 } from 'lucide-react';
+import { validateContent } from './contentFilter.js';
 
 // --- 配置常量 ---
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
@@ -949,6 +950,15 @@ function App() {
     // 提交评论
     const submitComment = async (questionId) => {
         if (!currentUser || !newComment.trim()) return;
+        
+        // 内容审核
+        const validation = validateContent(newComment.trim());
+        if (!validation.valid) {
+            setSyncMsg(validation.message);
+            setSyncStatus('error');
+            return;
+        }
+        
         try {
             const Comment = AV.Object.extend('QuestionComment');
             const comment = new Comment();
@@ -992,6 +1002,15 @@ function App() {
     // 提交用户解析
     const submitUserExplanation = async (questionId) => {
         if (!currentUser || !newExplanation.trim()) return;
+        
+        // 内容审核
+        const validation = validateContent(newExplanation.trim());
+        if (!validation.valid) {
+            setSyncMsg(validation.message);
+            setSyncStatus('error');
+            return;
+        }
+        
         try {
             const Explanation = AV.Object.extend('UserExplanation');
             const explanation = new Explanation();
