@@ -19,6 +19,17 @@ const PROFANITY_WORDS = [
     '妈卖批', 'mmb', 'MMB'
 ];
 
+// 转义正则表达式特殊字符
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 预编译正则表达式模式以提高性能
+const PROFANITY_PATTERNS = PROFANITY_WORDS.map(word => ({
+    original: word,
+    pattern: new RegExp(escapeRegex(word), 'gi')
+}));
+
 /**
  * 检测文本是否包含不文明词汇
  * @param {string} text - 待检测的文本
@@ -29,12 +40,13 @@ export function checkContent(text) {
         return { isClean: true, detectedWords: [] };
     }
 
-    const lowerText = text.toLowerCase();
     const detectedWords = [];
 
-    for (const word of PROFANITY_WORDS) {
-        if (lowerText.includes(word.toLowerCase())) {
-            detectedWords.push(word);
+    for (const { original, pattern } of PROFANITY_PATTERNS) {
+        if (pattern.test(text)) {
+            detectedWords.push(original);
+            // 重置正则表达式的 lastIndex
+            pattern.lastIndex = 0;
         }
     }
 
@@ -56,9 +68,8 @@ export function filterContent(text) {
 
     let filteredText = text;
 
-    for (const word of PROFANITY_WORDS) {
-        const regex = new RegExp(word, 'gi');
-        filteredText = filteredText.replace(regex, '*'.repeat(word.length));
+    for (const { original, pattern } of PROFANITY_PATTERNS) {
+        filteredText = filteredText.replace(pattern, '*'.repeat(original.length));
     }
 
     return filteredText;
