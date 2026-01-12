@@ -8,7 +8,7 @@ import {
     AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
     UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
     Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
-    ThumbsUp, Send, Edit3, Award
+    ThumbsUp, Send, Edit3, Award, Search, X, Filter
 } from 'lucide-react';
 
 // --- 配置常量 ---
@@ -125,6 +125,17 @@ function App() {
     const [newComment, setNewComment] = useState('');
     const [newExplanation, setNewExplanation] = useState('');
     const commentSectionRef = useRef(null);
+
+    // 搜索功能状态
+    const [searchKeyword, setSearchKeyword] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const [searchFilters, setSearchFilters] = useState({
+        lectureId: 0,
+        type: 'all',
+        includeAnswered: true,
+        includeUnanswered: true
+    });
 
     // --- 数据加载工具 ---
     
@@ -800,6 +811,70 @@ function App() {
         startMode('mistakes');
     };
 
+    // 搜索功能
+    const performSearch = (keyword = searchKeyword) => {
+        if (bankStatus !== 'ready') return;
+        if (!keyword.trim()) {
+            setSearchResults([]);
+            setShowSearchResults(false);
+            return;
+        }
+
+        const allQs = Object.values(allQuestionBank).flat();
+        const lowerKeyword = keyword.toLowerCase().trim();
+
+        let results = allQs.filter(q => {
+            // 搜索题目内容、选项和解析
+            const questionMatch = q.question?.toLowerCase().includes(lowerKeyword) || false;
+            const optionsMatch = q.options?.some(opt => opt && opt.toLowerCase().includes(lowerKeyword)) || false;
+            const explanationMatch = q.explanation?.toLowerCase().includes(lowerKeyword) || false;
+            
+            return questionMatch || optionsMatch || explanationMatch;
+        });
+
+        // 应用过滤器
+        if (searchFilters.lectureId !== 0) {
+            results = results.filter(q => q.lectureId === searchFilters.lectureId);
+        }
+        if (searchFilters.type !== 'all') {
+            results = results.filter(q => q.type === searchFilters.type);
+        }
+        
+        // 处理答题状态筛选的边界情况
+        if (!searchFilters.includeAnswered && !searchFilters.includeUnanswered) {
+            // 两个都不选时，显示所有题目
+            // 不应用任何过滤
+        } else {
+            if (!searchFilters.includeAnswered) {
+                results = results.filter(q => !brushedIds.has(q.id));
+            }
+            if (!searchFilters.includeUnanswered) {
+                results = results.filter(q => brushedIds.has(q.id));
+            }
+        }
+
+        setSearchResults(results);
+        setShowSearchResults(true);
+    };
+
+    const clearSearch = () => {
+        setSearchKeyword('');
+        setSearchResults([]);
+        setShowSearchResults(false);
+    };
+
+    const startSearchQuiz = () => {
+        if (searchResults.length === 0) {
+            alert("没有搜索结果");
+            return;
+        }
+        setLastSession(null);
+        setQuestions([...searchResults]);
+        setCurrentIndex(0);
+        startMode('quiz');
+        setShowSearchResults(false);
+    };
+
     // 提交错题统计到云端
     const submitWrongAnswerStats = async (questionId, questionTitle, category) => {
         if (!currentUser) return;
@@ -1150,6 +1225,146 @@ function App() {
                         <RefreshCw size={18} className="animate-spin"/>} {syncMsg}
                 </div>
             )}
+
+            {/* 搜索栏 */}
+            <div className="mb-6 bg-white rounded-[2rem] shadow-sm border border-slate-200 p-4 md:p-6 animate-enter">
+                <div className="flex items-center gap-3 mb-4">
+                    <Search className="text-blue-600" size={24} />
+                    <h3 className="text-lg font-bold text-slate-800">题库搜索</h3>
+                </div>
+                
+                <div className="flex gap-2 mb-4">
+                    <div className="flex-1 relative">
+                        <input
+                            type="text"
+                            placeholder="搜索题目内容、选项或解析..."
+                            value={searchKeyword}
+                            onChange={(e) => setSearchKeyword(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && performSearch()}
+                            className="w-full px-4 py-3 pr-10 bg-slate-50 border-0 rounded-xl text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
+                        />
+                        {searchKeyword && (
+                            <button
+                                onClick={clearSearch}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                                <X size={18} />
+                            </button>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => performSearch()}
+                        disabled={!searchKeyword.trim() || bankStatus !== 'ready'}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        <Search size={18} />
+                        <span className="hidden md:inline">搜索</span>
+                    </button>
+                </div>
+
+                {/* 搜索过滤器 */}
+                <div className="flex flex-wrap gap-2 items-center">
+                    <Filter size={16} className="text-slate-400" />
+                    <select
+                        value={searchFilters.lectureId}
+                        onChange={(e) => setSearchFilters({...searchFilters, lectureId: Number(e.target.value)})}
+                        className="px-3 py-1.5 bg-slate-50 border-0 rounded-lg text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value={0}>所有章节</option>
+                        {LECTURES.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                    <select
+                        value={searchFilters.type}
+                        onChange={(e) => setSearchFilters({...searchFilters, type: e.target.value})}
+                        className="px-3 py-1.5 bg-slate-50 border-0 rounded-lg text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500"
+                    >
+                        <option value="all">所有类型</option>
+                        <option value="single">单选题</option>
+                        <option value="multiple">多选题</option>
+                        <option value="judgment">判断题</option>
+                    </select>
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100">
+                        <input
+                            type="checkbox"
+                            checked={searchFilters.includeAnswered}
+                            onChange={(e) => setSearchFilters({...searchFilters, includeAnswered: e.target.checked})}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-xs font-medium text-slate-700">已做</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100">
+                        <input
+                            type="checkbox"
+                            checked={searchFilters.includeUnanswered}
+                            onChange={(e) => setSearchFilters({...searchFilters, includeUnanswered: e.target.checked})}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                        />
+                        <span className="text-xs font-medium text-slate-700">未做</span>
+                    </label>
+                </div>
+
+                {/* 搜索结果 */}
+                {showSearchResults && (
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                        <div className="flex justify-between items-center mb-3">
+                            <p className="text-sm font-medium text-slate-600">
+                                找到 <span className="text-blue-600 font-bold">{searchResults.length}</span> 个结果
+                            </p>
+                            {searchResults.length > 0 && (
+                                <button
+                                    onClick={startSearchQuiz}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md transition-all flex items-center gap-2"
+                                >
+                                    <Brain size={16} />
+                                    开始练习
+                                </button>
+                            )}
+                        </div>
+                        <div className="max-h-96 overflow-y-auto space-y-2">
+                            {searchResults.slice(0, 50).map((q, idx) => (
+                                <div
+                                    key={q.id}
+                                    className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                    onClick={() => {
+                                        setQuestions([q]);
+                                        setCurrentIndex(0);
+                                        startMode('quiz');
+                                        setShowSearchResults(false);
+                                    }}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <span className="text-xs font-bold text-slate-400 mt-1">{idx + 1}</span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                                    q.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
+                                                    q.type === 'judgment' ? 'bg-orange-100 text-orange-700' :
+                                                    'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {q.type === 'multiple' ? '多选' : q.type === 'judgment' ? '判断' : '单选'}
+                                                </span>
+                                                <span className="text-xs text-slate-500">{q.category}</span>
+                                                {brushedIds.has(q.id) && (
+                                                    <span className="text-xs text-green-600">✓ 已做</span>
+                                                )}
+                                                {wrongIds.has(q.id) && (
+                                                    <span className="text-xs text-red-600">✗ 错题</span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-slate-700 line-clamp-2">{q.question}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {searchResults.length > 50 && (
+                                <p className="text-xs text-center text-slate-400 py-2">
+                                    仅显示前50个结果，请使用过滤器缩小范围
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
                 {errorMsg && <div
