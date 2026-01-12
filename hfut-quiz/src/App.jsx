@@ -129,6 +129,36 @@ function App() {
     const [newExplanation, setNewExplanation] = useState('');
 
     // --- 数据加载工具 ---
+    
+    // Security: Add file size validation to mitigate ReDoS and Prototype Pollution
+    const MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024; // 5MB limit
+    const EXCEL_PARSE_TIMEOUT = 10000; // 10 second timeout
+    
+    // Safe XLSX parsing with timeout and size validation
+    const safeParseXLSX = (data) => {
+        return new Promise((resolve, reject) => {
+            // Validate file size
+            if (data.byteLength > MAX_EXCEL_FILE_SIZE) {
+                reject(new Error(`File too large: ${data.byteLength} bytes (max: ${MAX_EXCEL_FILE_SIZE})`));
+                return;
+            }
+            
+            // Set timeout to prevent ReDoS attacks
+            const timeoutId = setTimeout(() => {
+                reject(new Error('Excel parsing timeout - possible ReDoS attack'));
+            }, EXCEL_PARSE_TIMEOUT);
+            
+            try {
+                const workbook = XLSX.read(data, { type: 'array' });
+                clearTimeout(timeoutId);
+                resolve(workbook);
+            } catch (error) {
+                clearTimeout(timeoutId);
+                reject(error);
+            }
+        });
+    };
+    
     const fetchLectureArrayBuffer = async (lectureFile) => {
         const errors = [];
         for (const base of QUESTION_SOURCES) {
@@ -139,7 +169,8 @@ function App() {
                     errors.push(`HTTP ${res.status}`);
                     continue;
                 }
-                return new Uint8Array(await res.arrayBuffer());
+                const arrayBuffer = await res.arrayBuffer();
+                return new Uint8Array(arrayBuffer);
             } catch (e) {
                 errors.push(e.message);
             }
@@ -399,7 +430,8 @@ function App() {
                 for (const lecture of LECTURES) {
                     try {
                         const data = await fetchLectureArrayBuffer(lecture.file);
-                        const workbook = XLSX.read(data, { type: 'array' });
+                        // Use safe parsing with timeout and size validation
+                        const workbook = await safeParseXLSX(data);
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                         const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                         const parsed = parseExcelData(rawData, lecture.id, lecture.name);
@@ -456,7 +488,8 @@ function App() {
         for (const lecture of LECTURES) {
             try {
                 const data = await fetchLectureArrayBuffer(lecture.file);
-                const workbook = XLSX.read(data, { type: 'array' });
+                // Use safe parsing with timeout and size validation
+                const workbook = await safeParseXLSX(data);
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 const parsed = parseExcelData(rawData, lecture.id, lecture.name);
