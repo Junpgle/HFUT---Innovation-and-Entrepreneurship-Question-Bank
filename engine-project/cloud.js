@@ -187,7 +187,7 @@ AV.Cloud.define('onlineCount', async (request) => {
 });
 
 AV.Cloud.define('recordWrongAnswer', async function(request) {
-  const { questionId, questionTitle, category } = request.params;
+  const { questionId, questionTitle, category, userAnswer } = request.params;
   const user = request.currentUser;
 
   if (!user) {
@@ -203,6 +203,16 @@ AV.Cloud.define('recordWrongAnswer', async function(request) {
       // 更新已有记录
       stat.increment('errorCount', 1);
       stat.increment('totalAttempts', 1);
+      
+      // 记录用户选择的选项统计
+      if (userAnswer) {
+        const optionStats = stat.get('optionStats') || {};
+        // userAnswer 格式如 "A", "AB", "BCD" 等
+        for (const option of userAnswer) {
+          optionStats[option] = (optionStats[option] || 0) + 1;
+        }
+        stat.set('optionStats', optionStats);
+      }
     } else {
       // 创建新记录
       const WrongQuestionStats = AV.Object.extend('WrongQuestionStats');
@@ -212,6 +222,15 @@ AV.Cloud.define('recordWrongAnswer', async function(request) {
       stat.set('category', category);
       stat.set('errorCount', 1);
       stat.set('totalAttempts', 1);
+      
+      // 初始化选项统计
+      if (userAnswer) {
+        const optionStats = {};
+        for (const option of userAnswer) {
+          optionStats[option] = 1;
+        }
+        stat.set('optionStats', optionStats);
+      }
 
       // 设置ACL：所有人可读，仅云代码可写
       const acl = new AV.ACL();
@@ -241,6 +260,7 @@ AV.Cloud.define('getWrongQuestionRanking', async function(request) {
       const errorCount = item.get('errorCount');
       const totalAttempts = item.get('totalAttempts') || errorCount;
       const errorRate = Math.round((errorCount / totalAttempts) * 100);
+      const optionStats = item.get('optionStats') || {};
 
       return {
         rank: index + 1,
@@ -249,7 +269,8 @@ AV.Cloud.define('getWrongQuestionRanking', async function(request) {
         category: item.get('category'),
         errorCount: errorCount,
         totalAttempts: totalAttempts,
-        errorRate: errorRate
+        errorRate: errorRate,
+        optionStats: optionStats
       };
     });
 

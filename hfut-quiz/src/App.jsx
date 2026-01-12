@@ -803,13 +803,14 @@ function App() {
     };
 
     // 提交错题统计到云端
-    const submitWrongAnswerStats = async (questionId, questionTitle, category) => {
+    const submitWrongAnswerStats = async (questionId, questionTitle, category, userAnswer) => {
         if (!currentUser) return;
         try {
             await AV.Cloud.run('recordWrongAnswer', {
                 questionId,
                 questionTitle,
-                category
+                category,
+                userAnswer
             });
         } catch (e) {
             console.error('提交错题统计失败:', e);
@@ -972,8 +973,9 @@ function App() {
                 return n;
             });
             setWrongIds(prev => new Set(prev).add(currentQ.id));
-            // 提交错题统计到云端
-            submitWrongAnswerStats(currentQ.id, currentQ.question, currentQ.category);
+            // 提交错题统计到云端，包含用户选择的选项
+            const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
+            submitWrongAnswerStats(currentQ.id, currentQ.question, currentQ.category, answerText);
         }
 
         const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
@@ -1957,23 +1959,44 @@ function App() {
                             <div className="space-y-3 mb-6">
                                 {viewingRankQuestion.options.map((opt, i) => {
                                     const isCorrect = viewingRankQuestion.rawAnswer.includes(i);
+                                    const optionLetter = ['A', 'B', 'C', 'D', 'E'][i];
+                                    const optionStats = viewingRankQuestion.rankInfo?.optionStats || {};
+                                    const selectionCount = optionStats[optionLetter] || 0;
+                                    
+                                    // 计算该选项被选择的比例
+                                    const totalSelections = Object.values(optionStats).reduce((sum, count) => sum + count, 0);
+                                    const selectionRate = totalSelections > 0 ? Math.round((selectionCount / totalSelections) * 100) : 0;
+                                    
+                                    // 判断是否为易错选项（非正确答案且被选择次数较多）
+                                    const isFrequentlyWrong = !isCorrect && selectionCount > 0 && selectionRate >= 15;
+                                    
                                     return (
                                         <div 
                                             key={i} 
                                             className={`p-4 rounded-xl border-2 text-sm flex gap-3 transition-all ${
                                                 isCorrect 
                                                     ? 'bg-green-50 border-green-300 text-green-900 shadow-sm' 
+                                                    : isFrequentlyWrong
+                                                    ? 'bg-red-50 border-red-300 text-red-900 shadow-sm'
                                                     : 'bg-white border-slate-100 text-slate-600'
                                             }`}
                                         >
-                                            <span className={`font-bold shrink-0 ${isCorrect ? 'text-green-700' : 'text-slate-400'}`}>
-                                                {['A', 'B', 'C', 'D', 'E'][i]}.
+                                            <span className={`font-bold shrink-0 ${
+                                                isCorrect ? 'text-green-700' : isFrequentlyWrong ? 'text-red-700' : 'text-slate-400'
+                                            }`}>
+                                                {optionLetter}.
                                             </span>
                                             <span className="flex-1">{opt}</span>
                                             {isCorrect && (
                                                 <div className="flex items-center gap-1 shrink-0">
                                                     <CheckCircle size={18} className="text-green-600" />
                                                     <span className="text-xs font-bold text-green-700">正确答案</span>
+                                                </div>
+                                            )}
+                                            {isFrequentlyWrong && (
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <XCircle size={18} className="text-red-600" />
+                                                    <span className="text-xs font-bold text-red-700">易错项 {selectionRate}%</span>
                                                 </div>
                                             )}
                                         </div>
