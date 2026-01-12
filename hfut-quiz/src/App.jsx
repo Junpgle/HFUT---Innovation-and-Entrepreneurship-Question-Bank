@@ -119,6 +119,7 @@ function App() {
 
     // 新功能状态
     const [wrongQuestionRanking, setWrongQuestionRanking] = useState([]);
+    const [viewingRankQuestion, setViewingRankQuestion] = useState(null);
     const [questionComments, setQuestionComments] = useState({});
     const [userExplanations, setUserExplanations] = useState({});
     const [showComments, setShowComments] = useState(false);
