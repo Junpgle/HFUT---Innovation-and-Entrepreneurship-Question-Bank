@@ -1,4 +1,4 @@
-import {useState, useEffect} from 'react';
+import {useState, useEffect, useRef} from 'react';
 import AV from 'leancloud-storage';
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
@@ -127,6 +127,7 @@ function App() {
     const [showExplanationForm, setShowExplanationForm] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [newExplanation, setNewExplanation] = useState('');
+    const commentSectionRef = useRef(null);
 
     // --- 数据加载工具 ---
     
@@ -1636,7 +1637,7 @@ function App() {
 
                                     {/* 评论区 */}
                                     {currentQ.explanation && currentQ.explanation !== '暂无解析' && (
-                                        <div className="animate-enter bg-slate-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 mb-8">
+                                        <div className="animate-enter bg-slate-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 mb-8 relative scroll-mt-24" ref={commentSectionRef}>
                                             <div className="flex items-center justify-between mb-4">
                                                 <div className="flex items-center gap-2 text-slate-900 font-bold">
                                                     <MessageSquare size={20} className="text-slate-500"/> 
@@ -1650,7 +1651,7 @@ function App() {
                                             </div>
                                             
                                             {showComments && (
-                                                <div className="space-y-4">
+                                                <div className="space-y-4 pb-1">
                                                     {/* 评论输入 */}
                                                     <div className="space-y-2">
                                                         <textarea
@@ -1687,6 +1688,7 @@ function App() {
                                             )}
                                         </div>
                                     )}
+                                    <div className="h-14 md:h-6" aria-hidden></div>
                                 </>
                             )}
                         </div>
