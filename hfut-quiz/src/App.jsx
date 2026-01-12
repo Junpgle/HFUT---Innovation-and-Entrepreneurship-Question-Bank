@@ -15,6 +15,7 @@ import {
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
+const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
 const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
@@ -118,6 +119,7 @@ function App() {
 
     // 新功能状态
     const [wrongQuestionRanking, setWrongQuestionRanking] = useState([]);
+    const [viewingRankQuestion, setViewingRankQuestion] = useState(null);
     const [questionComments, setQuestionComments] = useState({});
     const [userExplanations, setUserExplanations] = useState({});
     const [showComments, setShowComments] = useState(false);
@@ -876,13 +878,14 @@ function App() {
     };
 
     // 提交错题统计到云端
-    const submitWrongAnswerStats = async (questionId, questionTitle, category) => {
+    const submitWrongAnswerStats = async (questionId, questionTitle, category, userAnswer) => {
         if (!currentUser) return;
         try {
             await AV.Cloud.run('recordWrongAnswer', {
                 questionId,
                 questionTitle,
-                category
+                category,
+                userAnswer
             });
         } catch (e) {
             console.error('提交错题统计失败:', e);
@@ -892,12 +895,32 @@ function App() {
     // 加载错题排行榜
     const loadWrongQuestionRanking = async () => {
         try {
-            const result = await AV.Cloud.run('getWrongQuestionRanking', { limit: 20 });
+            const result = await AV.Cloud.run('getWrongQuestionRanking', { limit: LEADERBOARD_LIMIT });
             if (result && Array.isArray(result.ranking)) {
                 setWrongQuestionRanking(result.ranking);
             }
         } catch (e) {
             console.error('加载错题排行榜失败:', e);
+        }
+    };
+    
+    // 从题库中查找题目详情
+    const getQuestionDetails = (questionId) => {
+        for (const lectureId in allQuestionBank) {
+            const questions = allQuestionBank[lectureId];
+            const question = questions.find(q => q.id === questionId);
+            if (question) return question;
+        }
+        return null;
+    };
+    
+    // 打开排行榜题目详情
+    const openRankingQuestion = (rankItem) => {
+        const questionDetail = getQuestionDetails(rankItem.questionId);
+        if (questionDetail) {
+            setViewingRankQuestion({ ...questionDetail, rankInfo: rankItem });
+        } else {
+            alert('题库中未找到该题（可能属于未加载章节或版本不匹配）');
         }
     };
 
@@ -1025,8 +1048,9 @@ function App() {
                 return n;
             });
             setWrongIds(prev => new Set(prev).add(currentQ.id));
-            // 提交错题统计到云端
-            submitWrongAnswerStats(currentQ.id, currentQ.question, currentQ.category);
+            // 提交错题统计到云端，包含用户选择的选项
+            const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
+            submitWrongAnswerStats(currentQ.id, currentQ.question, currentQ.category, answerText);
         }
 
         const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
@@ -2061,7 +2085,8 @@ function App() {
                         wrongQuestionRanking.map((item, index) => (
                             <div
                                 key={item.questionId}
-                                className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-slate-200 hover:border-orange-300 transition-all">
+                                onClick={() => openRankingQuestion(item)}
+                                className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-slate-200 hover:border-orange-300 transition-all cursor-pointer group">
                                 <div className="flex gap-4">
                                     {/* 排名徽章 */}
                                     <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl
@@ -2069,13 +2094,13 @@ function App() {
                                           index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
                                           index === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white' :
                                           'bg-slate-100 text-slate-600'}`}>
-                                        {index + 1}
+                                        {index < 3 ? <Trophy size={24} /> : (index + 1)}
                                     </div>
                                     
                                     {/* 题目信息 */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-4 mb-2">
-                                            <h3 className="font-semibold text-slate-800 text-base md:text-lg leading-snug">
+                                            <h3 className="font-semibold text-slate-800 text-base md:text-lg leading-snug group-hover:text-orange-600 transition-colors">
                                                 {item.questionTitle}
                                             </h3>
                                             <span className="shrink-0 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm font-bold">
@@ -2090,6 +2115,11 @@ function App() {
                                                 <AlertTriangle size={14}/> 错误率 {item.errorRate}%
                                             </span>
                                         </div>
+                                    </div>
+                                    
+                                    {/* 点击提示 */}
+                                    <div className="shrink-0 flex items-center">
+                                        <ChevronRight size={20} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
                                     </div>
                                 </div>
                             </div>
@@ -2107,6 +2137,114 @@ function App() {
             {currentMode === 'dashboard' && renderDashboard()}
             {['quiz', 'memorize', 'mistakes'].includes(currentMode) && renderCard()}
             {currentMode === 'ranking' && renderRankingPage()}
+            
+            {/* Question Detail Modal for Leaderboard */}
+            {viewingRankQuestion && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-enter" onClick={() => setViewingRankQuestion(null)}>
+                    <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-start z-10">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Trophy size={18} className="text-amber-500" />
+                                    <span className="text-xs font-bold text-slate-500">错题排行榜 #{viewingRankQuestion.rankInfo.rank}</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className={`text-xs px-2 py-1 rounded font-bold ${
+                                        viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' : 
+                                        (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')
+                                    }`}>
+                                        {viewingRankQuestion.type === 'multiple' ? '多选题' : (viewingRankQuestion.type === 'judgment' ? '判断题' : '单选题')}
+                                    </span>
+                                    <span className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
+                                    <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded font-bold">
+                                        错误 {viewingRankQuestion.rankInfo.errorCount} 次 · 错误率 {viewingRankQuestion.rankInfo.errorRate}%
+                                    </span>
+                                </div>
+                            </div>
+                            <button onClick={() => setViewingRankQuestion(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors ml-4">
+                                <X size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6">
+                            <h3 className="text-xl font-bold text-slate-900 mb-6 leading-relaxed">
+                                {viewingRankQuestion.question}
+                            </h3>
+                            
+                            <div className="space-y-3 mb-6">
+                                {viewingRankQuestion.options.map((opt, i) => {
+                                    const isCorrect = viewingRankQuestion.rawAnswer.includes(i);
+                                    const optionLetter = ['A', 'B', 'C', 'D', 'E'][i];
+                                    const optionStats = viewingRankQuestion.rankInfo?.optionStats || {};
+                                    const selectionCount = optionStats[optionLetter] || 0;
+                                    
+                                    // 计算该选项被选择的比例
+                                    const totalSelections = Object.values(optionStats).reduce((sum, count) => sum + count, 0);
+                                    const selectionRate = totalSelections > 0 ? Math.round((selectionCount / totalSelections) * 100) : 0;
+                                    
+                                    // 判断是否为易错选项（非正确答案且被选择次数较多）
+                                    const isFrequentlyWrong = !isCorrect && selectionCount > 0 && selectionRate >= 15;
+                                    
+                                    return (
+                                        <div 
+                                            key={i} 
+                                            className={`p-4 rounded-xl border-2 text-sm flex gap-3 transition-all ${
+                                                isCorrect 
+                                                    ? 'bg-green-50 border-green-300 text-green-900 shadow-sm' 
+                                                    : isFrequentlyWrong
+                                                    ? 'bg-red-50 border-red-300 text-red-900 shadow-sm'
+                                                    : 'bg-white border-slate-100 text-slate-600'
+                                            }`}
+                                        >
+                                            <span className={`font-bold shrink-0 ${
+                                                isCorrect ? 'text-green-700' : isFrequentlyWrong ? 'text-red-700' : 'text-slate-400'
+                                            }`}>
+                                                {optionLetter}.
+                                            </span>
+                                            <span className="flex-1">{opt}</span>
+                                            {isCorrect && (
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <CheckCircle size={18} className="text-green-600" />
+                                                    <span className="text-xs font-bold text-green-700">正确答案</span>
+                                                </div>
+                                            )}
+                                            {isFrequentlyWrong && (
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <XCircle size={18} className="text-red-600" />
+                                                    <span className="text-xs font-bold text-red-700">易错项 {selectionRate}%</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                                <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
+                                    <Zap size={18} className="text-indigo-600" /> 
+                                    <span>答案解析</span>
+                                </div>
+                                <p className="text-indigo-800 text-sm leading-relaxed">
+                                    {viewingRankQuestion.explanation}
+                                </p>
+                            </div>
+                            
+                            <div className="mt-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                                <div className="flex items-center gap-2 text-amber-900 text-sm font-bold mb-2">
+                                    <AlertTriangle size={16} className="text-amber-600" />
+                                    <span>易错提示</span>
+                                </div>
+                                <p className="text-amber-800 text-xs leading-relaxed">
+                                    该题已被 <span className="font-bold">{viewingRankQuestion.rankInfo.totalAttempts}</span> 人次作答，
+                                    其中 <span className="font-bold text-red-600">{viewingRankQuestion.rankInfo.errorCount}</span> 次答错，
+                                    错误率高达 <span className="font-bold text-red-600">{viewingRankQuestion.rankInfo.errorRate}%</span>。
+                                    请仔细理解题意和正确答案！
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 
