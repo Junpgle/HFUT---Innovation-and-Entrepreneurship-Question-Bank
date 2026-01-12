@@ -16,21 +16,18 @@ const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
 
-// 注意：在 Vite 中，静态资源不需要特殊的 URL 前缀，如果放在 public 文件夹，直接引用即可
-// 但这里保留原本的远程源以确保数据兼容
-const QUESTION_SOURCES = [
-    "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/"
-];
+// 题库源：LeanCloud 为主，GitHub raw 兜底
+const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
 const REPORT_URL = "report.html"; // 如果这是另一个页面，建议做成 React 路由组件
 
 const LECTURES = [
-    {id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx"},
-    {id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx"},
-    {id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx"},
-    {id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx"},
-    {id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx"},
-    {id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx"},
-    {id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx"},
+    {id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/sCwXv74yKdHuwzz440gSIKvciB8w5Oxt/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%80%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/LW7iNTXd04MjT6xIIgoghNavzJh78BM3/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%8C%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/89otiFHMEs0D6EPKY7h6nLLlKT4e3FlW/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%89%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/iDvr6YL2DqyDJNQ8WtHF8JoGu8VhXJpB/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%9B%9B%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/pmwL2rBspHySjkkGLY6cT4jTSENOw2QE/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%94%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/7ftQpmkKv4VtISulAbszw5y9gMtShUUO/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%85%AD%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/ng2YT8p8yeERNwiaPXWMJBFwEdPwM7XI/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%83%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
 ];
 
 // 版本号用于兼容未来结构变更
@@ -160,11 +157,12 @@ function App() {
         });
     };
     
-    const fetchLectureArrayBuffer = async (lectureFile) => {
+    const fetchLectureArrayBuffer = async (lecture) => {
+        const urls = [lecture.url, `${GITHUB_BASE}${encodeURIComponent(lecture.file)}`];
         const errors = [];
-        for (const base of QUESTION_SOURCES) {
+        for (const url of urls) {
+            if (!url) continue;
             try {
-                const url = `${base}${encodeURIComponent(lectureFile)}`;
                 const res = await fetch(url);
                 if (!res.ok) {
                     errors.push(`HTTP ${res.status}`);
@@ -430,7 +428,7 @@ function App() {
 
                 for (const lecture of LECTURES) {
                     try {
-                        const data = await fetchLectureArrayBuffer(lecture.file);
+                        const data = await fetchLectureArrayBuffer(lecture);
                         // Use safe parsing with timeout and size validation
                         const workbook = await safeParseXLSX(data);
                         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -488,7 +486,7 @@ function App() {
         let done = 0;
         for (const lecture of LECTURES) {
             try {
-                const data = await fetchLectureArrayBuffer(lecture.file);
+                const data = await fetchLectureArrayBuffer(lecture);
                 // Use safe parsing with timeout and size validation
                 const workbook = await safeParseXLSX(data);
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -1486,8 +1484,8 @@ function App() {
 
                 <div className="flex-1 flex flex-col h-screen relative">
                     <div className="md:hidden p-4 bg-white border-b flex justify-between items-center shadow-sm z-10">
-                        <button onClick={exitToDashboard} className="p-2 -ml-2 text-slate-600"><RotateCcw size={20}/>
-                        </button>
+                        <button onClick={exitToDashboard} className="p-2 -ml-2 text-slate-600"><RotateCcw size={20}
+                        /></button>
                         <span className="font-bold text-slate-700">{currentIndex + 1}/{questions.length}</span>
                         <button onClick={toggleFullscreen} className="p-2 -mr-2 text-slate-600">{isFullscreen ?
                             <Minimize size={20}/> : <Maximize size={20}/>}</button>
