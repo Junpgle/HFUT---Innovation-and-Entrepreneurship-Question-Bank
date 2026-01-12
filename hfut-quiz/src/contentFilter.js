@@ -69,7 +69,10 @@ export function filterContent(text) {
     let filteredText = text;
 
     for (const { original, pattern } of PROFANITY_PATTERNS) {
-        filteredText = filteredText.replace(pattern, '*'.repeat(original.length));
+        // 使用箭头函数确保每个匹配都被替换
+        filteredText = filteredText.replace(pattern, () => '*'.repeat(original.length));
+        // 重置正则表达式的 lastIndex
+        pattern.lastIndex = 0;
     }
 
     return filteredText;
