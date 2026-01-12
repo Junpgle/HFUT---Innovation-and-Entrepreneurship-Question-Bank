@@ -49,6 +49,7 @@ const safeGet = async (key, fallback = null) => {
             try {
                 localStorage.setItem(key, JSON.stringify(v));
             } catch {
+                // Ignore localStorage errors
             }
             return v;
         }
@@ -89,6 +90,7 @@ function App() {
     const [allQuestionBank, setAllQuestionBank] = useState({});
     const [bankStatus, setBankStatus] = useState('idle');
     const [bankProgress, setBankProgress] = useState("");
+    // eslint-disable-next-line no-unused-vars
     const [bankPercent, setBankPercent] = useState(0);
     const [errorMsg, setErrorMsg] = useState(null);
 
@@ -276,6 +278,7 @@ function App() {
                 try {
                     localStorage.removeItem('app_lastSession');
                 } catch {
+                    // Ignore localStorage errors
                 }
             }
         };
@@ -624,6 +627,7 @@ function App() {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleManualLocalSave = async () => {
         setSyncStatus('saving-local');
         setSyncMsg("本地保存中...");
@@ -640,6 +644,7 @@ function App() {
                 try {
                     localStorage.removeItem('app_lastSession');
                 } catch {
+                    // Ignore localStorage errors
                 }
             }
             setSyncStatus('success');
@@ -651,6 +656,7 @@ function App() {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleDebugDump = async () => {
         try {
             const payload = {
@@ -674,6 +680,7 @@ function App() {
         }
     };
 
+    // eslint-disable-next-line no-unused-vars
     const handleReloadLocal = async () => {
         try {
             const getSet = async (k) => {
@@ -1750,13 +1757,13 @@ function App() {
         if (!currentUser) return;
         let cancelled = false;
         const sendHeartbeat = async (mode = currentMode) => {
-            try { await AV.Cloud.run('heartbeat', { mode }); } catch (e) { /* 忽略心跳错误 */ }
+            try { await AV.Cloud.run('heartbeat', { mode }); } catch { /* 忽略心跳错误 */ }
         };
         const fetchCount = async () => {
             try {
                 const res = await AV.Cloud.run('onlineCount', { windowSec: 180 }); // 不过滤模式，包含 dashboard
                 if (!cancelled) setOnlineCount(res?.count ?? 0);
-            } catch (e) { /* 忽略统计错误 */ }
+            } catch { /* 忽略统计错误 */ }
         };
         // 首次立即上报与拉取
         sendHeartbeat();
