@@ -663,7 +663,7 @@
                 const questionMatch = q.question?.toLowerCase().includes(lowerKeyword) || false;
                 const optionsMatch = q.options?.some(opt => opt && opt.toLowerCase().includes(lowerKeyword)) || false;
                 const explanationMatch = q.explanation?.toLowerCase().includes(lowerKeyword) || false;
-                
+
                 return questionMatch || optionsMatch || explanationMatch;
             });
 
@@ -674,7 +674,7 @@
             if (searchFilters.type !== 'all') {
                 results = results.filter(q => q.type === searchFilters.type);
             }
-            
+
             // 处理答题状态筛选的边界情况
             if (!searchFilters.includeAnswered && !searchFilters.includeUnanswered) {
                 // 两个都不选时，显示所有题目
@@ -941,7 +941,7 @@
                         <Search className="text-blue-600" size={24} />
                         <h3 className="text-lg font-bold text-slate-800">题库搜索</h3>
                     </div>
-                    
+
                     <div className="flex gap-2 mb-4">
                         <div className="flex-1 relative">
                             <input

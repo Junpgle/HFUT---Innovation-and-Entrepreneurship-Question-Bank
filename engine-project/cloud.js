@@ -203,7 +203,7 @@ AV.Cloud.define('recordWrongAnswer', async function(request) {
       // 更新已有记录
       stat.increment('errorCount', 1);
       stat.increment('totalAttempts', 1);
-      
+
       // 记录用户选择的选项统计
       if (userAnswer) {
         const optionStats = stat.get('optionStats') || {};
@@ -222,7 +222,7 @@ AV.Cloud.define('recordWrongAnswer', async function(request) {
       stat.set('category', category);
       stat.set('errorCount', 1);
       stat.set('totalAttempts', 1);
-      
+
       // 初始化选项统计
       if (userAnswer) {
         const optionStats = {};
