@@ -3,6 +3,7 @@ import AV from 'leancloud-storage';
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
     BookOpen, CheckCircle, XCircle, Brain, Settings,
     ChevronRight, ChevronLeft, RotateCcw, LogOut, AlertCircle, Layers, Loader2,
@@ -79,6 +80,27 @@ const safeSet = async (key, value) => {
 };
 
 function App() {
+    const Markdown = ({ content, size = 'sm', className = '' }) => {
+        const components = {
+            h1: ({ ...props }) => <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mt-4 mb-3" {...props} />,
+            h2: ({ ...props }) => <h2 className="text-xl md:text-2xl font-bold text-slate-900 mt-3 mb-2.5" {...props} />,
+            h3: ({ ...props }) => <h3 className="text-lg md:text-xl font-semibold text-slate-900 mt-2.5 mb-2" {...props} />,
+            blockquote: ({ ...props }) => (
+                <blockquote className="border-l-4 border-blue-200 bg-blue-50 text-slate-800 italic px-4 py-3 rounded-r-xl my-3" {...props} />
+            ),
+            ul: ({ ...props }) => <ul className="list-disc pl-5 space-y-1 my-2 text-slate-800" {...props} />,
+            ol: ({ ...props }) => <ol className="list-decimal pl-5 space-y-1 my-2 text-slate-800" {...props} />,
+            li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
+        };
+        return (
+            <div className={`prose prose-${size} max-w-none text-slate-800 ${className}`}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+                    {content}
+                </ReactMarkdown>
+            </div>
+        );
+    };
+
     const [currentUser, setCurrentUser] = useState(AV.User.current());
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -115,6 +137,7 @@ function App() {
     const [showExplanation, setShowExplanation] = useState(false);
     const [selectedIndices, setSelectedIndices] = useState([]);
     const [isAnswered, setIsAnswered] = useState(false);
+    const [answerResults, setAnswerResults] = useState({});
 
     // 在线人数统计
     const [onlineCount, setOnlineCount] = useState(null);
@@ -128,6 +151,10 @@ function App() {
     const [showExplanationForm, setShowExplanationForm] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [newExplanation, setNewExplanation] = useState('');
+    const [editingCommentId, setEditingCommentId] = useState(null);
+    const [editingCommentContent, setEditingCommentContent] = useState('');
+    const [editingExplanationId, setEditingExplanationId] = useState(null);
+    const [editingExplanationContent, setEditingExplanationContent] = useState('');
     const commentSectionRef = useRef(null);
     const searchSectionRef = useRef(null);
 
@@ -792,6 +819,7 @@ function App() {
         const shuffled = [...sourcePool].sort(() => 0.5 - Math.random());
         const limit = quizConfig.count === 'all' ? shuffled.length : Number(quizConfig.count);
         setQuestions(shuffled.slice(0, limit));
+        setAnswerResults({});
         startMode(mode);
     };
 
@@ -814,6 +842,7 @@ function App() {
         }
         wrongQs.sort(() => 0.5 - Math.random());
         setQuestions(wrongQs);
+        setAnswerResults({});
         startMode('mistakes');
     };
 
@@ -923,8 +952,9 @@ function App() {
         const questionDetail = getQuestionDetails(rankItem.questionId);
         if (questionDetail) {
             setViewingRankQuestion({ ...questionDetail, rankInfo: rankItem });
+            ensureExplanationsLoaded(questionDetail.id);
         } else {
-            alert('题库中未找到该题（可能属于未加载章节或版本不匹配）');
+            alert('题库中未找到该题（强制刷新题库可能可以解决）');
         }
     };
 
@@ -941,6 +971,7 @@ function App() {
                 id: r.id,
                 content: r.get('content'),
                 author: r.get('author')?.get('username') || '匿名',
+                authorId: r.get('author')?.id || '',
                 createdAt: r.get('createdAt'),
                 likes: r.get('likes') || 0
             }));
@@ -953,7 +984,7 @@ function App() {
     // 提交评论
     const submitComment = async (questionId) => {
         if (!currentUser || !newComment.trim()) return;
-        
+
         // 内容审核
         const validation = validateContent(newComment.trim());
         if (!validation.valid) {
@@ -961,7 +992,7 @@ function App() {
             setSyncStatus('error');
             return;
         }
-        
+
         try {
             const Comment = AV.Object.extend('QuestionComment');
             const comment = new Comment();
@@ -981,6 +1012,65 @@ function App() {
         }
     };
 
+    const handleLikeComment = async (questionId, comment) => {
+        if (!currentUser || !comment?.id) return;
+        // 只允许给他人点赞
+        if (comment.authorId && comment.authorId === currentUser.id) return;
+        try {
+            const obj = AV.Object.createWithoutData('QuestionComment', comment.id);
+            obj.increment('likes', 1);
+            await obj.save();
+            await loadQuestionComments(questionId);
+        } catch (e) {
+            console.error('点赞失败', e);
+        }
+    };
+
+    const handleDeleteComment = async (questionId, comment) => {
+        if (!currentUser || !comment?.id || comment.authorId !== currentUser.id) return;
+        if (!window.confirm('确定删除这条评论吗？')) return;
+        try {
+            const obj = AV.Object.createWithoutData('QuestionComment', comment.id);
+            await obj.destroy();
+            setEditingCommentId(null);
+            setEditingCommentContent('');
+            await loadQuestionComments(questionId);
+        } catch (e) {
+            console.error('删除评论失败', e);
+        }
+    };
+
+    const handleStartEditComment = (comment) => {
+        setEditingCommentId(comment.id);
+        setEditingCommentContent(comment.content);
+    };
+
+    const handleUpdateComment = async (questionId) => {
+        if (!editingCommentId) return;
+        const content = editingCommentContent.trim();
+        if (!content) return;
+        const validation = validateContent(content);
+        if (!validation.valid) {
+            setSyncMsg(validation.message);
+            setSyncStatus('error');
+            return;
+        }
+        try {
+            const obj = AV.Object.createWithoutData('QuestionComment', editingCommentId);
+            obj.set('content', content);
+            await obj.save();
+            setEditingCommentId(null);
+            setEditingCommentContent('');
+            await loadQuestionComments(questionId);
+            setSyncStatus('success');
+            setSyncMsg('评论已更新');
+        } catch (e) {
+            console.error('更新评论失败', e);
+            setSyncStatus('error');
+            setSyncMsg('更新失败');
+        }
+    };
+
     // 加载用户贡献的解析
     const loadUserExplanations = async (questionId) => {
         try {
@@ -993,6 +1083,7 @@ function App() {
                 id: r.id,
                 content: r.get('content'),
                 author: r.get('author')?.get('username') || '匿名',
+                authorId: r.get('author')?.id || '',
                 votes: r.get('votes') || 0,
                 createdAt: r.get('createdAt')
             }));
@@ -1002,10 +1093,60 @@ function App() {
         }
     };
 
+    // 复用刷题的解析加载与展示逻辑
+    const ensureExplanationsLoaded = (questionId) => {
+        if (!questionId) return;
+        if (!userExplanations[questionId]) loadUserExplanations(questionId);
+    };
+    const renderUserExplanations = (questionId) => {
+        const list = userExplanations[questionId];
+        if (!list || list.length === 0) return null;
+        return (
+            <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-600 flex items-center gap-2">
+                    <BookOpen size={14}/> 用户提供的解析
+                </p>
+                {list.map((exp) => {
+                    const isOwner = exp.authorId === currentUser?.id;
+                    const isEditing = editingExplanationId === exp.id;
+                    return (
+                        <div key={exp.id} className="p-2 rounded-lg bg-white border border-slate-100 space-y-2">
+                            <div className="text-xs text-slate-500 flex justify-between items-center">
+                                <span>{exp.author} · {new Date(exp.createdAt).toLocaleString()}</span>
+                                {isOwner && !isEditing && (
+                                    <button onClick={() => {setEditingExplanationId(exp.id); setEditingExplanationContent(exp.content);}} className="text-blue-600 text-xs">编辑</button>
+                                )}
+                            </div>
+                            {isEditing ? (
+                                <div className="space-y-2">
+                                    <textarea
+                                        value={editingExplanationContent}
+                                        onChange={(e) => setEditingExplanationContent(e.target.value)}
+                                        className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                        rows={4}
+                                    />
+                                    <div className="flex gap-2 justify-end text-xs">
+                                        <button onClick={() => handleUpdateExplanation(questionId)} className="px-3 py-1 bg-blue-600 text-white rounded-lg">保存</button>
+                                        <button onClick={() => {setEditingExplanationId(null); setEditingExplanationContent('');}} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg">取消</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <Markdown content={exp.content} />
+                                    <div className="text-xs text-amber-600">👍 {exp.votes || 0}</div>
+                                </>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     // 提交用户解析
     const submitUserExplanation = async (questionId) => {
         if (!currentUser || !newExplanation.trim()) return;
-        
+
         // 内容审核
         const validation = validateContent(newExplanation.trim());
         if (!validation.valid) {
@@ -1013,7 +1154,7 @@ function App() {
             setSyncStatus('error');
             return;
         }
-        
+
         try {
             const Explanation = AV.Object.extend('UserExplanation');
             const explanation = new Explanation();
@@ -1031,6 +1172,32 @@ function App() {
             console.error('提交解析失败:', e);
             setSyncMsg('解析提交失败');
             setSyncStatus('error');
+        }
+    };
+
+    const handleUpdateExplanation = async (questionId) => {
+        if (!editingExplanationId) return;
+        const content = editingExplanationContent.trim();
+        if (!content) return;
+        const validation = validateContent(content);
+        if (!validation.valid) {
+            setSyncMsg(validation.message);
+            setSyncStatus('error');
+            return;
+        }
+        try {
+            const obj = AV.Object.createWithoutData('UserExplanation', editingExplanationId);
+            obj.set('content', content);
+            await obj.save();
+            setEditingExplanationId(null);
+            setEditingExplanationContent('');
+            await loadUserExplanations(questionId);
+            setSyncStatus('success');
+            setSyncMsg('解析已更新');
+        } catch (e) {
+            console.error('更新解析失败:', e);
+            setSyncStatus('error');
+            setSyncMsg('更新解析失败');
         }
     };
 
@@ -1063,6 +1230,7 @@ function App() {
                 return n;
             });
             setMasteredIds(prev => new Set(prev).add(currentQ.id));
+            setAnswerResults(prev => ({ ...prev, [currentQ.id]: 'correct' }));
         } else {
             setMasteredIds(prev => {
                 const n = new Set(prev);
@@ -1070,6 +1238,7 @@ function App() {
                 return n;
             });
             setWrongIds(prev => new Set(prev).add(currentQ.id));
+            setAnswerResults(prev => ({ ...prev, [currentQ.id]: 'wrong' }));
             // 提交错题统计到云端，包含用户选择的选项
             const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
             submitWrongAnswerStats(currentQ.id, currentQ.question, currentQ.category, answerText);
@@ -1149,14 +1318,14 @@ function App() {
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
                         <GraduationCap className="text-blue-600 w-6 h-6 md:w-8 md:h-8"/>
-                        <span>学习控制台</span>
+                        <span>创新创业</span>
                     </h1>
                     <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.getUsername()}</p>
                 </div>
                 <div className="flex gap-2 md:gap-3 items-center">
                     {onlineCount !== null && (
                         <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-200 text-xs md:text-sm font-medium flex items-center gap-2">
-                            <User size={16}/> 在线人数：{onlineCount}
+                            <User size={16}/> 在线：{onlineCount}
                         </div>
                     )}
                     <button
@@ -1168,9 +1337,9 @@ function App() {
                         aria-expanded={isSearchOpen}
                         aria-controls="search-panel"
                         className="p-2 md:px-3 md:py-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shadow-sm hover:bg-blue-100 transition-colors flex items-center gap-2 text-sm font-semibold"
-                        title="题库搜索"
+                        title="搜索"
                     >
-                        <Search size={16} />{isSearchOpen ? '收起搜索' : '搜索题目'}
+                        <Search size={16} />{isSearchOpen ? '收起' : '搜索'}
                     </button>
                     <button onClick={toggleFullscreen}
                             className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
@@ -1386,6 +1555,7 @@ function App() {
                                         <div
                                             key={q.id}
                                             className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                            onMouseEnter={() => ensureExplanationsLoaded(q.id)}
                                             onClick={() => {
                                                 setQuestions([q]);
                                                 setCurrentIndex(0);
@@ -1396,7 +1566,7 @@ function App() {
                                         >
                                             <div className="flex items-start gap-3">
                                                 <span className="text-xs font-bold text-slate-400 mt-1">{idx + 1}</span>
-                                                <div className="flex-1 min-w-0">
+                                                <div className="flex-1 min-w-0 space-y-2">
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                                                             q.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
@@ -1414,6 +1584,12 @@ function App() {
                                                         )}
                                                     </div>
                                                     <p className="text-sm text-slate-700 line-clamp-2">{q.question}</p>
+                                                    <div className="text-xs text-slate-500 line-clamp-2">
+                                                        <div className="prose prose-xs max-w-none text-slate-600">
+                                                            <Markdown content={q.explanation || '暂无解析'} size="xs" />
+                                                        </div>
+                                                    </div>
+                                                    {renderUserExplanations(q.id)}
                                                 </div>
                                             </div>
                                         </div>
@@ -1437,7 +1613,7 @@ function App() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
                     <div
-                        className="lg:col-span-8 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 flex flex-col justify-between relative overflow-hidden">
+                        className="lg:col-span-8 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 flex flex-col justify-between relative overflow-hidden transition-transform duration-300 ease-in-out will-change-transform">
                         <div
                             className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50 blur-3xl"></div>
                         <div className="relative z-10">
@@ -1538,7 +1714,7 @@ function App() {
 
                         {/* 1. 错题攻坚卡片 - 稍微紧凑一点，去掉多余留白 */}
                         <div onClick={startMistakeNotebook}
-                             className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform relative overflow-hidden group shrink-0">
+                             className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group shrink-0">
                             <div
                                 className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
                             <div className="relative z-10 flex flex-col h-full justify-between gap-4">
@@ -1556,7 +1732,7 @@ function App() {
 
                         {/* 1.5. 易错题排行榜卡片 */}
                         <div onClick={() => {setCurrentMode('ranking'); loadWrongQuestionRanking();}}
-                             className="bg-gradient-to-br from-orange-500 to-amber-600 p-5 rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform relative overflow-hidden group shrink-0">
+                             className="bg-gradient-to-br from-orange-500 to-amber-600 p-5 rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group shrink-0">
                             <div
                                 className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
                             <div className="relative z-10 flex flex-col h-full justify-between gap-4">
@@ -1574,7 +1750,7 @@ function App() {
 
                         {/* 2. 数据报表卡片 - 恢复标准卡片样式，填充剩余空间 */}
                         <a href={REPORT_URL}
-                           className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-all flex flex-col no-underline group flex-1 min-h-0">
+                           className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-transform duration-300 ease-in-out will-change-transform flex flex-col no-underline group flex-1 min-h-0">
 
                             {/* 头部：标题与核心数据并排 */}
                             <div className="flex items-start justify-between mb-4">
@@ -1678,7 +1854,7 @@ function App() {
                         }
                     ].map((item, i) => (
                         <div key={i}
-                             className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm">
+                             className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm transition-transform duration-300 ease-in-out will-change-transform">
                             <div
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}>
                                 <item.icon size={20}/>
@@ -1746,7 +1922,10 @@ function App() {
                         <div className="grid grid-cols-5 gap-2">
                             {questions.map((_, i) => {
                                 let statusColor = 'bg-slate-50 text-slate-400 hover:bg-slate-100';
+                                const qid = questions[i].id;
                                 if (i === currentIndex) statusColor = 'bg-blue-600 text-white shadow-md ring-2 ring-blue-200';
+                                else if (answerResults[qid] === 'correct') statusColor = 'bg-green-50 text-green-700 border border-green-200';
+                                else if (answerResults[qid] === 'wrong') statusColor = 'bg-red-50 text-red-700 border border-red-200';
                                 return (
                                     <button key={i} onClick={() => changeQuestion(i)}
                                             className={`aspect-square rounded-lg text-sm font-bold flex items-center justify-center transition-all ${statusColor}`}>
@@ -1771,233 +1950,262 @@ function App() {
                     </div>
 
                     <div
-                        className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-24 mobile-safe-bottom">
-                        <div className="w-full max-w-3xl space-y-6 md:space-y-8">
-                            <div
-                                className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter">
-                                <div className="flex items-center gap-3 mb-4 md:mb-6">
-                                    <span
-                                        className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${currentQ.type === 'multiple' ? 'bg-purple-100 text-purple-700' : (currentQ.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')}`}>
-                                        {currentQ.type === 'multiple' ? '多选题' : (currentQ.type === 'judgment' ? '判断题' : '单选题')}
-                                    </span>
-                                    <span
-                                        className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers
-                                        size={14}/> {currentQ.category}</span>
+                        className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-12 mobile-safe-bottom">
+                        <div className="w-full max-w-5xl space-y-6 md:space-y-8">
+                            {/* Mobile bottom nav pill */}
+                            <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+                                <div className="flex items-center justify-center gap-3 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 px-4 py-2.5 h-[58px] min-w-[320px]">
+                                    <button
+                                        onClick={prevQuestion}
+                                        disabled={currentIndex === 0}
+                                        className="flex-1 min-w-[90px] px-4 py-2 rounded-full text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                                    >
+                                        <ChevronLeft size={14}/> 上一题
+                                    </button>
+                                    <div className="text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+                                        {currentIndex + 1}/{questions.length}
+                                    </div>
+                                    <button
+                                        onClick={isQuiz ? nextQuestion : handleMemorizeCheck}
+                                        className="flex-1 min-w-[90px] px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                                    >
+                                        {isQuiz ? (currentIndex === questions.length - 1 ? '完成' : '下一题') : '记住了，下一题'} <ChevronRight size={14}/>
+                                    </button>
                                 </div>
-                                <h2 className="text-lg md:text-2xl font-bold text-slate-900 leading-relaxed mb-4">
-                                    {currentQ.question}
-                                </h2>
+                            </div>
 
-                                <div className="grid gap-3">
-                                    {currentQ.options.map((opt, idx) => {
-                                        let status = 'default';
+                            <div className="grid md:grid-cols-3 gap-4 md:gap-6 items-start">
+                                <div className="md:col-span-2 bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter h-full flex flex-col">
+                                    <div className="flex items-center gap-3 mb-4 md:mb-6">
+                                        <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${currentQ.type === 'multiple' ? 'bg-purple-100 text-purple-700' : (currentQ.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')}`}>
+                                            {currentQ.type === 'multiple' ? '多选题' : (currentQ.type === 'judgment' ? '判断题' : '单选题')}
+                                        </span>
+                                        <span className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers size={14}/> {currentQ.category}</span>
+                                    </div>
+                                    <h2 className="text-lg md:text-2xl font-bold text-slate-900 leading-relaxed mb-4">
+                                        {currentQ.question}
+                                    </h2>
 
-                                        if (isQuiz) {
-                                            if (isAnswered) {
-                                                if (currentQ.rawAnswer?.includes(idx)) status = 'correct';
-                                                else if (selectedIndices.includes(idx)) status = 'wrong';
-                                                else status = 'dimmed';
-                                            } else {
-                                                if (selectedIndices.includes(idx)) status = 'selected';
+                                    <div className="grid gap-3">
+                                        {currentQ.options.map((opt, idx) => {
+                                            let status = 'default';
+
+                                            if (isQuiz) {
+                                                if (isAnswered) {
+                                                    if (currentQ.rawAnswer?.includes(idx)) status = 'correct';
+                                                    else if (selectedIndices.includes(idx)) status = 'wrong';
+                                                    else status = 'dimmed';
+                                                } else if (selectedIndices.includes(idx)) {
+                                                    status = 'selected';
+                                                }
+                                            } else if (currentQ.rawAnswer?.includes(idx)) {
+                                                status = 'correct';
                                             }
-                                        } else {
-                                            if (currentQ.rawAnswer?.includes(idx)) status = 'correct';
-                                        }
 
-                                        return (
-                                            <button key={idx}
-                                                    onClick={() => handleOptionClick(idx)}
-                                                    className={`w-full p-4 md:p-5 rounded-xl text-left border-2 transition-all flex items-start gap-3 md:gap-4 group relative
+                                            return (
+                                                <button key={idx}
+                                                        onClick={() => handleOptionClick(idx)}
+                                                        className={`w-full p-4 md:p-5 rounded-xl text-left border-2 transition-all flex items-start gap-3 md:gap-4 group relative
                                                                         ${status === 'default' ? 'border-slate-100 bg-white hover:border-blue-200 hover:bg-slate-50' : ''}
                                                                         ${status === 'selected' ? 'border-blue-500 bg-blue-50 text-blue-900' : ''}
                                                                         ${status === 'correct' ? 'border-green-500 bg-green-50 text-green-900' : ''}
                                                                         ${status === 'wrong' ? 'border-red-500 bg-red-50 text-red-900' : ''}
                                                                         ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
                                                                     `}
-                                            >
-                                                <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0
+                                                >
+                                                    <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0
                                                                         ${status === 'selected' ? 'bg-blue-500 border-blue-500 text-white' : ''}
                                                                         ${status === 'correct' ? 'bg-green-500 border-green-500 text-white' : ''}
                                                                         ${status === 'wrong' ? 'bg-red-500 border-red-500 text-white' : ''}
                                                                         ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
                                                                     `}>
-                                                    {['A', 'B', 'C', 'D', 'E'][idx]}
-                                                </div>
-                                                <span className="flex-1 text-base md:text-lg leading-snug">{opt}</span>
-                                                {status === 'correct' && <CheckCircle
-                                                    className="text-green-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
-                                                {status === 'wrong' &&
-                                                    <XCircle className="text-red-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
+                                                        {['A', 'B', 'C', 'D', 'E'][idx]}
+                                                    </div>
+                                                    <span className="flex-1 text-base md:text-lg leading-snug">{opt}</span>
+                                                    {status === 'correct' && <CheckCircle className="text-green-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
+                                                    {status === 'wrong' && <XCircle className="text-red-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
+                                                </button>
+                                            )
+                                        })}
+                                    </div>
+
+                                    {isQuiz && !isAnswered && currentQ.type === 'multiple' && (
+                                        <div className="flex justify-end animate-enter pt-4">
+                                            <button onClick={() => submitAnswer()}
+                                                    className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2
+                                                                    ${selectedIndices.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                                            >
+                                                确认提交 <CheckSquare size={18}/>
                                             </button>
-                                        )
-                                    })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="hidden md:block sticky md:top-24 self-start">
+                                    <div className="flex flex-col items-center gap-3 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 px-2 py-5 w-[56px]">
+                                        <button
+                                            onClick={prevQuestion}
+                                            disabled={currentIndex === 0}
+                                            className="h-[90px] w-full rounded-full font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 transition flex items-center justify-center text-[12px] shadow-sm"
+                                            style={{writingMode:'vertical-rl', textOrientation:'upright'}}
+                                        >
+                                            <ChevronLeft size={12}/> 上一题
+                                        </button>
+                                        <div className="text-[11px] text-slate-500 font-semibold border-y border-slate-100 py-1 w-full text-center">{currentIndex + 1}/{questions.length}</div>
+                                        {isQuiz ? (
+                                            <button
+                                                onClick={nextQuestion}
+                                                className="h-[90px] w-full rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md"
+                                                style={{writingMode:'vertical-rl', textOrientation:'upright'}}
+                                            >
+                                                {currentIndex === questions.length - 1 ? '完成' : '下一题'} <ChevronRight size={12}/>
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={handleMemorizeCheck}
+                                                className="h-[90px] w-full rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md"
+                                                style={{writingMode:'vertical-rl', textOrientation:'upright'}}
+                                            >
+                                                记住了，下一题 <ChevronRight size={12}/>
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
-                            {isQuiz && !isAnswered && currentQ.type === 'multiple' && (
-                                <div className="flex justify-end animate-enter pb-4">
-                                    <button onClick={() => submitAnswer()}
-                                            className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2
-                                                            ${selectedIndices.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                                    >
-                                        确认提交 <CheckSquare size={18}/>
-                                    </button>
-                                </div>
-                            )}
-
-                            {showContent && (
-                                <>
-                                    {/* 用户贡献的解析 - 当官方解析为"暂无解析"时优先显示 */}
-                                    {userExplanations[currentQ.id] && userExplanations[currentQ.id].length > 0 && (
-                                        <div className="animate-enter bg-purple-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-purple-100 mb-4">
-                                            <div className="flex items-center gap-2 mb-3 text-purple-900 font-bold">
-                                                <Award size={20} className="text-purple-500"/> 用户贡献的解析
-                                            </div>
-                                            <div className="space-y-3">
-                                                {userExplanations[currentQ.id].map((exp) => (
-                                                    <div key={exp.id} className="bg-white/70 p-4 rounded-lg border border-purple-100">
-                                                        <div className="text-purple-900 text-sm mb-2 prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0">
-                                                            <ReactMarkdown>{exp.content}</ReactMarkdown>
-                                                        </div>
-                                                        <div className="flex items-center justify-between text-xs text-purple-600">
-                                                            <span>— {exp.author}</span>
-                                                            <div className="flex items-center gap-1">
-                                                                <ThumbsUp size={12}/> {exp.votes}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* 官方答案解析 */}
-                                    <div
-                                        className="animate-enter bg-indigo-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-indigo-100 mb-4">
-                                        <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
-                                            <Zap size={20} className="text-indigo-500 fill-current"/> 答案解析
-                                        </div>
-                                        <p className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base">{currentQ.explanation}</p>
-                                        
-                                        {/* 如果没有解析，显示用户贡献按钮 */}
-                                        {(!currentQ.explanation || currentQ.explanation === '暂无解析') && (
-                                            <div className="mt-4">
-                                                {!showExplanationForm ? (
-                                                    <button
-                                                        onClick={() => setShowExplanationForm(true)}
-                                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-all">
-                                                        <Edit3 size={16}/> 贡献解析
-                                                    </button>
-                                                ) : (
-                                                    <div className="space-y-3">
-                                                        <textarea
-                                                            value={newExplanation}
-                                                            onChange={(e) => setNewExplanation(e.target.value)}
-                                                            placeholder="分享你对这道题的理解（支持Markdown格式）..."
-                                                            className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
-                                                            rows={4}
-                                                        />
-                                                        <div className="flex gap-2">
-                                                            <button
-                                                                onClick={() => submitUserExplanation(currentQ.id)}
-                                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
-                                                                <Send size={16}/> 提交解析
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {setShowExplanationForm(false); setNewExplanation('');}}
-                                                                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium">
-                                                                取消
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
+                             {showContent && (
+                                <div className="grid md:grid-cols-2 gap-4 md:gap-6 items-stretch">
+                                    <div className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 h-full flex flex-col gap-4">
+                                        {userExplanations[currentQ.id] && userExplanations[currentQ.id].length > 0 && (
+                                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                                                <div className="flex items-center gap-2 mb-3 text-purple-900 font-bold">
+                                                    <Award size={20} className="text-purple-500"/> 用户贡献的解析
+                                                </div>
+                                                {renderUserExplanations(currentQ.id)}
                                             </div>
                                         )}
-                                    </div>
 
-                                    {/* 评论区 */}
-                                    {currentQ.explanation && currentQ.explanation !== '暂无解析' && (
-                                        <div className="animate-enter bg-slate-50 p-6 md:p-8 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 mb-8 relative scroll-mt-24" ref={commentSectionRef}>
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center gap-2 text-slate-900 font-bold">
-                                                    <MessageSquare size={20} className="text-slate-500"/> 
-                                                    评论区 {questionComments[currentQ.id] ? `(${questionComments[currentQ.id].length})` : ''}
-                                                </div>
-                                                <button
-                                                    onClick={() => setShowComments(!showComments)}
-                                                    className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                                                    {showComments ? '收起' : '展开'}
-                                                </button>
+                                        <div className="animate-enter bg-indigo-50 p-5 md:p-6 rounded-[1.5rem] border border-indigo-100">
+                                            <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
+                                                <Zap size={20} className="text-indigo-500 fill-current"/> 答案解析
                                             </div>
-                                            
-                                            {showComments && (
-                                                <div className="space-y-4 pb-1">
-                                                    {/* 评论输入 */}
-                                                    <div className="space-y-2">
-                                                        <textarea
-                                                            value={newComment}
-                                                            onChange={(e) => setNewComment(e.target.value)}
-                                                            placeholder="分享你的想法..."
-                                                            className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                                            rows={3}
-                                                        />
+                                            <Markdown content={currentQ.explanation} size="sm" className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base flex-1" />
+
+                                            {(!currentQ.explanation || currentQ.explanation === '暂无解析') && (
+                                                <div className="mt-4">
+                                                    {!showExplanationForm ? (
                                                         <button
-                                                            onClick={() => submitComment(currentQ.id)}
-                                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
-                                                            <Send size={16}/> 发表评论
+                                                            onClick={() => setShowExplanationForm(true)}
+                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-all">
+                                                            <Edit3 size={16}/> 贡献解析
                                                         </button>
-                                                    </div>
-                                                    
-                                                    {/* 评论列表 */}
-                                                    {questionComments[currentQ.id] && questionComments[currentQ.id].length > 0 ? (
-                                                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                                                            {questionComments[currentQ.id].map((comment) => (
-                                                                <div key={comment.id} className="bg-white p-4 rounded-lg border border-slate-100">
-                                                                    <p className="text-slate-800 text-sm mb-2">{comment.content}</p>
-                                                                    <div className="flex items-center justify-between text-xs text-slate-500">
-                                                                        <span>{comment.author}</span>
-                                                                        <span>{new Date(comment.createdAt).toLocaleString('zh-CN')}</span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
                                                     ) : (
-                                                        <p className="text-slate-400 text-sm text-center py-4">暂无评论，来抢沙发吧！</p>
+                                                        <div className="space-y-3">
+                                                            <textarea
+                                                                value={newExplanation}
+                                                                onChange={(e) => setNewExplanation(e.target.value)}
+                                                                placeholder="分享你对这道题的理解（支持Markdown格式）..."
+                                                                className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                                                rows={4}
+                                                            />
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => submitUserExplanation(currentQ.id)}
+                                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
+                                                                    <Send size={16}/> 提交解析
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {setShowExplanationForm(false); setNewExplanation('');}}
+                                                                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium">
+                                                                    取消
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
                                             )}
                                         </div>
-                                    )}
-                                    <div className="h-14 md:h-6" aria-hidden></div>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                                    </div>
 
-                    {(
-                        <div
-                            className="absolute bottom-0 left-0 right-0 p-4 md:p-6 bg-white/90 backdrop-blur border-t border-slate-200 flex justify-between items-center z-20 mobile-safe-bottom">
-                            <button onClick={prevQuestion} disabled={currentIndex === 0}
-                                    className="px-4 md:px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 disabled:opacity-30 transition-all flex items-center gap-2 text-sm md:text-base">
-                                <ChevronLeft size={20}/> <span className="hidden md:inline">上一题</span>
-                            </button>
+                                    <div className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 scroll-mt-24 h-full flex flex-col" ref={commentSectionRef}>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-2 text-slate-900 font-bold">
+                                                <MessageSquare size={20} className="text-slate-500"/>
+                                                评论区 {questionComments[currentQ.id] ? `(${questionComments[currentQ.id].length})` : ''}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-4 pb-1 flex flex-col flex-1">
+                                            <div className="space-y-2">
+                                                <textarea
+                                                    value={newComment}
+                                                    onChange={(e) => setNewComment(e.target.value)}
+                                                    placeholder="分享你的想法..."
+                                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                    rows={3}
+                                                />
+                                                <button
+                                                    onClick={() => submitComment(currentQ.id)}
+                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
+                                                    <Send size={16}/> 发表评论
+                                                </button>
+                                            </div>
 
-                            {!isQuiz && (
-                                <button onClick={handleMemorizeCheck}
-                                        className="px-6 md:px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all text-sm md:text-base flex-1 mx-4 md:flex-none">
-                                    记住了，下一题
-                                </button>
-                            )}
+                                            {questionComments[currentQ.id] && questionComments[currentQ.id].length > 0 ? (
+                                                <div className="space-y-3 max-h-full overflow-y-auto flex-1">
+                                                    {questionComments[currentQ.id].map((comment) => {
+                                                        const isOwner = comment.authorId === currentUser?.id;
+                                                        const isEditing = editingCommentId === comment.id;
+                                                        return (
+                                                            <div key={comment.id} className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
+                                                                {isEditing ? (
+                                                                    <div className="space-y-2">
+                                                                        <textarea
+                                                                            value={editingCommentContent}
+                                                                            onChange={(e) => setEditingCommentContent(e.target.value)}
+                                                                            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                                                            rows={3}
+                                                                        />
+                                                                        <div className="flex gap-2 justify-end text-xs">
+                                                                            <button onClick={() => handleUpdateComment(currentQ.id)} className="px-3 py-1 bg-blue-600 text-white rounded-lg">保存</button>
+                                                                            <button onClick={() => {setEditingCommentId(null); setEditingCommentContent('');}} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg">取消</button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <>
+                                                                        <p className="text-slate-800 text-sm mb-1 break-words">{comment.content}</p>
+                                                                        <div className="flex items-center justify-between text-xs text-slate-500">
+                                                                            <span>{comment.author}</span>
+                                                                            <span>{new Date(comment.createdAt).toLocaleString('zh-CN')}</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-3 text-xs">
+                                                                            {isOwner ? (
+                                                                                <>
+                                                                                    <button onClick={() => handleStartEditComment(comment)} className="text-blue-600">编辑</button>
+                                                                                    <button onClick={() => handleDeleteComment(currentQ.id, comment)} className="text-red-600">删除</button>
+                                                                                </>
+                                                                            ) : (
+                                                                                <button onClick={() => handleLikeComment(currentQ.id, comment)} className="flex items-center gap-1 text-amber-600">
+                                                                                    <ThumbsUp size={12}/> {comment.likes || 0}
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <p className="text-slate-400 text-sm text-center py-4">暂无评论，来抢沙发吧！</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                             )}
+                         </div>
+                     </div>
 
-                            {isQuiz && (
-                                <button onClick={nextQuestion}
-                                        className="px-4 md:px-6 py-2.5 rounded-xl font-bold text-slate-900 hover:bg-slate-100 transition-all flex items-center gap-2 text-sm md:text-base">
-                                    {currentIndex === questions.length - 1 ? '完成练习' : '下一题'} <ChevronRight
-                                    size={20}/>
-                                </button>
-                            )}
-                        </div>
-                    )}
+                    {/* 已移除底部浮动导航，避免遮挡解析提交按钮。桌面右侧栏或移动端顶部栏保留导航。 */}
                 </div>
             </div>
         );
@@ -2101,6 +2309,20 @@ function App() {
         if (!currentUser) return;
         AV.Cloud.run('heartbeat', { mode: currentMode }).catch(()=>{});
     }, [currentMode, currentUser]);
+
+    // 自动加载评论和用户解析（无官方解析时）
+    useEffect(() => {
+        if (!questions.length) return;
+        const q = questions[currentIndex];
+        // 预加载评论
+        if (q && !questionComments[q.id]) {
+            loadQuestionComments(q.id);
+        }
+        // 无官方解析时尝试加载用户解析
+        if (showExplanation && q && (!q.explanation || q.explanation === '暂无解析')) {
+            ensureExplanationsLoaded(q.id);
+        }
+    }, [showExplanation, currentIndex, questions]);
 
     // 渲染错题排行榜页面
     const renderRankingPage = () => (
@@ -2267,9 +2489,8 @@ function App() {
                                     <Zap size={18} className="text-indigo-600" /> 
                                     <span>答案解析</span>
                                 </div>
-                                <p className="text-indigo-800 text-sm leading-relaxed">
-                                    {viewingRankQuestion.explanation}
-                                </p>
+                                <Markdown content={viewingRankQuestion.explanation} size="sm" className="text-indigo-800 text-sm leading-relaxed" />
+                                {renderUserExplanations(viewingRankQuestion.id)}
                             </div>
                             
                             <div className="mt-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
