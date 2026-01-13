@@ -22,7 +22,7 @@ const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
 const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
-const REPORT_URL = "report.html"; // 如果这是另一个页面，建议做成 React 路由组件
+const REPORT_URL = "/#/report"; // Hash 路由到 Report.jsx，适配静态托管
 
 const LECTURES = [
     {id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/sCwXv74yKdHuwzz440gSIKvciB8w5Oxt/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%80%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
@@ -1854,7 +1854,7 @@ function App() {
                         }
                     ].map((item, i) => (
                         <div key={i}
-                             className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm transition-transform duration-300 ease-in-out will-change-transform">
+                             className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm transition-transform duration-300 ease-in-out">
                             <div
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}>
                                 <item.icon size={20}/>
@@ -2087,7 +2087,8 @@ function App() {
 
                                         <div className="animate-enter bg-indigo-50 p-5 md:p-6 rounded-[1.5rem] border border-indigo-100">
                                             <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
-                                                <Zap size={20} className="text-indigo-500 fill-current"/> 答案解析
+                                                <Zap size={20} className="text-indigo-500" />
+                                                <span>答案解析</span>
                                             </div>
                                             <Markdown content={currentQ.explanation} size="sm" className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base flex-1" />
 
@@ -2418,7 +2419,7 @@ function App() {
                                         viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' : 
                                         (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')
                                     }`}>
-                                        {viewingRankQuestion.type === 'multiple' ? '多选题' : (viewingRankQuestion.type === 'judgment' ? '判断题' : '单选题')}
+                                        {viewingRankQuestion.type === 'multiple' ? '多选' : viewingRankQuestion.type === 'judgment' ? '判断' : '单选'}
                                     </span>
                                     <span className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
                                     <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded font-bold">

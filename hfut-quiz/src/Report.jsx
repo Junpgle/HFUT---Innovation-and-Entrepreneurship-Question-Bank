@@ -93,6 +93,7 @@ function Report() {
   const [userExplanations, setUserExplanations] = useState({});
   const [editingExpId, setEditingExpId] = useState(null);
   const [editingExpContent, setEditingExpContent] = useState('');
+  const [localProgress, setLocalProgress] = useState({ history: [], brushedIds: [], masteredIds: [] });
 
   useEffect(() => {
     (async () => {
@@ -125,13 +126,40 @@ function Report() {
           await localforage.setItem('hf_bank_v2', newBank);
         }
       } catch (e) { console.warn('Bank load error', e); }
+
+      // 叠加本地缓存进度，避免日期缺失
+      try {
+        const [localHist, localBrushed, localMastered] = await Promise.all([
+          localforage.getItem('app_history').catch(() => []),
+          localforage.getItem('app_brushedIds').catch(() => []),
+          localforage.getItem('app_masteredIds').catch(() => []),
+        ]);
+        setLocalProgress({
+          history: Array.isArray(localHist) ? localHist : [],
+          brushedIds: Array.isArray(localBrushed) ? localBrushed : [],
+          masteredIds: Array.isArray(localMastered) ? localMastered : [],
+        });
+      } catch (e) { console.warn('Load local progress fail', e); }
       setReady(true);
     })();
   }, []);
 
-  const history = data?.history || [];
-  const brushedSet = new Set(data?.brushedIds || []);
-  const masteredSet = new Set(data?.masteredIds || []);
+  // 合并云端与本地的历史与进度，避免遗漏任何有数据的日期
+  const mergedHistory = useMemo(() => {
+    const remote = Array.isArray(data?.history) ? data.history : [];
+    const local = Array.isArray(localProgress.history) ? localProgress.history : [];
+    const map = new Map();
+    [...remote, ...local].forEach((h, idx) => {
+      if (!h || !h.timestamp) return;
+      const key = `${h.timestamp}-${h.questionId || idx}-${h.action || ''}`;
+      if (!map.has(key)) map.set(key, h);
+    });
+    return [...map.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }, [data, localProgress]);
+
+  const brushedSet = useMemo(() => new Set([...(data?.brushedIds || []), ...(localProgress.brushedIds || [])]), [data, localProgress]);
+  const masteredSet = useMemo(() => new Set([...(data?.masteredIds || []), ...(localProgress.masteredIds || [])]), [data, localProgress]);
+  const history = mergedHistory;
 
   const dates = useMemo(() => {
     const d = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))].sort((a,b) => new Date(b) - new Date(a));
