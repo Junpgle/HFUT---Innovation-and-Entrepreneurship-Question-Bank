@@ -24,14 +24,25 @@ const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
 const REPORT_URL = "/#/report"; // Hash 路由到 Report.jsx，适配静态托管
 
+// LeanCloud 文件 objectId 映射，优先从 _File 拉取题库
+const FILE_ID_MAP = {
+    1: "69650188d606e2613f1b18e1",
+    2: "69650188d606e2613f1b18dc",
+    3: "69650188d606e2613f1b18de",
+    4: "69650188d606e2613f1b18df",
+    5: "69650188d606e2613f1b18e0",
+    6: "69650188d606e2613f1b18db",
+    7: "69650188d606e2613f1b18dd",
+};
+
 const LECTURES = [
-    {id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/sCwXv74yKdHuwzz440gSIKvciB8w5Oxt/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%80%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
-    {id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/LW7iNTXd04MjT6xIIgoghNavzJh78BM3/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%8C%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
-    {id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/89otiFHMEs0D6EPKY7h6nLLlKT4e3FlW/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%89%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
-    {id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/iDvr6YL2DqyDJNQ8WtHF8JoGu8VhXJpB/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%9B%9B%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
-    {id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/pmwL2rBspHySjkkGLY6cT4jTSENOw2QE/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%94%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
-    {id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/7ftQpmkKv4VtISulAbszw5y9gMtShUUO/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%85%AD%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
-    {id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx", url: "http://lc-5wPsbnak.cn-n1.lcfile.com/ng2YT8p8yeERNwiaPXWMJBFwEdPwM7XI/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%83%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 1, name: "第一讲：创新创业概述", file: "创新创业基础第一讲习题.xlsx", fileId: FILE_ID_MAP[1], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/sCwXv74yKdHuwzz440gSIKvciB8w5Oxt/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%80%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 2, name: "第二讲：创新思维与方法", file: "创新创业基础第二讲习题.xlsx", fileId: FILE_ID_MAP[2], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/LW7iNTXd04MjT6xIIgoghNavzJh78BM3/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%8C%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 3, name: "第三讲：机会与风险识别", file: "创新创业基础第三讲习题.xlsx", fileId: FILE_ID_MAP[3], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/89otiFHMEs0D6EPKY7h6nLLlKT4e3FlW/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%89%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 4, name: "第四讲：团队与资源整合", file: "创新创业基础第四讲习题.xlsx", fileId: FILE_ID_MAP[4], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/iDvr6YL2DqyDJNQ8WtHF8JoGu8VhXJpB/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%9B%9B%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx", fileId: FILE_ID_MAP[5], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/pmwL2rBspHySjkkGLY6cT4jTSENOw2QE/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%94%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx", fileId: FILE_ID_MAP[6], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/7ftQpmkKv4VtISulAbszw5y9gMtShUUO/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%85%AD%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx", fileId: FILE_ID_MAP[7], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/ng2YT8p8yeERNwiaPXWMJBFwEdPwM7XI/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%83%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
 ];
 
 // 版本号用于兼容未来结构变更
@@ -171,11 +182,11 @@ function App() {
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
     // --- 数据加载工具 ---
-    
+
     // Security: Add file size validation to mitigate ReDoS and Prototype Pollution
     const MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024; // 5MB limit
     const EXCEL_PARSE_TIMEOUT = 10000; // 10 second timeout
-    
+
     // Safe XLSX parsing with timeout and size validation
     const safeParseXLSX = (data) => {
         return new Promise((resolve, reject) => {
@@ -184,12 +195,12 @@ function App() {
                 reject(new Error(`File too large: ${data.byteLength} bytes (max: ${MAX_EXCEL_FILE_SIZE})`));
                 return;
             }
-            
+
             // Set timeout to prevent ReDoS attacks
             const timeoutId = setTimeout(() => {
                 reject(new Error('Excel parsing timeout - possible ReDoS attack'));
             }, EXCEL_PARSE_TIMEOUT);
-            
+
             try {
                 const workbook = XLSX.read(data, { type: 'array' });
                 clearTimeout(timeoutId);
@@ -200,9 +211,30 @@ function App() {
             }
         });
     };
-    
+
+    const fileUrlCache = {};
+    const resolveLectureUrl = async (lecture) => {
+        const mapId = lecture?.fileId || FILE_ID_MAP[lecture?.id];
+        if (mapId && fileUrlCache[mapId]) return fileUrlCache[mapId];
+        if (lecture?.url) return lecture.url;
+        if (!mapId) return null;
+        try {
+            const obj = await new AV.Query('_File').get(mapId);
+            const url = obj.get('url');
+            if (url) fileUrlCache[mapId] = url;
+            return url || null;
+        } catch (e) {
+            console.warn('resolveLectureUrl failed', lecture?.name, e);
+            return null;
+        }
+    };
+
     const fetchLectureArrayBuffer = async (lecture) => {
-        const urls = [lecture.url, `${GITHUB_BASE}${encodeURIComponent(lecture.file)}`];
+        const urls = [];
+        const resolved = await resolveLectureUrl(lecture);
+        if (resolved) urls.push(resolved);
+        if (lecture?.url && !urls.includes(lecture.url)) urls.push(lecture.url);
+        urls.push(`${GITHUB_BASE}${encodeURIComponent(lecture.file)}`);
         const errors = [];
         for (const url of urls) {
             if (!url) continue;
@@ -863,7 +895,7 @@ function App() {
             const questionMatch = q.question?.toLowerCase().includes(lowerKeyword) || false;
             const optionsMatch = q.options?.some(opt => opt && opt.toLowerCase().includes(lowerKeyword)) || false;
             const explanationMatch = q.explanation?.toLowerCase().includes(lowerKeyword) || false;
-            
+
             return questionMatch || optionsMatch || explanationMatch;
         });
 
@@ -874,7 +906,7 @@ function App() {
         if (searchFilters.type !== 'all') {
             results = results.filter(q => q.type === searchFilters.type);
         }
-        
+
         // 处理答题状态筛选的边界情况
         if (!searchFilters.includeAnswered && !searchFilters.includeUnanswered) {
             // 两个都不选时，显示所有题目
@@ -936,7 +968,7 @@ function App() {
             console.error('加载错题排行榜失败:', e);
         }
     };
-    
+
     // 从题库中查找题目详情
     const getQuestionDetails = (questionId) => {
         for (const lectureId in allQuestionBank) {
@@ -946,7 +978,7 @@ function App() {
         }
         return null;
     };
-    
+
     // 打开排行榜题目详情
     const openRankingQuestion = (rankItem) => {
         const questionDetail = getQuestionDetails(rankItem.questionId);
@@ -1328,22 +1360,25 @@ function App() {
                             <User size={16}/> 在线：{onlineCount}
                         </div>
                     )}
+                    {syncMsg && (
+                        <div className="px-3 py-2 rounded-xl border text-xs md:text-sm font-semibold flex items-center gap-2 bg-white shadow-sm" aria-live="polite">
+                            {syncStatus === 'success' && <CheckCircle size={14} className="text-green-600" />}
+                            {syncStatus === 'error' && <AlertCircle size={14} className="text-red-500" />}
+                            {syncStatus === 'uploading' && <Loader2 size={14} className="animate-spin text-blue-500" />}
+                            {syncStatus === 'downloading' && <DownloadCloud size={14} className="text-blue-500" />}
+                            <span className="text-slate-600">{syncMsg}</span>
+                        </div>
+                    )}
                     <button
-                        type="button"
-                        onClick={() => {
-                            setIsSearchOpen(v => !v);
-                            setTimeout(() => searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-                        }}
-                        aria-expanded={isSearchOpen}
-                        aria-controls="search-panel"
-                        className="p-2 md:px-3 md:py-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shadow-sm hover:bg-blue-100 transition-colors flex items-center gap-2 text-sm font-semibold"
-                        title="搜索"
+                        onClick={() => { window.location.hash = '#/introduce'; }}
+                        className="p-2 md:px-3 md:py-2 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-indigo-600 transition-all border border-slate-100"
+                        title="产品介绍"
                     >
-                        <Search size={16} />{isSearchOpen ? '收起' : '搜索'}
+                        <GraduationCap size={18} className="md:w-5 md:h-5" />
                     </button>
                     <button onClick={toggleFullscreen}
                             className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
-                        {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>} 
+                        {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
                     </button>
                     <button onClick={() => location.href = 'profile.html'}
                             className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100"
@@ -1382,6 +1417,116 @@ function App() {
                     </button>
                 </div>
             </header>
+
+            {isSearchOpen && (
+                <section
+                    id="search-panel"
+                    ref={searchSectionRef}
+                    className="mb-6 md:mb-8 rounded-2xl border border-blue-100 bg-white shadow-sm p-4 md:p-6 animate-enter"
+                >
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2 text-slate-800 font-bold">
+                            <Search size={18} className="text-blue-600" />
+                            <span>题目搜索</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsSearchOpen(false)}
+                            className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 rounded-lg bg-slate-50 border border-slate-200"
+                        >
+                            收起
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
+                        <div className="md:col-span-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">关键词</label>
+                            <input
+                                value={searchKeyword}
+                                onChange={(e) => setSearchKeyword(e.target.value)}
+                                placeholder="题干 / 选项 / 解析"
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">章节</label>
+                            <select
+                                value={searchFilters.lectureId}
+                                onChange={(e) => setSearchFilters({...searchFilters, lectureId: Number(e.target.value)})}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value={0}>全部章节</option>
+                                {LECTURES.map(l => (
+                                    <option key={l.id} value={l.id}>{l.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题型</label>
+                            <select
+                                value={searchFilters.type}
+                                onChange={(e) => setSearchFilters({...searchFilters, type: e.target.value})}
+                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
+                            >
+                                <option value="all">全部</option>
+                                <option value="single">单选</option>
+                                <option value="multiple">多选</option>
+                                <option value="judgment">判断</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 items-center mt-3 md:mt-4">
+                        <label className="flex items-center gap-2 text-sm text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={searchFilters.includeAnswered}
+                                onChange={(e) => setSearchFilters({...searchFilters, includeAnswered: e.target.checked})}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            已作答
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={searchFilters.includeUnanswered}
+                                onChange={(e) => setSearchFilters({...searchFilters, includeUnanswered: e.target.checked})}
+                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            未作答
+                        </label>
+                        <div className="ml-auto flex gap-2">
+                            <button
+                                onClick={() => performSearch()}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2"
+                            >
+                                <Search size={16}/> 搜索
+                            </button>
+                            <button
+                                onClick={() => { setSearchResults([]); setShowSearchResults(false); setSearchKeyword(''); }}
+                                className="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold border border-slate-200"
+                            >
+                                清空
+                            </button>
+                        </div>
+                    </div>
+
+                    {showSearchResults && (
+                        <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
+                            {searchResults.length === 0 ? (
+                                <p className="text-sm text-slate-500">暂无结果</p>
+                            ) : (
+                                searchResults.map((res, idx) => (
+                                    <div key={idx} className="p-3 rounded-xl border border-slate-100 bg-slate-50 text-sm flex flex-col gap-1">
+                                        <div className="text-slate-800 font-semibold">{res.question}</div>
+                                        <div className="text-[12px] text-slate-500">{res.category} · {res.type === 'multiple' ? '多选' : res.type === 'judgment' ? '判断' : '单选'}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </section>
+            )}
 
             {bankStatus === 'ready' && (
                 <div className="md:hidden mb-4 flex gap-2">
@@ -1430,390 +1575,179 @@ function App() {
                 </div>
             )}
 
-            {lastSession && (
-                <div onClick={resumeLastSession}
-                     className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl"><Bookmark size={24}/></div>
-                        <div>
-                            <h3 className="font-bold text-lg">继续上次的学习</h3>
-                            <p className="text-indigo-100 text-xs md:text-sm">{lastSession.mode === 'memorize' ? '背题模式' : (lastSession.mode === 'mistakes' ? '错题攻坚' : '刷题模式')} ·
-                                剩余 {lastSession.questions.length - lastSession.currentIndex} 题</p>
-                        </div>
-                    </div>
-                    <div className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors"><ChevronRight
-                        size={24}/></div>
-                </div>
-            )}
+            <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+                    {/* 左侧主内容 */}
+                    <div className="lg:col-span-8 space-y-6">
+                        <div
+                            className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50 blur-3xl" />
+                            <div className="relative z-10 space-y-6">
+                                <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Settings size={20} /></div>
+                                    <div>
+                                        <h2 className="font-bold text-lg md:text-xl text-slate-800">开始新的练习</h2>
+                                        <p className="text-xs md:text-sm text-slate-400">自定义你的刷题计划</p>
+                                    </div>
+                                </div>
 
-            {syncMsg && (
-                <div
-                    className={`mb-6 px-4 py-3 rounded-2xl flex items-center gap-3 border text-sm animate-enter transition-all ${syncStatus === 'success' ? 'bg-green-50 text-green-700 border-green-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-                    {syncStatus === 'success' ? <CheckCircle size={18}/> :
-                        <RefreshCw size={18} className="animate-spin"/>} {syncMsg}
-                </div>
-            )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                    <div className="md:col-span-2">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题库章节</label>
+                                        <select value={quizConfig.lectureId} onChange={e => setQuizConfig({...quizConfig, lectureId: Number(e.target.value)})}
+                                                className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
+                                            <option value={0}>📚 综合练习 (所有章节)</option>
+                                            {LECTURES.map(l => <option key={l.id} value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目数量</label>
+                                        <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                            {[10,20,50,'all'].map(n => (
+                                                <button key={n} onClick={()=>setQuizConfig({...quizConfig, count:n})}
+                                                        className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.count===n?'bg-white shadow text-blue-600':'text-slate-400 hover:text-slate-600'}`}>{n==='all'?'全部':n}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目类型</label>
+                                        <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                            {[{v:'all',l:'全部'},{v:'single',l:'单选'},{v:'multiple',l:'多选'},{v:'judgment',l:'判断'}].map(t=>(
+                                                <button key={t.v} onClick={()=>setQuizConfig({...quizConfig, type:t.v})}
+                                                        className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.type===t.v?'bg-white shadow text-blue-600':'text-slate-400 hover:text-slate-600'}`}>{t.l}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">模式</label>
+                                        <div className="grid grid-cols-3 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                            {[{v:'all',l:'随机'},{v:'new',l:'未做'},{v:'wrong',l:'错题'}].map(m=>(
+                                                <button key={m.v} onClick={()=>setQuizConfig({...quizConfig, filter:m.v})}
+                                                        className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.filter===m.v?'bg-white shadow text-blue-600':'text-slate-400 hover:text-slate-600'}`}>{m.l}</button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
 
-            {/* 搜索栏：默认隐藏，点击头部按钮后显示 */}
-            {isSearchOpen && (
-                <div ref={searchSectionRef} className="mb-6 bg-white rounded-[2rem] shadow-sm border border-slate-200 p-4 md:p-6 animate-enter">
-                    <div className="flex items-center gap-3 mb-2">
-                        <Search className="text-blue-600" size={24} />
-                        <h3 className="text-lg font-bold text-slate-800">题库搜索</h3>
-                    </div>
-
-                    <div id="search-panel" role="region" aria-label="题库搜索" className="space-y-4 mt-2">
-                        <div className="flex gap-2">
-                            <div className="flex-1 relative">
-                                <input
-                                    type="text"
-                                    placeholder="搜索题目内容、选项或解析..."
-                                    value={searchKeyword}
-                                    onChange={(e) => setSearchKeyword(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && performSearch()}
-                                    className="w-full px-4 py-3 pr-10 bg-slate-50 border-0 rounded-xl text-slate-800 focus:ring-2 focus:ring-blue-500 transition-all"
-                                />
-                                {searchKeyword && (
-                                    <button
-                                        onClick={clearSearch}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                    >
-                                        <X size={18} />
+                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                    <button onClick={()=>{setCurrentIndex(0);generateAndStartQuiz('quiz');}}
+                                            disabled={bankStatus!=='ready'}
+                                            className="py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base inline-flex items-center justify-center gap-2">
+                                        {bankStatus==='ready'?<><Brain size={20}/> 开始刷题</>:<><Loader2 size={20} className="animate-spin"/> {bankProgress}</>}
                                     </button>
+                                    <button onClick={()=>{setCurrentIndex(0);generateAndStartQuiz('memorize');}}
+                                            disabled={bankStatus!=='ready'}
+                                            className="py-3 md:py-4 bg-white border-2 border-slate-100 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base">
+                                        <BookOpen size={20}/> 背题模式
+                                    </button>
+                                </div>
+                                {bankStatus==='ready' && (
+                                    <div className="text-center">
+                                        <button onClick={forceUpdateBank} className="text-xs text-slate-300 hover:text-blue-500 underline decoration-dotted">发现题库旧? 点击强制更新缓存</button>
+                                    </div>
                                 )}
                             </div>
-                            <button
-                                onClick={() => performSearch()}
-                                disabled={!searchKeyword.trim() || bankStatus !== 'ready'}
-                                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                <Search size={18} />
-                                <span className="hidden md:inline">搜索</span>
-                            </button>
                         </div>
 
-                        {/* 搜索过滤器 */}
-                        <div className="flex flex-wrap gap-2 items-center">
-                            <Filter size={16} className="text-slate-400" />
-                            <select
-                                value={searchFilters.lectureId}
-                                onChange={(e) => setSearchFilters({...searchFilters, lectureId: Number(e.target.value)})}
-                                className="px-3 py-1.5 bg-slate-50 border-0 rounded-lg text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value={0}>所有章节</option>
-                                {LECTURES.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                            </select>
-                            <select
-                                value={searchFilters.type}
-                                onChange={(e) => setSearchFilters({...searchFilters, type: e.target.value})}
-                                className="px-3 py-1.5 bg-slate-50 border-0 rounded-lg text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="all">所有类型</option>
-                                <option value="single">单选题</option>
-                                <option value="multiple">多选题</option>
-                                <option value="judgment">判断题</option>
-                            </select>
-                            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100">
-                                <input
-                                    type="checkbox"
-                                    checked={searchFilters.includeAnswered}
-                                    onChange={(e) => setSearchFilters({...searchFilters, includeAnswered: e.target.checked})}
-                                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span className="text-xs font-medium text-slate-700">已做</span>
-                            </label>
-                            <label className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100">
-                                <input
-                                    type="checkbox"
-                                    checked={searchFilters.includeUnanswered}
-                                    onChange={(e) => setSearchFilters({...searchFilters, includeUnanswered: e.target.checked})}
-                                    className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span className="text-xs font-medium text-slate-700">未做</span>
-                            </label>
-                        </div>
-
-                        {/* 搜索结果 */}
-                        {showSearchResults && (
-                            <div className="mt-2 pt-3 border-t border-slate-100">
-                                <div className="flex justify-between items-center mb-3">
-                                    <p className="text-sm font-medium text-slate-600">
-                                        找到 <span className="text-blue-600 font-bold">{searchResults.length}</span> 个结果
-                                    </p>
-                                    {searchResults.length > 0 && (
-                                        <button
-                                            onClick={startSearchQuiz}
-                                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-md transition-all flex items-center gap-2"
-                                        >
-                                            <Brain size={16} />
-                                            开始练习
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="max-h-96 overflow-y-auto space-y-2">
-                                    {searchResults.slice(0, 50).map((q, idx) => (
-                                        <div
-                                            key={q.id}
-                                            className="p-3 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                                            onMouseEnter={() => ensureExplanationsLoaded(q.id)}
-                                            onClick={() => {
-                                                setQuestions([q]);
-                                                setCurrentIndex(0);
-                                                startMode('quiz');
-                                                setShowSearchResults(false);
-                                                setIsSearchOpen(false);
-                                            }}
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <span className="text-xs font-bold text-slate-400 mt-1">{idx + 1}</span>
-                                                <div className="flex-1 min-w-0 space-y-2">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                                                            q.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
-                                                            q.type === 'judgment' ? 'bg-orange-100 text-orange-700' :
-                                                            'bg-blue-100 text-blue-700'
-                                                        }`}>
-                                                            {q.type === 'multiple' ? '多选' : q.type === 'judgment' ? '判断' : '单选'}
-                                                        </span>
-                                                        <span className="text-xs text-slate-500">{q.category}</span>
-                                                        {brushedIds.has(q.id) && (
-                                                            <span className="text-xs text-green-600">✓ 已做</span>
-                                                        )}
-                                                        {wrongIds.has(q.id) && (
-                                                            <span className="text-xs text-red-600">✗ 错题</span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm text-slate-700 line-clamp-2">{q.question}</p>
-                                                    <div className="text-xs text-slate-500 line-clamp-2">
-                                                        <div className="prose prose-xs max-w-none text-slate-600">
-                                                            <Markdown content={q.explanation || '暂无解析'} size="xs" />
-                                                        </div>
-                                                    </div>
-                                                    {renderUserExplanations(q.id)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {searchResults.length > 50 && (
-                                        <p className="text-xs text-center text-slate-400 py-2">
-                                            仅显示前50个结果，请使用过滤器缩小范围
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
-                {errorMsg && <div
-                    className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl flex items-center gap-3 border border-red-100">
-                    <AlertCircle/>{errorMsg}</div>}
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
-                    <div
-                        className="lg:col-span-8 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-sm border border-slate-200 p-5 md:p-8 flex flex-col justify-between relative overflow-hidden transition-transform duration-300 ease-in-out will-change-transform">
-                        <div
-                            className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full -mr-16 -mt-16 opacity-50 blur-3xl"></div>
-                        <div className="relative z-10">
-                            <div className="mb-6 md:mb-8 flex items-center gap-3 border-b border-slate-100 pb-4">
-                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Settings size={20}/></div>
-                                <div>
-                                    <h2 className="font-bold text-lg md:text-xl text-slate-800">开始新的练习</h2>
-                                    <p className="text-xs md:text-sm text-slate-400">自定义你的刷题计划</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="md:col-span-2">
-                                    <label
-                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题库章节</label>
-                                    <select value={quizConfig.lectureId} onChange={e => setQuizConfig({
-                                        ...quizConfig,
-                                        lectureId: Number(e.target.value)
-                                    })}
-                                            className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
-                                        <option value={0}>📚 综合练习 (所有章节)</option>
-                                        {LECTURES.map(l => <option key={l.id}
-                                                                   value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label
-                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目数量</label>
-                                    <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
-                                        {[10, 20, 50, 'all'].map(n => (
-                                            <button key={n} onClick={() => setQuizConfig({...quizConfig, count: n})}
-                                                    className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.count === n ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{n === 'all' ? '全部' : n}</button>
-                                        ))}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            {[
+                                {label:'总题库',val:bankStatus==='ready'?Object.values(allQuestionBank).flat().length:'-',icon:Layers,color:'text-slate-600',bg:'bg-slate-100'},
+                                {label:'已掌握',val:masteredIds.size,icon:CheckCircle,color:'text-green-600',bg:'bg-green-50'},
+                                {label:'已背诵',val:memorizedIds.size,icon:Eye,color:'text-purple-600',bg:'bg-purple-50'},
+                                {label:'正确率',val:brushedIds.size?Math.round(masteredIds.size/brushedIds.size*100)+'%':'-',icon:BarChart3,color:'text-orange-600',bg:'bg-orange-50'}
+                            ].map((item,i)=>(
+                                <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm transition-transform duration-300 ease-in-out">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}><item.icon size={20}/></div>
+                                    <div>
+                                        <div className="text-xl md:text-2xl font-bold text-slate-800 leading-none mb-1">{item.val}</div>
+                                        <span className="text-xs font-bold text-slate-400 uppercase">{item.label}</span>
                                     </div>
                                 </div>
-                                <div>
-                                    <label
-                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目类型</label>
-                                    <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
-                                        {[{v: 'all', l: '全部'}, {v: 'single', l: '单选'}, {
-                                            v: 'multiple',
-                                            l: '多选'
-                                        }, {v: 'judgment', l: '判断'}].map(t => (
-                                            <button key={t.v} onClick={() => setQuizConfig({...quizConfig, type: t.v})}
-                                                    className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.type === t.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{t.l}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label
-                                        className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">模式</label>
-                                    <div className="grid grid-cols-3 gap-2 bg-slate-50 p-1.5 rounded-2xl">
-                                        {[{v: 'all', l: '随机'}, {v: 'new', l: '未做'}, {
-                                            v: 'wrong',
-                                            l: '错题'
-                                        }].map(m => (
-                                            <button key={m.v}
-                                                    onClick={() => setQuizConfig({...quizConfig, filter: m.v})}
-                                                    className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.filter === m.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{m.l}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            ))}
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-slate-100 relative z-10">
-                            <button
-                                onClick={() => {
-                                    setCurrentIndex(0);
-                                    generateAndStartQuiz('quiz');
-                                }}
-                                disabled={bankStatus !== 'ready'}
-                                className="py-3 md:py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-lg shadow-blue-200 hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base">
-                                {bankStatus === 'ready' ? <><Brain size={20}/> 开始刷题</> : <><Loader2 size={20} className="animate-spin"/> {bankProgress}</>}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setCurrentIndex(0);
-                                    generateAndStartQuiz('memorize');
-                                }}
-                                disabled={bankStatus !== 'ready'}
-                                className="py-3 md:py-4 bg-white border-2 border-slate-100 hover:border-indigo-200 text-slate-600 hover:text-indigo-600 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm md:text-base">
-                                <BookOpen size={20}/> 背题模式
-                            </button>
-                        </div>
-                        {bankStatus === 'ready' && (
-                            <div className="mt-2 text-center">
-                                <button onClick={forceUpdateBank}
-                                        className="text-xs text-slate-300 hover:text-blue-500 underline decoration-dotted">发现题库旧?
-                                    点击强制更新缓存
-                                </button>
-                            </div>
-                        )}
                     </div>
 
-                    {/* 右侧栏：错题攻坚 + 数据报表 */}
+                    {/* 右侧栏：继续学习 + 错题/排行并排 + 数据报表 */}
                     <div className="lg:col-span-4 flex flex-col gap-6 h-full">
-
-                        {/* 1. 错题攻坚卡片 - 稍微紧凑一点，去掉多余留白 */}
-                        <div onClick={startMistakeNotebook}
-                             className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group shrink-0">
-                            <div
-                                className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
-                            <div className="relative z-10 flex flex-col h-full justify-between gap-4">
-                                <div className="flex justify-between items-start">
-                                    <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"><AlertTriangle
-                                        size={20}/></div>
-                                    <span className="font-mono text-3xl font-bold opacity-90">{wrongIds.size}</span>
+                        {lastSession && (
+                            <div onClick={resumeLastSession} className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl"><Bookmark size={24}/></div>
+                                    <div>
+                                        <h3 className="font-bold text-lg">继续上次的学习</h3>
+                                        <p className="text-indigo-100 text-xs md:text-sm">{lastSession.mode === 'memorize' ? '背题模式' : (lastSession.mode === 'mistakes' ? '错题攻坚' : '刷题模式')} · 剩余 {lastSession.questions.length - lastSession.currentIndex} 题</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-lg font-bold mb-0.5">错题攻坚</h3>
-                                    <p className="text-red-100 text-xs opacity-90">点击开始专项复习</p>
+                                <div className="bg-white/20 p-2 rounded-full hover:bg-white/30 transition-colors"><ChevronRight size={24}/></div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div onClick={startMistakeNotebook} className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
+                                <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
+                                <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"><AlertTriangle size={20}/></div>
+                                        <span className="font-mono text-3xl font-bold opacity-90">{wrongIds.size}</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold mb-0.5">错题攻坚</h3>
+                                        <p className="text-red-100 text-xs opacity-90">点击开始专项复习</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div onClick={()=>{setCurrentMode('ranking'); loadWrongQuestionRanking();}} className="bg-gradient-to-br from-orange-500 to-amber-600 p-5 rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
+                                <div className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
+                                <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+                                    <div className="flex justify-between items-start">
+                                        <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"><TrendingUp size={20}/></div>
+                                        <span className="font-mono text-3xl font-bold opacity-90">📊</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold mb-0.5">易错题排行</h3>
+                                        <p className="text-orange-100 text-xs opacity-90">查看全站最易错的题目</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* 1.5. 易错题排行榜卡片 */}
-                        <div onClick={() => {setCurrentMode('ranking'); loadWrongQuestionRanking();}}
-                             className="bg-gradient-to-br from-orange-500 to-amber-600 p-5 rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group shrink-0">
-                            <div
-                                className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
-                            <div className="relative z-10 flex flex-col h-full justify-between gap-4">
-                                <div className="flex justify-between items-start">
-                                    <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"><TrendingUp
-                                        size={20}/></div>
-                                    <span className="font-mono text-3xl font-bold opacity-90">📊</span>
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold mb-0.5">易错题排行</h3>
-                                    <p className="text-orange-100 text-xs opacity-90">查看全站最易错的题目</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* 2. 数据报表卡片 - 恢复标准卡片样式，填充剩余空间 */}
-                        <a href={REPORT_URL}
-                           className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-transform duration-300 ease-in-out will-change-transform flex flex-col no-underline group flex-1 min-h-0">
-
-                            {/* 头部：标题与核心数据并排 */}
+                        <a href={REPORT_URL} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-transform duration-300 ease-in-out will-change-transform flex flex-col no-underline group flex-1 min-h-0">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><PieChart size={20}/>
-                                    </div>
+                                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl"><PieChart size={20}/></div>
                                     <div>
                                         <div className="font-bold text-base text-slate-800">数据报表</div>
                                         <div className="text-xs text-slate-400">近7天学习趋势</div>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* 中间：统计数据块 */}
                             <div className="flex gap-3 mb-4">
-                                <div
-                                    className="flex-1 bg-slate-50 rounded-xl p-3 text-center border border-slate-100 flex flex-col justify-center">
+                                <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center border border-slate-100 flex flex-col justify-center">
                                     <div className="text-[10px] text-slate-400 mb-1 uppercase font-bold">累计已刷</div>
-                                    <div
-                                        className="font-bold text-xl text-slate-700 leading-none">{brushedIds.size}</div>
+                                    <div className="font-bold text-xl text-slate-700 leading-none">{brushedIds.size}</div>
                                 </div>
-                                <div
-                                    className="flex-1 bg-green-50 rounded-xl p-3 text-center border border-green-100 flex flex-col justify-center">
+                                <div className="flex-1 bg-green-50 rounded-xl p-3 text-center border border-green-100 flex flex-col justify-center">
                                     <div className="text-[10px] text-green-600/70 mb-1 uppercase font-bold">已掌握</div>
-                                    <div
-                                        className="font-bold text-xl text-green-600 leading-none">{masteredIds.size}</div>
+                                    <div className="font-bold text-xl text-green-600 leading-none">{masteredIds.size}</div>
                                 </div>
                             </div>
-
-                            {/* 底部：图表 - 使用 flex-1 自动填充卡片剩余高度 */}
-                            <div
-                                className="flex items-end justify-between gap-2 border-t border-slate-50 pt-4 flex-1 min-h-[80px]">
+                            <div className="flex items-end justify-between gap-2 border-t border-slate-50 pt-4 flex-1 min-h-[80px]">
                                 {weeklyStats.data.map((day, idx) => {
-                                    // 重新调整高度逻辑，让图表看起来更舒展
                                     const rawPercent = (day.count / weeklyStats.max) * 100;
                                     const heightPercent = day.count === 0 ? 8 : Math.max(15, rawPercent);
-
                                     return (
-                                        <div key={idx}
-                                             className="flex-1 h-full flex flex-col justify-end items-center gap-1 group/bar">
+                                        <div key={idx} className="flex-1 h-full flex flex-col justify-end items-center gap-1 group/bar">
                                             <div className="w-full flex items-end justify-center relative flex-1">
-                                                {/* Tooltip */}
                                                 {day.count > 0 && (
-                                                    <div
-                                                        className="absolute -top-7 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] py-1 px-1.5 rounded mb-1 whitespace-nowrap z-10 pointer-events-none">
+                                                    <div className="absolute -top-7 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] py-1 px-1.5 rounded mb-1 whitespace-nowrap z-10 pointer-events-none">
                                                         {day.count}题
                                                     </div>
                                                 )}
-                                                {/* 柱子 */}
-                                                <div
-                                                    style={{height: `${heightPercent}%`}}
-                                                    className={`w-3 md:w-3.5 rounded-t-[4px] transition-all duration-500 ease-out relative
-                                                        ${day.isToday
-                                                        ? 'bg-gradient-to-t from-blue-500 to-indigo-400 shadow-lg shadow-blue-200'
-                                                        : (day.count > 0 ? 'bg-blue-200 group-hover/bar:bg-blue-400' : 'bg-slate-100')}
-                                                    `}
-                                                >
-                                                </div>
+                                                <div style={{height: `${heightPercent}%`}}
+                                                     className={`w-3 md:w-3.5 rounded-t-[4px] transition-all duration-500 ease-out relative ${day.isToday ? 'bg-gradient-to-t from-blue-500 to-indigo-400 shadow-lg shadow-blue-200' : (day.count > 0 ? 'bg-blue-200 group-hover/bar:bg-blue-400' : 'bg-slate-100')}`}></div>
                                             </div>
-                                            <div
-                                                className={`text-[10px] ${day.isToday ? 'font-bold text-blue-600' : 'text-slate-300'}`}>
-                                                {day.date}
-                                            </div>
+                                            <div className={`text-[10px] ${day.isToday ? 'font-bold text-blue-600' : 'text-slate-300'}`}>{day.date}</div>
                                         </div>
                                     );
                                 })}
@@ -1823,54 +1757,12 @@ function App() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                        {
-                            label: '总题库',
-                            val: bankStatus === 'ready' ? Object.values(allQuestionBank).flat().length : '-',
-                            icon: Layers,
-                            color: 'text-slate-600',
-                            bg: 'bg-slate-100'
-                        },
-                        {
-                            label: '已掌握',
-                            val: masteredIds.size,
-                            icon: CheckCircle,
-                            color: 'text-green-600',
-                            bg: 'bg-green-50'
-                        },
-                        {
-                            label: '已背诵',
-                            val: memorizedIds.size,
-                            icon: Eye,
-                            color: 'text-purple-600',
-                            bg: 'bg-purple-50'
-                        },
-                        {
-                            label: '正确率',
-                            val: brushedIds.size ? Math.round(masteredIds.size / brushedIds.size * 100) + '%' : '-',
-                            icon: BarChart3,
-                            color: 'text-orange-600',
-                            bg: 'bg-orange-50'
-                        }
-                    ].map((item, i) => (
-                        <div key={i}
-                             className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center gap-4 shadow-sm transition-transform duration-300 ease-in-out">
-                            <div
-                                className={`w-12 h-12 rounded-xl flex items-center justify-center ${item.bg} ${item.color}`}>
-                                <item.icon size={20}/>
-                            </div>
-                            <div>
-                                <div
-                                    className="text-xl md:text-2xl font-bold text-slate-800 leading-none mb-1">{item.val}</div>
-                                <span className="text-xs font-bold text-slate-400 uppercase">{item.label}</span>
-                            </div>
-                        </div>
-                    ))}
+                    {/* 已移除重复统计卡片 */}
                 </div>
             </div>
         </div>)
 
-// --- 修复版：计算最近7天刷题数据 ---
+    // --- 修复版：计算最近7天刷题数据 ---
     const weeklyStats = (() => {
         const stats = [];
         const today = new Date();
@@ -1958,7 +1850,7 @@ function App() {
                                     <button
                                         onClick={prevQuestion}
                                         disabled={currentIndex === 0}
-                                        className="flex-1 min-w-[90px] px-4 py-2 rounded-full text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                                        className="flex-1 min-w-[110px] px-4 py-2 rounded-full text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
                                     >
                                         <ChevronLeft size={14}/> 上一题
                                     </button>
@@ -1967,7 +1859,7 @@ function App() {
                                     </div>
                                     <button
                                         onClick={isQuiz ? nextQuestion : handleMemorizeCheck}
-                                        className="flex-1 min-w-[90px] px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                                        className="flex-1 min-w-[130px] px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
                                     >
                                         {isQuiz ? (currentIndex === questions.length - 1 ? '完成' : '下一题') : '记住了，下一题'} <ChevronRight size={14}/>
                                     </button>
@@ -2042,11 +1934,11 @@ function App() {
                                 </div>
 
                                 <div className="hidden md:block sticky md:top-24 self-start">
-                                    <div className="flex flex-col items-center gap-3 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 px-2 py-5 w-[56px]">
+                                    <div className="flex flex-col items-center gap-3 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 px-3 py-5 w-fit min-w-[64px]">
                                         <button
                                             onClick={prevQuestion}
                                             disabled={currentIndex === 0}
-                                            className="h-[90px] w-full rounded-full font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 transition flex items-center justify-center text-[12px] shadow-sm"
+                                            className="w-full min-w-[64px] min-h-[110px] rounded-full font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 transition flex items-center justify-center text-[12px] shadow-sm px-2"
                                             style={{writingMode:'vertical-rl', textOrientation:'upright'}}
                                         >
                                             <ChevronLeft size={12}/> 上一题
@@ -2055,7 +1947,7 @@ function App() {
                                         {isQuiz ? (
                                             <button
                                                 onClick={nextQuestion}
-                                                className="h-[90px] w-full rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md"
+                                                className="w-full min-w-[64px] min-h-[110px] rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md px-2"
                                                 style={{writingMode:'vertical-rl', textOrientation:'upright'}}
                                             >
                                                 {currentIndex === questions.length - 1 ? '完成' : '下一题'} <ChevronRight size={12}/>
@@ -2063,7 +1955,7 @@ function App() {
                                         ) : (
                                             <button
                                                 onClick={handleMemorizeCheck}
-                                                className="h-[90px] w-full rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md"
+                                                className="w-full min-w-[64px] min-h-[110px] rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md px-2"
                                                 style={{writingMode:'vertical-rl', textOrientation:'upright'}}
                                             >
                                                 记住了，下一题 <ChevronRight size={12}/>
@@ -2097,7 +1989,7 @@ function App() {
                                                     {!showExplanationForm ? (
                                                         <button
                                                             onClick={() => setShowExplanationForm(true)}
-                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-all">
+                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
                                                             <Edit3 size={16}/> 贡献解析
                                                         </button>
                                                     ) : (
@@ -2281,9 +2173,9 @@ function App() {
         if (!currentUser) return;
         let cancelled = false;
         const sendHeartbeat = async (mode = currentMode) => {
-            try { 
-                await AV.Cloud.run('heartbeat', { mode }); 
-            } catch (error) { 
+            try {
+                await AV.Cloud.run('heartbeat', { mode });
+            } catch (error) {
                 // Silently ignore heartbeat errors to avoid disrupting user experience
                 console.debug('Heartbeat failed:', error);
             }
@@ -2292,7 +2184,7 @@ function App() {
             try {
                 const res = await AV.Cloud.run('onlineCount', { windowSec: 180 }); // 不过滤模式，包含 dashboard
                 if (!cancelled) setOnlineCount(res?.count ?? 0);
-            } catch (error) { 
+            } catch (error) {
                 // Silently ignore online count errors as it's not critical functionality
                 console.debug('Online count fetch failed:', error);
             }
@@ -2339,7 +2231,7 @@ function App() {
                 </h1>
                 <div className="w-20"></div>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-4 md:p-8">
                 <div className="max-w-4xl mx-auto space-y-4">
                     {wrongQuestionRanking.length === 0 ? (
@@ -2352,17 +2244,18 @@ function App() {
                             <div
                                 key={item.questionId}
                                 onClick={() => openRankingQuestion(item)}
-                                className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-slate-200 hover:border-orange-300 transition-all cursor-pointer group">
+                                className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-slate-200 hover:border-orange-300 transition-all cursor-pointer group"
+                            >
                                 <div className="flex gap-4">
                                     {/* 排名徽章 */}
                                     <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl
-                                        ${index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' : 
+                                        ${index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' :
                                           index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
                                           index === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white' :
                                           'bg-slate-100 text-slate-600'}`}>
                                         {index < 3 ? <Trophy size={24} /> : (index + 1)}
                                     </div>
-                                    
+
                                     {/* 题目信息 */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-4 mb-2">
@@ -2382,7 +2275,7 @@ function App() {
                                             </span>
                                         </div>
                                     </div>
-                                    
+
                                     {/* 点击提示 */}
                                     <div className="shrink-0 flex items-center">
                                         <ChevronRight size={20} className="text-slate-300 group-hover:text-orange-500 transition-colors" />
@@ -2396,6 +2289,117 @@ function App() {
         </div>
     );
 
+    // Question Detail Modal for Leaderboard
+    const renderQuestionDetailModal = () => {
+        if (!viewingRankQuestion) return null;
+        const { question, options, rawAnswer, explanation, id, rankInfo } = viewingRankQuestion;
+
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-enter">
+                <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+                    <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-start z-10">
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Trophy size={18} className="text-amber-500" />
+                                <span className="text-xs font-bold text-slate-500">错题排行榜 #{rankInfo.rank}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <span className={`text-xs px-2 py-1 rounded font-bold ${
+                                    viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
+                                    (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')
+                                }`}>
+                                    {viewingRankQuestion.type === 'multiple' ? '多选' : viewingRankQuestion.type === 'judgment' ? '判断' : '单选'}
+                                </span>
+                                <span className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
+                                <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded font-bold">
+                                    错误 {rankInfo.errorCount} 次 · 错误率 {rankInfo.errorRate}%
+                                </span>
+                            </div>
+                        </div>
+                        <button onClick={() => setViewingRankQuestion(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors ml-4">
+                            <X size={20} className="text-slate-400" />
+                        </button>
+                    </div>
+
+                    <div className="p-6">
+                        <h3 className="text-xl font-bold text-slate-900 mb-6 leading-relaxed">
+                            {question}
+                        </h3>
+
+                        <div className="space-y-3 mb-6">
+                            {options.map((opt, i) => {
+                                const isCorrect = rawAnswer.includes(i);
+                                const optionLetter = ['A', 'B', 'C', 'D', 'E'][i];
+                                const optionStats = rankInfo?.optionStats || {};
+                                const selectionCount = optionStats[optionLetter] || 0;
+
+                                // 计算该选项被选择的比例
+                                const totalSelections = Object.values(optionStats).reduce((sum, count) => sum + count, 0);
+                                const selectionRate = totalSelections > 0 ? Math.round((selectionCount / totalSelections) * 100) : 0;
+
+                                // 判断是否为易错选项（非正确答案且被选择次数较多）
+                                const isFrequentlyWrong = !isCorrect && selectionCount > 0 && selectionRate >= 15;
+
+                                return (
+                                    <div
+                                        key={i}
+                                        className={`p-4 rounded-xl border-2 text-sm flex gap-3 transition-all ${
+                                            isCorrect
+                                                ? 'bg-green-50 border-green-300 text-green-900 shadow-sm'
+                                                : isFrequentlyWrong
+                                                ? 'bg-red-50 border-red-300 text-red-900 shadow-sm'
+                                                : 'bg-white border-slate-100 text-slate-600'
+                                        }`}
+                                    >
+                                        <span className={`font-bold shrink-0 ${
+                                            isCorrect ? 'text-green-700' : isFrequentlyWrong ? 'text-red-700' : 'text-slate-400'
+                                        }`}>
+                                            {optionLetter}.
+                                        </span>
+                                        <span className="flex-1">{opt}</span>
+                                        {isCorrect && (
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <CheckCircle size={18} className="text-green-600" />
+                                                <span className="text-xs font-bold text-green-700">正确答案</span>
+                                            </div>
+                                        )}
+                                        {isFrequentlyWrong && (
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <XCircle size={18} className="text-red-600" />
+                                                <span className="text-xs font-bold text-red-700">易错项 {selectionRate}%</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                            <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
+                                <Zap size={18} className="text-indigo-600" />
+                                <span>答案解析</span>
+                            </div>
+                            <Markdown content={explanation} size="sm" className="text-indigo-800 text-sm leading-relaxed" />
+                            {renderUserExplanations(id)}
+                        </div>
+
+                        <div className="mt-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
+                            <div className="flex items-center gap-2 text-amber-900 text-sm font-bold mb-2">
+                                <AlertTriangle size={16} className="text-amber-600" />
+                                <span>易错提示</span>
+                            </div>
+                            <p className="text-amber-800 text-xs leading-relaxed">
+                                该题已被 <span className="font-bold">{rankInfo.totalAttempts}</span> 人次作答，
+                                其中 <span className="font-bold text-red-600">{rankInfo.errorCount}</span> 次答错，
+                                错误率高达 <span className="font-bold text-red-600">{rankInfo.errorRate}%</span>。
+                                请仔细理解题意和正确答案！
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>);
+    };
+
     if (!currentUser) return renderLoginScreen();
 
     return (
@@ -2403,116 +2407,11 @@ function App() {
             {currentMode === 'dashboard' && renderDashboard()}
             {['quiz', 'memorize', 'mistakes'].includes(currentMode) && renderCard()}
             {currentMode === 'ranking' && renderRankingPage()}
-            
+
             {/* Question Detail Modal for Leaderboard */}
-            {viewingRankQuestion && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-enter" onClick={() => setViewingRankQuestion(null)}>
-                    <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-start z-10">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Trophy size={18} className="text-amber-500" />
-                                    <span className="text-xs font-bold text-slate-500">错题排行榜 #{viewingRankQuestion.rankInfo.rank}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    <span className={`text-xs px-2 py-1 rounded font-bold ${
-                                        viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' : 
-                                        (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')
-                                    }`}>
-                                        {viewingRankQuestion.type === 'multiple' ? '多选' : viewingRankQuestion.type === 'judgment' ? '判断' : '单选'}
-                                    </span>
-                                    <span className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
-                                    <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded font-bold">
-                                        错误 {viewingRankQuestion.rankInfo.errorCount} 次 · 错误率 {viewingRankQuestion.rankInfo.errorRate}%
-                                    </span>
-                                </div>
-                            </div>
-                            <button onClick={() => setViewingRankQuestion(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors ml-4">
-                                <X size={20} className="text-slate-400" />
-                            </button>
-                        </div>
-                        
-                        <div className="p-6">
-                            <h3 className="text-xl font-bold text-slate-900 mb-6 leading-relaxed">
-                                {viewingRankQuestion.question}
-                            </h3>
-                            
-                            <div className="space-y-3 mb-6">
-                                {viewingRankQuestion.options.map((opt, i) => {
-                                    const isCorrect = viewingRankQuestion.rawAnswer.includes(i);
-                                    const optionLetter = ['A', 'B', 'C', 'D', 'E'][i];
-                                    const optionStats = viewingRankQuestion.rankInfo?.optionStats || {};
-                                    const selectionCount = optionStats[optionLetter] || 0;
-                                    
-                                    // 计算该选项被选择的比例
-                                    const totalSelections = Object.values(optionStats).reduce((sum, count) => sum + count, 0);
-                                    const selectionRate = totalSelections > 0 ? Math.round((selectionCount / totalSelections) * 100) : 0;
-                                    
-                                    // 判断是否为易错选项（非正确答案且被选择次数较多）
-                                    const isFrequentlyWrong = !isCorrect && selectionCount > 0 && selectionRate >= 15;
-                                    
-                                    return (
-                                        <div 
-                                            key={i} 
-                                            className={`p-4 rounded-xl border-2 text-sm flex gap-3 transition-all ${
-                                                isCorrect 
-                                                    ? 'bg-green-50 border-green-300 text-green-900 shadow-sm' 
-                                                    : isFrequentlyWrong
-                                                    ? 'bg-red-50 border-red-300 text-red-900 shadow-sm'
-                                                    : 'bg-white border-slate-100 text-slate-600'
-                                            }`}
-                                        >
-                                            <span className={`font-bold shrink-0 ${
-                                                isCorrect ? 'text-green-700' : isFrequentlyWrong ? 'text-red-700' : 'text-slate-400'
-                                            }`}>
-                                                {optionLetter}.
-                                            </span>
-                                            <span className="flex-1">{opt}</span>
-                                            {isCorrect && (
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    <CheckCircle size={18} className="text-green-600" />
-                                                    <span className="text-xs font-bold text-green-700">正确答案</span>
-                                                </div>
-                                            )}
-                                            {isFrequentlyWrong && (
-                                                <div className="flex items-center gap-1 shrink-0">
-                                                    <XCircle size={18} className="text-red-600" />
-                                                    <span className="text-xs font-bold text-red-700">易错项 {selectionRate}%</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            
-                            <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
-                                <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
-                                    <Zap size={18} className="text-indigo-600" /> 
-                                    <span>答案解析</span>
-                                </div>
-                                <Markdown content={viewingRankQuestion.explanation} size="sm" className="text-indigo-800 text-sm leading-relaxed" />
-                                {renderUserExplanations(viewingRankQuestion.id)}
-                            </div>
-                            
-                            <div className="mt-5 p-4 bg-amber-50 rounded-xl border border-amber-100">
-                                <div className="flex items-center gap-2 text-amber-900 text-sm font-bold mb-2">
-                                    <AlertTriangle size={16} className="text-amber-600" />
-                                    <span>易错提示</span>
-                                </div>
-                                <p className="text-amber-800 text-xs leading-relaxed">
-                                    该题已被 <span className="font-bold">{viewingRankQuestion.rankInfo.totalAttempts}</span> 人次作答，
-                                    其中 <span className="font-bold text-red-600">{viewingRankQuestion.rankInfo.errorCount}</span> 次答错，
-                                    错误率高达 <span className="font-bold text-red-600">{viewingRankQuestion.rankInfo.errorRate}%</span>。
-                                    请仔细理解题意和正确答案！
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {viewingRankQuestion && renderQuestionDetailModal()}
         </div>
     );
-
 }
 
 export default App;

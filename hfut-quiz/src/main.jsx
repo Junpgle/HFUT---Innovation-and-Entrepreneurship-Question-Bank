@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { createHashRouter, RouterProvider } from 'react-router-dom'
 import App from './App.jsx'
 import Report from './Report.jsx'
+import Introduce from './Introduce.jsx'
 import './index.css'
 
 const RouteError = () => (
@@ -20,6 +21,7 @@ const RouteError = () => (
 const router = createHashRouter([
   { path: '/', element: <App />, errorElement: <RouteError /> },
   { path: '/report', element: <Report />, errorElement: <RouteError /> },
+  { path: '/introduce', element: <Introduce />, errorElement: <RouteError /> },
   { path: '*', element: <RouteError /> },
 ])
 
