@@ -1103,6 +1103,20 @@ function App() {
         }
     };
 
+    const handleLikeExplanation = async (questionId, explanation) => {
+        if (!currentUser || !explanation?.id) return;
+        // 只允许给他人点赞
+        if (explanation.authorId && explanation.authorId === currentUser.id) return;
+        try {
+            const obj = AV.Object.createWithoutData('UserExplanation', explanation.id);
+            obj.increment('votes', 1);
+            await obj.save();
+            await loadUserExplanations(questionId);
+        } catch (e) {
+            console.error('点赞失败', e);
+        }
+    };
+
     // 加载用户贡献的解析
     const loadUserExplanations = async (questionId) => {
         try {
@@ -1165,7 +1179,17 @@ function App() {
                             ) : (
                                 <>
                                     <Markdown content={exp.content} />
-                                    <div className="text-xs text-amber-600">👍 {exp.votes || 0}</div>
+                                    <div className="flex items-center gap-3 text-xs">
+                                        {isOwner ? (
+                                            <div className="text-amber-600 flex items-center gap-1">
+                                                <ThumbsUp size={12}/> {exp.votes || 0}
+                                            </div>
+                                        ) : (
+                                            <button onClick={() => handleLikeExplanation(questionId, exp)} className="flex items-center gap-1 text-amber-600 hover:text-amber-700">
+                                                <ThumbsUp size={12}/> {exp.votes || 0}
+                                            </button>
+                                        )}
+                                    </div>
                                 </>
                             )}
                         </div>
@@ -2072,7 +2096,9 @@ function App() {
                                                                     </div>
                                                                 ) : (
                                                                     <>
-                                                                        <p className="text-slate-800 text-sm mb-1 break-words">{comment.content}</p>
+                                                                        <div className="text-slate-800 text-sm mb-1 break-words">
+                                                                            <Markdown content={comment.content} size="sm" />
+                                                                        </div>
                                                                         <div className="flex items-center justify-between text-xs text-slate-500">
                                                                             <span>{comment.author}</span>
                                                                             <span>{new Date(comment.createdAt).toLocaleString('zh-CN')}</span>
@@ -2218,11 +2244,13 @@ function App() {
         if (q && !questionComments[q.id]) {
             loadQuestionComments(q.id);
         }
-        // 无官方解析时尝试加载用户解析
-        if (showExplanation && q && (!q.explanation || q.explanation === '暂无解析')) {
+        // 背题模式或展示解析时，加载用户解析
+        const isMemorizeMode = currentMode === 'memorize';
+        const shouldShowContent = isMemorizeMode || showExplanation;
+        if (shouldShowContent && q && (!q.explanation || q.explanation === '暂无解析')) {
             ensureExplanationsLoaded(q.id);
         }
-    }, [showExplanation, currentIndex, questions]);
+    }, [showExplanation, currentIndex, questions, currentMode]);
 
     // 渲染错题排行榜页面
     const renderRankingPage = () => (
