@@ -93,16 +93,107 @@ const safeSet = async (key, value) => {
 function App() {
     const Markdown = ({ content, size = 'sm', className = '' }) => {
         const components = {
-            h1: ({ ...props }) => <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mt-4 mb-3" {...props} />,
-            h2: ({ ...props }) => <h2 className="text-xl md:text-2xl font-bold text-slate-900 mt-3 mb-2.5" {...props} />,
-            h3: ({ ...props }) => <h3 className="text-lg md:text-xl font-semibold text-slate-900 mt-2.5 mb-2" {...props} />,
+            // --- 标题 ---
+            h1: ({ ...props }) => <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mt-6 mb-4 border-b border-slate-100 pb-2" {...props} />,
+            h2: ({ ...props }) => <h2 className="text-xl md:text-2xl font-bold text-slate-800 mt-5 mb-3" {...props} />,
+            h3: ({ ...props }) => <h3 className="text-lg md:text-xl font-bold text-slate-800 mt-4 mb-2" {...props} />,
+            h4: ({ ...props }) => <h4 className="text-base md:text-lg font-bold text-slate-700 mt-3 mb-2" {...props} />,
+
+            // --- 文本段落与排版 ---
+            p: ({ ...props }) => <p className="leading-7 text-slate-700 mb-4 break-words" {...props} />,
+            strong: ({ ...props }) => <strong className="font-bold text-slate-900" {...props} />,
+            em: ({ ...props }) => <em className="italic text-slate-600" {...props} />,
+            del: ({ ...props }) => <del className="line-through text-slate-400" {...props} />,
+            hr: ({ ...props }) => <hr className="my-6 border-slate-200" {...props} />,
+
+            // --- 引用块 (保持你原有的蓝色风格并微调) ---
             blockquote: ({ ...props }) => (
-                <blockquote className="border-l-4 border-blue-200 bg-blue-50 text-slate-800 italic px-4 py-3 rounded-r-xl my-3" {...props} />
+                <blockquote className="border-l-4 border-blue-400 bg-blue-50/50 text-slate-600 italic px-4 py-3 rounded-r-lg my-4" {...props} />
             ),
-            ul: ({ ...props }) => <ul className="list-disc pl-5 space-y-1 my-2 text-slate-800" {...props} />,
-            ol: ({ ...props }) => <ol className="list-decimal pl-5 space-y-1 my-2 text-slate-800" {...props} />,
-            li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
+
+            // --- 列表 ---
+            ul: ({ ...props }) => <ul className="list-disc pl-5 space-y-1.5 my-3 text-slate-700 marker:text-slate-400" {...props} />,
+            ol: ({ ...props }) => <ol className="list-decimal pl-5 space-y-1.5 my-3 text-slate-700 marker:text-slate-500" {...props} />,
+            li: ({ ...props }) => <li className="pl-1" {...props} />,
+
+            // --- 链接 (在新标签页打开，增加交互色) ---
+            a: ({ href, children, ...props }) => (
+                <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors break-all"
+                    {...props}
+                >
+                    {children}
+                </a>
+            ),
+
+            // --- 代码块与行内代码 ---
+            code: ({ node, inline, className, children, ...props }) => {
+                // 如果是行内代码 `code`
+                if (inline) {
+                    return (
+                        <code className="px-1.5 py-0.5 mx-0.5 rounded bg-slate-100 text-pink-600 font-mono text-[0.9em] border border-slate-200" {...props}>
+                            {children}
+                        </code>
+                    );
+                }
+                // 如果是代码块 ```code```
+                return (
+                    <div className="relative my-4 rounded-xl overflow-hidden bg-slate-800 shadow-sm group">
+                        <div className="flex items-center justify-between px-4 py-2 bg-slate-900/50 border-b border-slate-700/50">
+                            <div className="flex gap-1.5">
+                                <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
+                                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+                                <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+                            </div>
+                            <span className="text-xs text-slate-400 font-mono">Code</span>
+                        </div>
+                        <pre className="p-4 overflow-x-auto text-sm text-slate-50 font-mono leading-relaxed custom-scrollbar">
+                        <code className={className} {...props}>
+                            {children}
+                        </code>
+                    </pre>
+                    </div>
+                );
+            },
+
+            // --- 表格 (基于 remark-gfm) ---
+            table: ({ ...props }) => (
+                <div className="my-6 w-full overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
+                    <table className="w-full text-left text-sm text-slate-600" {...props} />
+                </div>
+            ),
+            thead: ({ ...props }) => <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold uppercase tracking-wider text-xs" {...props} />,
+            tbody: ({ ...props }) => <tbody className="divide-y divide-slate-100 bg-white" {...props} />,
+            tr: ({ ...props }) => <tr className="hover:bg-slate-50/50 transition-colors" {...props} />,
+            th: ({ ...props }) => <th className="px-4 py-3 whitespace-nowrap" {...props} />,
+            td: ({ ...props }) => <td className="px-4 py-3 whitespace-normal align-top" {...props} />,
+
+            // --- 图片 ---
+            img: ({ src, alt, ...props }) => (
+                <div className="my-5">
+                    <img
+                        src={src}
+                        alt={alt}
+                        className="max-w-full h-auto rounded-xl shadow-sm border border-slate-100 mx-auto"
+                        loading="lazy"
+                        {...props}
+                    />
+                    {alt && <p className="text-center text-xs text-slate-400 mt-2">{alt}</p>}
+                </div>
+            ),
+
+            // --- 任务列表复选框 ---
+            input: ({ type, ...props }) => {
+                if (type === 'checkbox') {
+                    return <input type="checkbox" className="mr-2 rounded border-slate-300 text-blue-600 focus:ring-blue-500 pointer-events-none" disabled {...props} />;
+                }
+                return <input type={type} {...props} />;
+            }
         };
+
         return (
             <div className={`prose prose-${size} max-w-none text-slate-800 ${className}`}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
@@ -942,18 +1033,22 @@ function App() {
         setShowSearchResults(false);
     };
 
-    // 提交错题统计到云端
-    const submitWrongAnswerStats = async (questionId, questionTitle, category, userAnswer) => {
+    const submitQuestionResult = async (questionId, isCorrect, questionTitle, category, userAnswer = '') => {
+        // 确保已登录 (根据你的项目实际情况获取 currentUser)
         if (!currentUser) return;
+
         try {
-            await AV.Cloud.run('recordWrongAnswer', {
+            await AV.Cloud.run('recordQuestionResult', {
                 questionId,
+                isCorrect,      // 【关键新增参数】 true=答对, false=答错
                 questionTitle,
                 category,
-                userAnswer
+                userAnswer      // 选填：仅当 isCorrect 为 false 时，后端会记录此选项用于分析干扰项
             });
+            // console.log('统计提交成功');
         } catch (e) {
-            console.error('提交错题统计失败:', e);
+            // 统计是非关键业务，发生错误记录日志即可，不要阻断用户继续答题
+            console.error('提交答题统计失败:', e);
         }
     };
 
@@ -990,6 +1085,63 @@ function App() {
         }
     };
 
+    const openSearchQuestion = (param) => {
+        let questionItem = null;
+
+        // 1. 兼容性逻辑：判断传入的是对象还是索引数字
+        if (typeof param === 'number') {
+            if (typeof searchResults !== 'undefined' && searchResults[param]) {
+                questionItem = searchResults[param];
+            }
+        } else {
+            questionItem = param;
+        }
+
+        // 2. 基础合法性校验
+        if (!questionItem || !questionItem.id) {
+            console.error("无法打开题目：题目数据不完整或 ID 缺失", param);
+            return;
+        }
+
+        // 3. 关联排行榜数据：检查该题是否在已加载的排行榜中
+        // 这样如果搜到的是热门错题，能直接看到真实的统计数据
+        const existingRankData = (typeof wrongQuestionRanking !== 'undefined' && Array.isArray(wrongQuestionRanking))
+            ? wrongQuestionRanking.find(r => r.questionId === questionItem.id)
+            : null;
+
+        // 4. 构造“安全”的题目对象
+        const safeQuestion = {
+            ...questionItem,
+            options: Array.isArray(questionItem.options) ? questionItem.options : [],
+            rawAnswer: Array.isArray(questionItem.rawAnswer) ? questionItem.rawAnswer : [],
+            explanation: questionItem.explanation || "暂无解析",
+            // 如果找到了排行榜数据则使用真实的，否则使用搜索占位符
+            rankInfo: existingRankData ? {
+                ...existingRankData,
+                rank: `榜单 #${existingRankData.rank}`
+            } : {
+                rank: '搜索预览',
+                errorCount: '-',
+                totalAttempts: '-',
+                errorRate: '-',
+                optionStats: {}
+            }
+        };
+
+        // 5. 设置预览状态（触发详情弹窗渲染）
+        if (typeof setViewingRankQuestion === 'function') {
+            setViewingRankQuestion(safeQuestion);
+        }
+
+        // 6. 触发云端数据加载（解析与评论）
+        if (typeof ensureExplanationsLoaded === 'function') {
+            ensureExplanationsLoaded(questionItem.id);
+        }
+        if (typeof loadQuestionComments === 'function') {
+            loadQuestionComments(questionItem.id);
+        }
+    };
+
     // 加载题目评论
     const loadQuestionComments = async (questionId) => {
         try {
@@ -999,13 +1151,23 @@ function App() {
             query.limit(50);
             query.include('author');
             const results = await query.find();
+            const ids = results.map(r => r.id);
+            let likedSet = new Set();
+            if (currentUser && ids.length) {
+                const likeQuery = new AV.Query('CommentLike');
+                likeQuery.equalTo('user', currentUser);
+                likeQuery.containedIn('commentId', ids);
+                const liked = await likeQuery.find();
+                likedSet = new Set(liked.map(l => l.get('commentId')));
+            }
             const comments = results.map(r => ({
                 id: r.id,
                 content: r.get('content'),
                 author: r.get('author')?.get('username') || '匿名',
                 authorId: r.get('author')?.id || '',
                 createdAt: r.get('createdAt'),
-                likes: r.get('likes') || 0
+                likes: r.get('likes') || 0,
+                liked: likedSet.has(r.id)
             }));
             setQuestionComments(prev => ({...prev, [questionId]: comments}));
         } catch (e) {
@@ -1020,6 +1182,7 @@ function App() {
         // 内容审核
         const validation = validateContent(newComment.trim());
         if (!validation.valid) {
+            alert(validation.message);
             setSyncMsg(validation.message);
             setSyncStatus('error');
             return;
@@ -1045,16 +1208,42 @@ function App() {
     };
 
     const handleLikeComment = async (questionId, comment) => {
+        // 1. 基础校验
         if (!currentUser || !comment?.id) return;
-        // 只允许给他人点赞
-        if (comment.authorId && comment.authorId === currentUser.id) return;
+
+        // 2. 防止作者给自己点赞 (保持原有逻辑)
+        if (comment.authorId && comment.authorId === currentUser.id) {
+            alert("不能给自己点赞哦");
+            return;
+        }
+
         try {
-            const obj = AV.Object.createWithoutData('QuestionComment', comment.id);
-            obj.increment('likes', 1);
-            await obj.save();
-            await loadQuestionComments(questionId);
+            // 3. 请求云函数 (后端会自动判断是点赞还是取消)
+            const result = await AV.Cloud.run('likeComment', { commentId: comment.id });
+
+            // result 结构预期: { liked: boolean, likes: number }
+
+            // 4. 精准更新本地状态 (局部刷新，体验更丝滑)
+            setQuestionComments(prev => {
+                const currentList = prev[questionId] || [];
+                // 遍历当前题目的评论列表，找到刚才操作的那一条
+                const newList = currentList.map(c => {
+                    if (c.id === comment.id) {
+                        return {
+                            ...c,
+                            likes: result.likes, // 使用后端返回的最新数量
+                            liked: result.liked  // 使用后端返回的最新状态(true/false)
+                        };
+                    }
+                    return c;
+                });
+
+                return { ...prev, [questionId]: newList };
+            });
+
         } catch (e) {
-            console.error('点赞失败', e);
+            console.error('点赞操作失败', e);
+            // 可以在这里加个 alert 或 setSyncMsg 提示网络错误
         }
     };
 
@@ -1108,16 +1297,13 @@ function App() {
         // 只允许给他人点赞
         if (explanation.authorId && explanation.authorId === currentUser.id) return;
         try {
-            const obj = AV.Object.createWithoutData('UserExplanation', explanation.id);
-            obj.increment('votes', 1);
-            await obj.save();
+            await AV.Cloud.run('likeExplanation', { explanationId: explanation.id });
             await loadUserExplanations(questionId);
         } catch (e) {
-            console.error('点赞失败', e);
+            console.error('解析点赞失败', e);
         }
     };
 
-    // 加载用户贡献的解析
     const loadUserExplanations = async (questionId) => {
         try {
             const query = new AV.Query('UserExplanation');
@@ -1125,13 +1311,29 @@ function App() {
             query.descending('votes');
             query.include('author');
             const results = await query.find();
+            const ids = results.map(r => r.id);
+            let likedSet = new Set();
+            if (currentUser && ids.length) {
+                try {
+                    const likeQuery = new AV.Query('ExplanationLike');
+                    likeQuery.equalTo('user', currentUser);
+                    likeQuery.containedIn('explanationId', ids);
+                    const liked = await likeQuery.find();
+                    likedSet = new Set(liked.map(l => l.get('explanationId')));
+                } catch (err) {
+                    // 如果点赞表未建或无权限，忽略错误，保持功能可用
+                    console.debug('load ExplanationLike failed, skip likes', err?.message || err);
+                    likedSet = new Set();
+                }
+            }
             const explanations = results.map(r => ({
                 id: r.id,
                 content: r.get('content'),
                 author: r.get('author')?.get('username') || '匿名',
                 authorId: r.get('author')?.id || '',
                 votes: r.get('votes') || 0,
-                createdAt: r.get('createdAt')
+                createdAt: r.get('createdAt'),
+                liked: likedSet.has(r.id)
             }));
             setUserExplanations(prev => ({...prev, [questionId]: explanations}));
         } catch (e) {
@@ -1270,9 +1472,15 @@ function App() {
     const submitAnswer = (finalSelection = selectedIndices) => {
         if (finalSelection.length === 0) return;
         const currentQ = questions[currentIndex];
+
+        // 1. 计算正确性
         const correctSet = new Set(currentQ.rawAnswer);
         const userSet = new Set(finalSelection);
         const isCorrect = correctSet.size === userSet.size && [...correctSet].every(x => userSet.has(x));
+
+        // 2. 提前计算用户答案字符串 (如 "AB")，用于 API 提交和历史记录
+        // 使用 [...finalSelection] 创建副本再排序，避免修改原数组
+        const answerText = [...finalSelection].sort((a, b) => a - b).map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
 
         setIsAnswered(true);
         setSelectedIndices(finalSelection);
@@ -1295,12 +1503,14 @@ function App() {
             });
             setWrongIds(prev => new Set(prev).add(currentQ.id));
             setAnswerResults(prev => ({ ...prev, [currentQ.id]: 'wrong' }));
-            // 提交错题统计到云端，包含用户选择的选项
-            const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
-            submitWrongAnswerStats(currentQ.id, currentQ.question, currentQ.category, answerText);
+
         }
 
-        const answerText = finalSelection.sort().map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
+        // 3. 【新增】无论对错，都提交结果到云端
+        // 必须传入 isCorrect (true/false) 和 answerText
+        submitQuestionResult(currentQ.id, isCorrect, currentQ.question, currentQ.category, answerText);
+
+        // 4. 更新本地历史记录
         setHistory(prev => [{
             id: Date.now(),
             questionId: currentQ.id,
@@ -1311,7 +1521,7 @@ function App() {
             timestamp: new Date().toISOString(),
         }, ...prev]);
 
-        // 加载评论和用户解析（对所有答题都加载，保持用户体验一致）
+        // 5. 加载评论和用户解析
         loadQuestionComments(currentQ.id);
         if (!isCorrect || !currentQ.explanation || currentQ.explanation === '暂无解析') {
             loadUserExplanations(currentQ.id);
@@ -1548,10 +1758,17 @@ function App() {
                                 <p className="text-sm text-slate-500">暂无结果</p>
                             ) : (
                                 searchResults.map((res, idx) => (
-                                    <div key={idx} className="p-3 rounded-xl border border-slate-100 bg-slate-50 text-sm flex flex-col gap-1">
-                                        <div className="text-slate-800 font-semibold">{res.question}</div>
-                                        <div className="text-[12px] text-slate-500">{res.category} · {res.type === 'multiple' ? '多选' : res.type === 'judgment' ? '判断' : '单选'}</div>
-                                    </div>
+                                    <button
+                                        key={idx}
+                                        onClick={() => openSearchQuestion(idx)}
+                                        className="w-full text-left p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 transition flex flex-col gap-1 group"
+                                    >
+                                        <div className="text-slate-800 font-semibold group-hover:text-blue-600 transition">{res.question}</div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[12px] text-slate-500">{res.category} · {res.type === 'multiple' ? '多选' : res.type === 'judgment' ? '判断' : '单选'}</span>
+                                            <span className="text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition">查看详情 →</span>
+                                        </div>
+                                    </button>
                                 ))
                             )}
                         </div>
@@ -1883,7 +2100,7 @@ function App() {
                                         disabled={currentIndex === 0}
                                         className="flex-1 min-w-[110px] px-4 py-2 rounded-full text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
                                     >
-                                        <ChevronLeft size={14}/> 上一题
+                                        <ChevronLeft size={12}/> 上一题
                                     </button>
                                     <div className="text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
                                         {currentIndex + 1}/{questions.length}
@@ -2106,12 +2323,34 @@ function App() {
                                                                         <div className="flex items-center gap-3 text-xs">
                                                                             {isOwner ? (
                                                                                 <>
-                                                                                    <button onClick={() => handleStartEditComment(comment)} className="text-blue-600">编辑</button>
-                                                                                    <button onClick={() => handleDeleteComment(currentQ.id, comment)} className="text-red-600">删除</button>
+                                                                                    {/* --- 作者视角：只显示数量，不可点击 --- */}
+                                                                                    <div
+                                                                                        className={`flex items-center gap-1 cursor-default ${comment.likes > 0 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}
+                                                                                        title="收获的点赞数"
+                                                                                    >
+                                                                                        {/* 如果有赞，图标设为实心/高亮，看着更舒服 */}
+                                                                                        <ThumbsUp size={12} fill={comment.likes > 0 ? "currentColor" : "none"} />
+                                                                                        {comment.likes || 0}
+                                                                                    </div>
+
+                                                                                    {/* 增加一个小竖线分隔符，视觉更清晰 */}
+                                                                                    <div className="w-[1px] h-3 bg-slate-200"></div>
+
+                                                                                    <button onClick={() => handleStartEditComment(comment)} className="text-blue-600 hover:text-blue-700 transition-colors">编辑</button>
+                                                                                    <button onClick={() => handleDeleteComment(currentQ.id, comment)} className="text-red-600 hover:text-red-700 transition-colors">删除</button>
                                                                                 </>
                                                                             ) : (
-                                                                                <button onClick={() => handleLikeComment(currentQ.id, comment)} className="flex items-center gap-1 text-amber-600">
-                                                                                    <ThumbsUp size={12}/> {comment.likes || 0}
+                                                                                // --- 他人视角：可点击的 Toggle 按钮 ---
+                                                                                <button
+                                                                                    onClick={() => handleLikeComment(currentQ.id, comment)}
+                                                                                    className={`flex items-center gap-1 transition-colors ${
+                                                                                        comment.liked
+                                                                                            ? 'text-amber-600 font-bold'
+                                                                                            : 'text-slate-400 hover:text-amber-600'
+                                                                                    }`}
+                                                                                >
+                                                                                    <ThumbsUp size={12} fill={comment.liked ? "currentColor" : "none"}/>
+                                                                                    {comment.likes || 0}
                                                                                 </button>
                                                                             )}
                                                                         </div>
