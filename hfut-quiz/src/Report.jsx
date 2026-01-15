@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ChevronLeft, Calendar, CheckCircle, XCircle, Clock, ArrowRight, BookOpen,
-  Zap, AlertCircle, Eye, X
+  Zap, AlertCircle, Eye, X, MessageCircle
 } from 'lucide-react';
 import './index.css';
 
@@ -125,6 +125,16 @@ function Report() {
   const [editingExpId, setEditingExpId] = useState(null);
   const [editingExpContent, setEditingExpContent] = useState('');
   const [localProgress, setLocalProgress] = useState({ history: [], brushedIds: [], masteredIds: [] });
+  const [userComments, setUserComments] = useState([]);
+  const [userExplList, setUserExplList] = useState([]);
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editingCommentContent, setEditingCommentContent] = useState('');
+  const [showCommentLikes, setShowCommentLikes] = useState(null);
+  const [showExplanationVotes, setShowExplanationVotes] = useState(null);
+  const [showModal, setShowModal] = useState(null); // 'comments' or 'explanations'
+  const [commentPage, setCommentPage] = useState(1);
+  const [explanationPage, setExplanationPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     (async () => {
@@ -172,6 +182,37 @@ function Report() {
         });
       } catch (e) { console.warn('Load local progress fail', e); }
       setReady(true);
+
+      // 加载用户评论和解析
+      if (user) {
+        try {
+          const commentQuery = new AV.Query('QuestionComment');
+          commentQuery.equalTo('author', user);
+          commentQuery.descending('createdAt');
+          const comments = await commentQuery.find();
+          setUserComments(comments.map(c => ({
+            id: c.id,
+            questionId: c.get('questionId'),
+            content: safeText(c.get('content')),
+            likes: c.get('likes') || 0,
+            likedBy: c.get('likedBy') || [],
+            createdAt: c.get('createdAt'),
+          })));
+
+          const expQuery = new AV.Query('UserExplanation');
+          expQuery.equalTo('author', user);
+          expQuery.descending('createdAt');
+          const exps = await expQuery.find();
+          setUserExplList(exps.map(e => ({
+            id: e.id,
+            questionId: e.get('questionId'),
+            content: safeText(e.get('content')),
+            votes: e.get('votes') || 0,
+            votedBy: e.get('votedBy') || [],
+            createdAt: e.get('createdAt'),
+          })));
+        } catch (e) { console.warn('Load user comments/explanations fail', e); }
+      }
     })();
   }, []);
 
@@ -193,8 +234,23 @@ function Report() {
   const history = mergedHistory;
 
   const dates = useMemo(() => {
-    const d = [...new Set(history.map(h => new Date(h.timestamp).toLocaleDateString()))].sort((a,b) => new Date(b) - new Date(a));
-    return d.length ? d : [new Date().toLocaleDateString()];
+    // 从合并的历史记录中提取所有唯一日期
+    const uniqueDates = new Set();
+    history.forEach(h => {
+      if (h && h.timestamp) {
+        const date = new Date(h.timestamp).toLocaleDateString();
+        uniqueDates.add(date);
+      }
+    });
+
+    // 转换为数组并按从新到旧排序
+    const sortedDates = [...uniqueDates].sort((a, b) => {
+      const dateA = new Date(a);
+      const dateB = new Date(b);
+      return dateB - dateA; // 新日期在前
+    });
+
+    return sortedDates.length ? sortedDates : [new Date().toLocaleDateString()];
   }, [history]);
   useEffect(() => { if (!selectedDate && dates.length) setSelectedDate(dates[0]); }, [dates, selectedDate]);
 
@@ -258,6 +314,49 @@ function Report() {
     } catch (e) { alert('更新解析失败'); }
   };
 
+  const handleUpdateComment = async (commentId) => {
+    if (!editingCommentId || !editingCommentContent.trim()) return;
+    try {
+      const obj = AV.Object.createWithoutData('QuestionComment', editingCommentId);
+      obj.set('content', editingCommentContent.trim());
+      await obj.save();
+      setEditingCommentId(null);
+      setEditingCommentContent('');
+      // 刷新评论列表
+      const user = AV.User.current();
+      const commentQuery = new AV.Query('QuestionComment');
+      commentQuery.equalTo('author', user);
+      commentQuery.descending('createdAt');
+      const comments = await commentQuery.find();
+      setUserComments(comments.map(c => ({
+        id: c.id,
+        questionId: c.get('questionId'),
+        content: safeText(c.get('content')),
+        likes: c.get('likes') || 0,
+        likedBy: c.get('likedBy') || [],
+        createdAt: c.get('createdAt'),
+      })));
+    } catch (e) { alert('更新评论失败'); }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    if (!confirm('确定删除此评论吗？')) return;
+    try {
+      const obj = AV.Object.createWithoutData('QuestionComment', commentId);
+      await obj.destroy();
+      setUserComments(userComments.filter(c => c.id !== commentId));
+    } catch (e) { alert('删除失败'); }
+  };
+
+  const handleDeleteExplanation = async (explanationId) => {
+    if (!confirm('确定删除此解析吗？')) return;
+    try {
+      const obj = AV.Object.createWithoutData('UserExplanation', explanationId);
+      await obj.destroy();
+      setUserExplList(userExplList.filter(e => e.id !== explanationId));
+    } catch (e) { alert('删除失败'); }
+  };
+
   const renderUserExps = (questionId) => {
     const list = userExplanations[questionId];
     if (!list || !list.length) return null;
@@ -293,6 +392,254 @@ function Report() {
             </div>
           );
         })}
+      </div>
+    );
+  };
+
+  const renderMyCommentsSection = () => {
+    return (
+      <button
+        onClick={() => {
+          setShowModal('comments');
+          setCommentPage(1);
+        }}
+        className="glass-card rounded-2xl p-6 w-full hover:shadow-lg transition-shadow"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <MessageCircle size={24} className="text-blue-600" />
+            <div className="text-left">
+              <div className="font-bold text-slate-800">我的评论</div>
+              <div className="text-sm text-slate-500">共 {userComments.length} 条</div>
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-blue-600">{userComments.length}</div>
+        </div>
+      </button>
+    );
+  };
+
+  const renderMyExplanationsSection = () => {
+    return (
+      <button
+        onClick={() => {
+          setShowModal('explanations');
+          setExplanationPage(1);
+        }}
+        className="glass-card rounded-2xl p-6 w-full hover:shadow-lg transition-shadow"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Zap size={24} className="text-yellow-600" />
+            <div className="text-left">
+              <div className="font-bold text-slate-800">我的解析</div>
+              <div className="text-sm text-slate-500">共 {userExplList.length} 条</div>
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-yellow-600">{userExplList.length}</div>
+        </div>
+      </button>
+    );
+  };
+
+  // 评论详情浮窗
+  const renderCommentsModal = () => {
+    const paginatedComments = userComments.slice(
+      (commentPage - 1) * ITEMS_PER_PAGE,
+      commentPage * ITEMS_PER_PAGE
+    );
+    const totalPages = Math.ceil(userComments.length / ITEMS_PER_PAGE);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(null)}>
+        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[80vh] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+          {/* 标题栏 */}
+          <div className="flex items-center justify-between p-6 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <MessageCircle size={20} className="text-blue-600" />
+              <h2 className="font-bold text-slate-800">我的评论 ({userComments.length})</h2>
+            </div>
+            <button onClick={() => setShowModal(null)} className="p-1 hover:bg-slate-100 rounded-full">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* 内容区域 */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {userComments.length === 0 ? (
+              <p className="text-center text-slate-400 py-8">暂无评论</p>
+            ) : (
+              <div className="space-y-3">
+                {paginatedComments.map(comment => {
+                  const isEditing = editingCommentId === comment.id;
+                  return (
+                    <div key={comment.id} className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-2">
+                      <div className="flex justify-between items-start gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-700 cursor-pointer hover:text-blue-600 line-clamp-1" onClick={() => {openQuestion(comment.questionId); setShowModal(null);}}>
+                            题目 {comment.questionId}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setShowCommentLikes(showCommentLikes === comment.id ? null : comment.id)}
+                          className="text-xs text-amber-600 whitespace-nowrap hover:text-amber-700"
+                        >
+                          👍 {comment.likes}
+                        </button>
+                      </div>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <textarea value={editingCommentContent} onChange={e=>setEditingCommentContent(e.target.value)} rows={2} className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                          <div className="flex justify-end gap-2 text-xs">
+                            <button onClick={() => handleUpdateComment(comment.id)} className="px-3 py-1 bg-blue-600 text-white rounded-lg">保存</button>
+                            <button onClick={() => {setEditingCommentId(null); setEditingCommentContent('');}} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg">取消</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm text-slate-600">{comment.content}</p>
+                          <div className="flex items-center gap-2 text-xs text-slate-400">
+                            <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
+                            <button onClick={() => {setEditingCommentId(comment.id); setEditingCommentContent(comment.content);}} className="text-blue-600 hover:text-blue-700">编辑</button>
+                            <button onClick={() => handleDeleteComment(comment.id)} className="text-red-600 hover:text-red-700">删除</button>
+                          </div>
+                        </>
+                      )}
+                      {showCommentLikes === comment.id && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-500 bg-white p-2 rounded">
+                          <p className="font-semibold mb-1">👍 点赞者：</p>
+                          <p>{comment.likedBy && comment.likedBy.length > 0 ? comment.likedBy.join(', ') : '暂无点赞'}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 分页栏 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-6 border-t border-slate-200">
+              <button
+                onClick={() => setCommentPage(Math.max(1, commentPage - 1))}
+                disabled={commentPage === 1}
+                className="px-3 py-1 text-sm bg-slate-100 text-slate-700 rounded-lg disabled:opacity-50"
+              >
+                上一页
+              </button>
+              <span className="text-sm text-slate-600">{commentPage} / {totalPages}</span>
+              <button
+                onClick={() => setCommentPage(Math.min(totalPages, commentPage + 1))}
+                disabled={commentPage === totalPages}
+                className="px-3 py-1 text-sm bg-slate-100 text-slate-700 rounded-lg disabled:opacity-50"
+              >
+                下一页
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // 解析详情浮窗
+  const renderExplanationsModal = () => {
+    const paginatedExplanations = userExplList.slice(
+      (explanationPage - 1) * ITEMS_PER_PAGE,
+      explanationPage * ITEMS_PER_PAGE
+    );
+    const totalPages = Math.ceil(userExplList.length / ITEMS_PER_PAGE);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(null)}>
+        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[80vh] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+          {/* 标题栏 */}
+          <div className="flex items-center justify-between p-6 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <Zap size={20} className="text-yellow-600" />
+              <h2 className="font-bold text-slate-800">我的解析 ({userExplList.length})</h2>
+            </div>
+            <button onClick={() => setShowModal(null)} className="p-1 hover:bg-slate-100 rounded-full">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* 内容区域 */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {userExplList.length === 0 ? (
+              <p className="text-center text-slate-400 py-8">暂无解析</p>
+            ) : (
+              <div className="space-y-3">
+                {paginatedExplanations.map(exp => {
+                  const isEditing = editingExpId === exp.id;
+                  return (
+                    <div key={exp.id} className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg space-y-2">
+                      <div className="flex justify-between items-start gap-2 mb-2">
+                        <p className="text-sm font-medium text-indigo-900 flex-1 cursor-pointer hover:text-indigo-600" onClick={() => {openQuestion(exp.questionId); setShowModal(null);}}>
+                          题目 {exp.questionId}
+                        </p>
+                        <button
+                          onClick={() => setShowExplanationVotes(showExplanationVotes === exp.id ? null : exp.id)}
+                          className="text-xs text-amber-600 whitespace-nowrap hover:text-amber-700"
+                        >
+                          👍 {exp.votes}
+                        </button>
+                      </div>
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <textarea value={editingExpContent} onChange={e=>setEditingExpContent(e.target.value)} rows={3} className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
+                          <div className="flex justify-end gap-2 text-xs">
+                            <button onClick={() => handleUpdateExp(exp.questionId)} className="px-3 py-1 bg-blue-600 text-white rounded-lg">保存</button>
+                            <button onClick={() => {setEditingExpId(null); setEditingExpContent('');}} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg">取消</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm text-indigo-900 line-clamp-3">
+                            <Markdown content={exp.content} />
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-indigo-600">
+                            <span>{new Date(exp.createdAt).toLocaleDateString()}</span>
+                            <button onClick={() => {setEditingExpId(exp.id); setEditingExpContent(exp.content);}} className="text-blue-600 hover:text-blue-700">编辑</button>
+                            <button onClick={() => handleDeleteExplanation(exp.id)} className="text-red-600 hover:text-red-700">删除</button>
+                          </div>
+                        </>
+                      )}
+                      {showExplanationVotes === exp.id && (
+                        <div className="mt-2 pt-2 border-t border-indigo-200 text-xs text-indigo-700 bg-white p-2 rounded">
+                          <p className="font-semibold mb-1">👍 点赞者：</p>
+                          <p>{exp.votedBy && exp.votedBy.length > 0 ? exp.votedBy.join(', ') : '暂无点赞'}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 分页栏 */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between p-6 border-t border-slate-200">
+              <button
+                onClick={() => setExplanationPage(Math.max(1, explanationPage - 1))}
+                disabled={explanationPage === 1}
+                className="px-3 py-1 text-sm bg-slate-100 text-slate-700 rounded-lg disabled:opacity-50"
+              >
+                上一页
+              </button>
+              <span className="text-sm text-slate-600">{explanationPage} / {totalPages}</span>
+              <button
+                onClick={() => setExplanationPage(Math.min(totalPages, explanationPage + 1))}
+                disabled={explanationPage === totalPages}
+                className="px-3 py-1 text-sm bg-slate-100 text-slate-700 rounded-lg disabled:opacity-50"
+              >
+                下一页
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -346,15 +693,25 @@ function Report() {
       </div>
 
       <div className="flex-1 max-w-3xl mx-auto w-full p-4 space-y-6">
-        <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
-          <div className="flex gap-2 w-max">
-            {dates.map(d => (
-              <button key={d} onClick={() => setSelectedDate(d)}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${selectedDate === d ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>
-                {d === new Date().toLocaleDateString() ? '今天' : d.split('/')[1] + '.' + d.split('/')[2]}
-              </button>
-            ))}
+        {/* 日期选择器 */}
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-slate-500 px-2">选择日期 ({dates.length} 天)</div>
+          <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
+            <div className="flex gap-2 w-max">
+              {dates.map(d => (
+                <button key={d} onClick={() => setSelectedDate(d)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold transition-all border flex-shrink-0 ${selectedDate === d ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>
+                  {d === new Date().toLocaleDateString() ? '今天' : d.split('/')[1] + '.' + d.split('/')[2]}
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
+
+        {/* 并排显示我的评论和我的解析按钮 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {renderMyCommentsSection()}
+          {renderMyExplanationsSection()}
         </div>
 
         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg animate-fade-in">
@@ -466,6 +823,12 @@ function Report() {
           </div>
         </div>
       )}
+
+      {/* 评论详情浮窗 */}
+      {showModal === 'comments' && renderCommentsModal()}
+
+      {/* 解析详情浮窗 */}
+      {showModal === 'explanations' && renderExplanationsModal()}
     </div>
   );
 }
