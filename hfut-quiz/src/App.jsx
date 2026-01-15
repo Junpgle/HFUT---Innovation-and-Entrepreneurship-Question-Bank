@@ -1376,6 +1376,13 @@ function App() {
                     >
                         <GraduationCap size={18} className="md:w-5 md:h-5" />
                     </button>
+                    <button
+                        onClick={() => setIsSearchOpen(!isSearchOpen)}
+                        className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100"
+                        title="搜索题目"
+                    >
+                        <Search size={18} className="md:w-5 md:h-5"/>
+                    </button>
                     <button onClick={toggleFullscreen}
                             className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
                         {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
