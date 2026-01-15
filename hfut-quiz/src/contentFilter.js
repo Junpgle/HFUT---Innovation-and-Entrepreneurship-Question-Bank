@@ -4,17 +4,34 @@
  */
 
 const PROFANITY_WORDS = [
+    // --- 常见缩写/拼音 ---
     '傻逼', '傻b', 'sb', 'SB', '煞笔', '傻比',
-    '操', '草泥马', 'cnm', 'CNM', '艹',
-    '他妈', '他吗', '她妈', 'tm', 'TM', 'tmd', 'TMD',
-    '妈的', '麻痹', '马勒戈壁', 'mlgb', 'MLGB',
-    'fuck', 'shit', 'bitch', 'damn',
-    '婊', '贱', '蠢', '白痴', '脑残',
-    '滚', '去死', '找死',
-    '垃圾', 'lj', 'LJ',
-    '尼玛', 'nm', 'NM',
-    '王八', '混蛋', '狗屎',
-    '妈卖批', 'mmb', 'MMB'
+    'cnm', 'CNM',
+    'tm', 'TM', 'tmd', 'TMD',
+    'mlgb', 'MLGB',
+    'nmb', 'NMB', // 补一个漏掉的
+    'lj', 'LJ',   // 垃圾的缩写，有时候容易误伤（如 Log4J），可视情况保留或删除
+    'nm', 'NM',   // 尼玛/你妈
+    'mmb', 'MMB',
+
+    // --- 中文脏话 (移除单字，改为词组) ---
+    // ❌ 已删除单字 '操'，避免误伤 "操作"
+    '我操', '操你', '操他', '卧槽', // 改用这些替代
+    '草泥马', '艹', // '艹'字生僻，误伤概率较低，可以保留，或者也改成 '我艹'
+
+    '他妈', '他吗', '她妈', '你妈', '尼玛',
+    '妈的', '麻痹', '马勒戈壁', '妈卖批',
+    '狗日', // 也不要屏蔽单字 '日'
+
+    // --- 侮辱性词汇 ---
+    '婊子', '贱人', // 改为双字，避免误伤单字 '贱' (如 "价格低贱" 虽不常用但存在)
+    '蠢货', '白痴', '脑残', '智障',
+    '去死', '找死',
+    '垃圾', // "垃圾"这个词在某些技术语境(垃圾回收 GC)也可能出现，但在评论区通常是脏话，可酌情保留
+    '王八蛋', '混蛋', '狗屎', '畜生',
+
+    // --- 英文 ---
+    'fuck', 'shit', 'bitch', 'damn'
 ];
 
 function escapeRegex(str) {
@@ -89,6 +106,7 @@ export function filterContent(text) {
  * 其实 filterContent 可能根本用不上（因为不允许提交脏话）。
  * 但保留 filterContent 用于显示“敏感词屏蔽”的 UI 展示也是很好的。
  */
+
 export function validateContent(text) {
     if (!text || !text.trim()) {
         return {
@@ -100,10 +118,18 @@ export function validateContent(text) {
     const checkResult = checkContent(text);
 
     if (!checkResult.isClean) {
-        // 这里可以选择直接告诉用户包含了哪些词，或者只提示模糊信息
+        // 1. 获取检测到的词
+        const words = checkResult.detectedWords;
+
+        // 2. (可选) 简单的去重处理
+        // 因为你的词库里同时有 'sb' 和 'SB'，且正则不区分大小写，可能导致同一个词被检测出两次
+        // 这里用 Set 做个简单的去重，让提示更清爽
+        const uniqueWords = [...new Set(words)];
+
         return {
             valid: false,
-            message: `内容包含不文明用语，请文明发言`
+            // 3. 将数组用逗号连接，并放入提示消息中
+            message: `内容包含不文明用语 “${uniqueWords.join(', ')}”，请修改后再提交`
         };
     }
 

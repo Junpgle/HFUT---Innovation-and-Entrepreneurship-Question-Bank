@@ -1408,6 +1408,7 @@ function App() {
         // 内容审核
         const validation = validateContent(newExplanation.trim());
         if (!validation.valid) {
+            alert(validation.message); // 强制弹出提示，告知具体违规词汇
             setSyncMsg(validation.message);
             setSyncStatus('error');
             return;
@@ -1428,6 +1429,8 @@ function App() {
             setSyncStatus('success');
         } catch (e) {
             console.error('提交解析失败:', e);
+            // 这里你原本已经加了 alert，保持不动即可
+            alert("提交解析失败: " + (e.message || "未知错误"));
             setSyncMsg('解析提交失败');
             setSyncStatus('error');
         }
