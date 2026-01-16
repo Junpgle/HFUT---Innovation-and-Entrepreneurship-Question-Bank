@@ -38,6 +38,14 @@ const LECTURES = [
 AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
 
 const safeText = (v) => typeof v === 'string' ? v : (v ? String(v) : '');
+// Normalize LeanCloud user array to displayable nicknames/usernames
+const mapUserNames = (arr = []) => (Array.isArray(arr) ? arr : [])
+  .map(u => {
+    if (typeof u === 'string') return u;
+    const get = u?.get?.bind(u);
+    return get?.('nickname') || get?.('username') || u?.id || '匿名';
+  })
+  .filter(Boolean);
 const Markdown = ({ content }) => (
   <div className="prose prose-sm max-w-none text-slate-800">
     <ReactMarkdown remarkPlugins={[remarkGfm]}>{safeText(content)}</ReactMarkdown>
@@ -189,26 +197,28 @@ function Report() {
           const commentQuery = new AV.Query('QuestionComment');
           commentQuery.equalTo('author', user);
           commentQuery.descending('createdAt');
+          commentQuery.include('likedBy');
           const comments = await commentQuery.find();
           setUserComments(comments.map(c => ({
             id: c.id,
             questionId: c.get('questionId'),
             content: safeText(c.get('content')),
             likes: c.get('likes') || 0,
-            likedBy: c.get('likedBy') || [],
+            likedBy: mapUserNames(c.get('likedBy')),
             createdAt: c.get('createdAt'),
           })));
 
           const expQuery = new AV.Query('UserExplanation');
           expQuery.equalTo('author', user);
           expQuery.descending('createdAt');
+          expQuery.include('votedBy');
           const exps = await expQuery.find();
           setUserExplList(exps.map(e => ({
             id: e.id,
             questionId: e.get('questionId'),
             content: safeText(e.get('content')),
             votes: e.get('votes') || 0,
-            votedBy: e.get('votedBy') || [],
+            votedBy: mapUserNames(e.get('votedBy')),
             createdAt: e.get('createdAt'),
           })));
         } catch (e) { console.warn('Load user comments/explanations fail', e); }
@@ -284,6 +294,7 @@ function Report() {
       query.equalTo('questionId', questionId);
       query.descending('votes');
       query.include('author');
+      query.include('votedBy');
       const res = await query.find();
       const list = res.map(r => ({
         id: r.id,
@@ -291,6 +302,7 @@ function Report() {
         author: r.get('author')?.get('username') || '匿名',
         authorId: r.get('author')?.id || '',
         votes: r.get('votes') || 0,
+        votedBy: mapUserNames(r.get('votedBy')),
         createdAt: r.get('createdAt'),
       }));
       setUserExplanations(prev => ({ ...prev, [questionId]: list }));
@@ -327,13 +339,14 @@ function Report() {
       const commentQuery = new AV.Query('QuestionComment');
       commentQuery.equalTo('author', user);
       commentQuery.descending('createdAt');
+      commentQuery.include('likedBy');
       const comments = await commentQuery.find();
       setUserComments(comments.map(c => ({
         id: c.id,
         questionId: c.get('questionId'),
         content: safeText(c.get('content')),
         likes: c.get('likes') || 0,
-        likedBy: c.get('likedBy') || [],
+        likedBy: mapUserNames(c.get('likedBy')),
         createdAt: c.get('createdAt'),
       })));
     } catch (e) { alert('更新评论失败'); }

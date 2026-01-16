@@ -8,7 +8,7 @@ const AV = require('leanengine');
  * 通用点赞处理逻辑
  */
 async function handleLikeToggle(config) {
-  const { currentUser, targetId, targetClass, likeClass, targetIdField, countField } = config;
+  const { currentUser, targetId, targetClass, likeClass, targetIdField, countField, arrayField } = config;
 
   // 1. 查询目标对象
   const target = await new AV.Query(targetClass).get(targetId, { useMasterKey: true });
@@ -42,6 +42,7 @@ async function handleLikeToggle(config) {
     // 已点赞 -> 取消
     await existing.destroy({ useMasterKey: true });
     target.increment(countField, -1);
+    if (arrayField) target.remove(arrayField, currentUser);
     liked = false;
   } else {
     // 未点赞 -> 添加
@@ -56,6 +57,7 @@ async function handleLikeToggle(config) {
     like.setACL(acl);
     await like.save(null, { useMasterKey: true });
     target.increment(countField, 1);
+    if (arrayField) target.addUnique(arrayField, currentUser);
     liked = true;
   }
 
@@ -346,7 +348,8 @@ AV.Cloud.define('likeComment', async (request) => {
     targetClass: 'QuestionComment',
     likeClass: 'CommentLike',
     targetIdField: 'commentId',
-    countField: 'likes'
+    countField: 'likes',
+    arrayField: 'likedBy'
   });
 
   return { ...result, likes: result.count };
@@ -368,7 +371,8 @@ AV.Cloud.define('likeExplanation', async (request) => {
     targetClass: 'UserExplanation',
     likeClass: 'ExplanationLike',
     targetIdField: 'explanationId',
-    countField: 'votes'
+    countField: 'votes',
+    arrayField: 'votedBy'
   });
 
   return { ...result, votes: result.count };
