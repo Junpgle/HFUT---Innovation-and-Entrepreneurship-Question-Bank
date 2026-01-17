@@ -18,6 +18,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
+const CURRENT_APP_VERSION = '3.5.5';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -259,6 +260,10 @@ function App() {
     const [editingExplanationContent, setEditingExplanationContent] = useState('');
     const commentSectionRef = useRef(null);
     const searchSectionRef = useRef(null);
+    const [showEmailHint, setShowEmailHint] = useState(false);
+    // 版本状态
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [remoteVersionInfo, setRemoteVersionInfo] = useState({ version: '', log: '' });
 
     // 搜索功能状态
     const [searchKeyword, setSearchKeyword] = useState('');
@@ -428,6 +433,33 @@ function App() {
             }
         };
         loadLocal();
+        const checkVersion = async () => {
+            try {
+                const query = new AV.Query('SystemConfig');
+                query.equalTo('key', 'app_version');
+                const config = await query.first();
+
+                if (config) {
+                    const latestVersion = config.get('value');
+                    const changelog = config.get('changelog') || '修复了一些已知问题，优化了使用体验。';
+
+                    // 如果云端版本与本地不一致，且云端版本存在
+                    if (latestVersion && latestVersion !== CURRENT_APP_VERSION) {
+                        setRemoteVersionInfo({
+                            version: latestVersion,
+                            log: changelog
+                        });
+                        setShowUpdateModal(true);
+                    }
+                }
+            } catch (e) {
+                console.error('检查更新失败', e);
+            }
+        };
+
+        // 延迟 2 秒检查，避免跟主数据加载抢网络资源
+        const timer = setTimeout(() => checkVersion(), 2000);
+        return () => clearTimeout(timer);
     }, []);
 
     // 保存本地数据
@@ -743,6 +775,11 @@ function App() {
                 if (serverMsg.includes("邮箱")) {
                     displayMsg = "需验证邮箱";
                     alert("同步失败：\n" + serverMsg);
+                    // 【新增】触发 UI 提示，引导用户点击头像
+                    setShowEmailHint(true);
+
+                    // 3秒后自动隐藏提示，避免一直挡着（可选，如果想一直显示直到用户点击，就把这行删掉）
+                    setTimeout(() => setShowEmailHint(false), 5000);
                 } else if (serverMsg.includes("速度过快") || serverMsg.includes("异常")) {
                     displayMsg = "被拦截";
                     alert("同步被拒绝：\n" + serverMsg);
@@ -1624,11 +1661,29 @@ function App() {
                             className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
                         {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
                     </button>
-                    <button onClick={() => location.href = 'profile.html'}
-                            className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100"
-                            title="个人中心">
-                        <User size={18} className="md:w-5 md:h-5"/>
-                    </button>
+                    {/* 【修改】个人中心按钮及提示气泡 */}
+                    <div className="relative inline-block"> {/* 1. 加一个 relative 容器 */}
+                        <button onClick={() => location.href = 'profile.html'}
+                                className={`p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100 relative ${showEmailHint ? 'ring-2 ring-red-400 animate-pulse' : ''}`}
+                                title="个人中心">
+                            <User size={18} className={`md:w-5 md:h-5 ${showEmailHint ? 'text-red-500' : ''}`}/>
+
+                            {/* 如果有提示，给按钮加个小红点 */}
+                            {showEmailHint && (
+                                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                            )}
+                        </button>
+
+                        {/* 2. 悬浮提示气泡 */}
+                        {showEmailHint && (
+                            <div className="absolute top-12 right-0 w-32 z-50 animate-bounce">
+                                <div className="bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-xl shadow-lg relative text-center">
+                                    <div className="absolute -top-1 right-4 w-3 h-3 bg-red-500 rotate-45"></div> {/* 小箭头 */}
+                                    点我验证邮箱
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div className="hidden md:flex gap-3">
                         {bankStatus === 'ready' && (
                             <div
@@ -1821,6 +1876,48 @@ function App() {
                             <button onClick={performReset}
                                     className="py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">确认重置
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 【新增】版本更新提示窗口 */}
+            {showUpdateModal && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-enter backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative overflow-hidden">
+                        {/* 装饰背景 */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl"></div>
+
+                        <div className="relative z-10">
+                            <div className="flex flex-col items-center text-center mb-6">
+                                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                                    <RefreshCw size={32} className="animate-spin-slow" /> {/* 需要确保导入了 RefreshCw 图标 */}
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800">发现新版本 {remoteVersionInfo.version}</h3>
+                                <p className="text-xs text-slate-400 mt-1">当前版本: {CURRENT_APP_VERSION}</p>
+                            </div>
+
+                            <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100 text-left">
+                                <div className="text-xs font-bold text-slate-400 mb-2 uppercase">更新内容</div>
+                                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                                    {remoteVersionInfo.log}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="py-3.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <RefreshCw size={18} /> 立即刷新体验
+                                </button>
+                                <button
+                                    onClick={() => setShowUpdateModal(false)}
+                                    className="py-3 rounded-xl font-bold text-slate-400 hover:text-slate-600 transition-colors text-sm"
+                                >
+                                    暂不更新
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -16,7 +16,8 @@ async function handleLikeToggle(config) {
   // 2. 禁止给自己点赞
   const author = target.get('author');
   if (author && author.id === currentUser.id) {
-    throw new AV.Cloud.Error('不能给自己点赞', 400);
+    // FIX: 使用对象传递错误码，防止 TypeError
+    throw new AV.Cloud.Error('不能给自己点赞', { code: 400 });
   }
 
   // 3. 查询是否已点赞
@@ -29,7 +30,6 @@ async function handleLikeToggle(config) {
   try {
     existing = await likeQuery.first({ useMasterKey: true });
   } catch (error) {
-    // 忽略表不存在的错误
     if (error.code === 101 || error.code === 404 || error.message.indexOf('Class or object') > -1) {
       existing = null;
     } else {
@@ -61,7 +61,6 @@ async function handleLikeToggle(config) {
     liked = true;
   }
 
-  // 防止计数为负
   if ((target.get(countField) || 0) < 0) target.set(countField, 0);
 
   await target.save(null, { useMasterKey: true });
@@ -69,8 +68,7 @@ async function handleLikeToggle(config) {
 }
 
 /**
- * 核心统计逻辑：更新题目答题统计 (WrongQuestionStats)
- * 用于 recordQuestionResult 和 recordWrongAnswer 共用
+ * 核心统计逻辑：更新题目答题统计
  */
 async function updateQuestionStats({ questionId, isCorrect, userAnswer, questionTitle, category }) {
   if (!questionId) throw new AV.Cloud.Error('缺少 questionId');
@@ -80,7 +78,6 @@ async function updateQuestionStats({ questionId, isCorrect, userAnswer, question
   let stat = await query.first({ useMasterKey: true });
 
   if (!stat) {
-    // 创建新记录
     const WrongQuestionStats = AV.Object.extend('WrongQuestionStats');
     stat = new WrongQuestionStats();
     stat.set('questionId', questionId);
@@ -91,21 +88,17 @@ async function updateQuestionStats({ questionId, isCorrect, userAnswer, question
     stat.set('optionStats', {});
 
     const acl = new AV.ACL();
-    acl.setPublicReadAccess(true); // 允许公开读取排行榜
+    acl.setPublicReadAccess(true);
     acl.setPublicWriteAccess(false);
     stat.setACL(acl);
   }
 
-  // 1. 总尝试次数 +1
   stat.increment('totalAttempts', 1);
 
-  // 2. 如果做错，错误次数 +1，并记录选项分布
   if (isCorrect === false) {
     stat.increment('errorCount', 1);
-
     if (userAnswer) {
       const optionStats = stat.get('optionStats') || {};
-      // 兼容 "A", "AB" 这种字符串格式
       for (const char of String(userAnswer)) {
         optionStats[char] = (optionStats[char] || 0) + 1;
       }
@@ -126,12 +119,16 @@ async function updateQuestionStats({ questionId, isCorrect, userAnswer, question
  */
 AV.Cloud.define('secureSync', async (request) => {
   const currentUser = request.currentUser;
-  if (!currentUser) throw new AV.Cloud.Error('未登录用户无法保存进度', 401);
+
+  // FIX: 使用 { code: 401 } 对象格式，修复 TypeError crash
+  if (!currentUser) throw new AV.Cloud.Error('未登录用户无法保存进度', { code: 401 });
 
   const email = currentUser.get('email');
   const emailVerified = currentUser.get('emailVerified');
-  if (!email) throw new AV.Cloud.Error('请先绑定邮箱后再同步进度', 403);
-  if (!emailVerified) throw new AV.Cloud.Error('您的邮箱尚未验证，请完成验证后再同步', 403);
+
+  // FIX: 修复 crash，不要直接传数字
+  if (!email) throw new AV.Cloud.Error('请先绑定邮箱后再同步进度', { code: 403 });
+  if (!emailVerified) throw new AV.Cloud.Error('您的邮箱尚未验证，请完成验证后再同步', { code: 403 });
 
   const params = request.params;
   const now = new Date();
@@ -161,7 +158,7 @@ AV.Cloud.define('secureSync', async (request) => {
       if (timeDeltaSeconds < minRequiredTime) {
         const msg = `同步失败：异常刷题行为。${Math.round(timeDeltaSeconds)}秒完成了${diffCount}题。`;
         console.warn(`[Anti-Cheat] User: ${currentUser.id}, Diff: ${diffCount}, Time: ${timeDeltaSeconds}s`);
-        throw new AV.Cloud.Error(msg, 400);
+        throw new AV.Cloud.Error(msg, { code: 400 });
       }
     }
   } else {
@@ -189,7 +186,7 @@ AV.Cloud.define('secureSync', async (request) => {
  */
 AV.Cloud.define('heartbeat', async (request) => {
   const currentUser = request.currentUser;
-  if (!currentUser) throw new AV.Cloud.Error('未登录', 401);
+  if (!currentUser) throw new AV.Cloud.Error('未登录', { code: 401 });
 
   const mode = request.params && request.params.mode ? String(request.params.mode) : 'unknown';
   const Presence = AV.Object.extend('UserPresence');
@@ -200,7 +197,7 @@ AV.Cloud.define('heartbeat', async (request) => {
   try {
     rec = await q.first({ useMasterKey: true });
   } catch (err) {
-    // 忽略找不到表的错误
+    // ignore
   }
 
   if (!rec) {
@@ -220,8 +217,10 @@ AV.Cloud.define('heartbeat', async (request) => {
 
 /**
  * 3. 在线人数 (onlineCount)
+ * OPTIMIZATION: 添加 { fetchUser: false } 选项
+ * 这个接口不需要验证用户身份，关闭 fetchUser 可以大幅减少 429 错误
  */
-AV.Cloud.define('onlineCount', async (request) => {
+AV.Cloud.define('onlineCount', { fetchUser: false }, async (request) => {
   const windowSec = Math.max(30, Math.min(3600, Number(request.params?.windowSec || 600)));
   const since = new Date(Date.now() - windowSec * 1000);
 
@@ -243,7 +242,7 @@ AV.Cloud.define('onlineCount', async (request) => {
 });
 
 /**
- * 4. 提交答题统计 (recordQuestionResult) - 新版接口
+ * 4. 提交答题统计 (recordQuestionResult)
  */
 AV.Cloud.define('recordQuestionResult', async function(request) {
   const user = request.currentUser;
@@ -254,7 +253,7 @@ AV.Cloud.define('recordQuestionResult', async function(request) {
   try {
     await updateQuestionStats({
       questionId,
-      isCorrect, // true 或 false
+      isCorrect,
       userAnswer,
       questionTitle,
       category
@@ -267,39 +266,34 @@ AV.Cloud.define('recordQuestionResult', async function(request) {
 });
 
 /**
- * 5. 【兼容修复】提交错题 (recordWrongAnswer) - 旧版接口兼容
- * 用于解决前端未刷新时的 404 错误
+ * 5. 【兼容修复】提交错题 (recordWrongAnswer)
  */
 AV.Cloud.define('recordWrongAnswer', async function(request) {
   const user = request.currentUser;
-  // 即使未登录，为了避免前端红字报错，也可以选择放行或仅仅 log
   if (!user) console.warn('Legacy recordWrongAnswer called without user');
 
   const { questionId, questionTitle, category } = request.params;
 
-  console.log(`[Compatibility] recordWrongAnswer called for ${questionId}`);
-
   try {
-    // 强制 isCorrect = false，因为旧接口只会调用于错题
     await updateQuestionStats({
       questionId,
       isCorrect: false,
-      userAnswer: 'OLD', // 标记旧版数据
+      userAnswer: 'OLD',
       questionTitle,
       category
     });
     return { success: true };
   } catch (error) {
     console.error('recordWrongAnswer compatibility error:', error);
-    // 吞掉错误，防止前端报错干扰用户体验
     return { success: false };
   }
 });
 
 /**
  * 6. 获取错题排行榜 (getWrongQuestionRanking)
+ * OPTIMIZATION: 添加 { fetchUser: false }，减少API调用
  */
-AV.Cloud.define('getWrongQuestionRanking', async function(request) {
+AV.Cloud.define('getWrongQuestionRanking', { fetchUser: false }, async function(request) {
   const { limit = 20 } = request.params;
 
   try {
@@ -339,8 +333,8 @@ AV.Cloud.define('likeComment', async (request) => {
   const currentUser = request.currentUser;
   const { commentId } = request.params || {};
 
-  if (!currentUser) throw new AV.Cloud.Error('未登录', 401);
-  if (!commentId) throw new AV.Cloud.Error('缺少评论 ID', 400);
+  if (!currentUser) throw new AV.Cloud.Error('未登录', { code: 401 });
+  if (!commentId) throw new AV.Cloud.Error('缺少评论 ID', { code: 400 });
 
   const result = await handleLikeToggle({
     currentUser,
@@ -362,8 +356,8 @@ AV.Cloud.define('likeExplanation', async (request) => {
   const currentUser = request.currentUser;
   const { explanationId } = request.params || {};
 
-  if (!currentUser) throw new AV.Cloud.Error('未登录', 401);
-  if (!explanationId) throw new AV.Cloud.Error('缺少解析 ID', 400);
+  if (!currentUser) throw new AV.Cloud.Error('未登录', { code: 401 });
+  if (!explanationId) throw new AV.Cloud.Error('缺少解析 ID', { code: 400 });
 
   const result = await handleLikeToggle({
     currentUser,

@@ -196,8 +196,10 @@ function Report() {
         try {
           const commentQuery = new AV.Query('QuestionComment');
           commentQuery.equalTo('author', user);
-          commentQuery.descending('createdAt');
+          commentQuery.descending('updatedAt');
+
           commentQuery.include('likedBy');
+          commentQuery.limit(1000);
           const comments = await commentQuery.find();
           setUserComments(comments.map(c => ({
             id: c.id,
@@ -210,8 +212,9 @@ function Report() {
 
           const expQuery = new AV.Query('UserExplanation');
           expQuery.equalTo('author', user);
-          expQuery.descending('createdAt');
+          expQuery.descending('updatedAt');
           expQuery.include('votedBy');
+          expQuery.limit(1000);
           const exps = await expQuery.find();
           setUserExplList(exps.map(e => ({
             id: e.id,
