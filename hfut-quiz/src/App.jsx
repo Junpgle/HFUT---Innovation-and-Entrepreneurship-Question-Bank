@@ -1,3 +1,8 @@
+/*
+* version:3.6.1
+* log: 非常感谢大家的支持!目前服务器爆火,免费额度已经榨干。此版本优化api调用次数,新增api受限提示。（查询在线人数为4分钟一次）若遇到api受限提示，请明天再来同步数据！
+* */
+
 import {useState, useEffect, useRef} from 'react';
 import AV from 'leancloud-storage';
 import * as XLSX from 'xlsx';
@@ -18,7 +23,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.5.6';
+const CURRENT_APP_VERSION = '3.6.1';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -2566,36 +2571,43 @@ function App() {
     useEffect(() => {
         if (!currentUser) return;
         let cancelled = false;
+
         const sendHeartbeat = async (mode = currentMode) => {
             try {
                 await AV.Cloud.run('heartbeat', { mode });
             } catch (error) {
-                // Silently ignore heartbeat errors to avoid disrupting user experience
+                checkApiLimitError(error); // 别忘了保留之前的额度检查
                 console.debug('Heartbeat failed:', error);
             }
         };
+
         const fetchCount = async () => {
             try {
-                const res = await AV.Cloud.run('onlineCount', { windowSec: 180 }); // 不过滤模式，包含 dashboard
-                if (!cancelled) setOnlineCount(res?.count ?? 0);
+                const res = await AV.Cloud.run('onlineCount', { windowSec: 180 });
+                // 🟢 核心修改：取 1 和服务端返回值的最大值
+                if (!cancelled) setOnlineCount(Math.max(1, res?.count ?? 0));
             } catch (error) {
-                // Silently ignore online count errors as it's not critical functionality
+                checkApiLimitError(error);
                 console.debug('Online count fetch failed:', error);
             }
         };
+
         // 首次立即上报与拉取
         sendHeartbeat();
         fetchCount();
-        const hTimer = setInterval(() => sendHeartbeat(), 30000);
-        const cTimer = setInterval(() => fetchCount(), 20000);
+
+        // 这里的 240000 是 4 分钟，非常省流
+        const hTimer = setInterval(() => sendHeartbeat(), 240000);
+        const cTimer = setInterval(() => fetchCount(), 240000);
+
         return () => { cancelled = true; clearInterval(hTimer); clearInterval(cTimer); };
     }, [currentUser, currentMode]);
 
-    // 在模式切换时立即发送心跳（确保 mode 最新）
-    useEffect(() => {
-        if (!currentUser) return;
-        AV.Cloud.run('heartbeat', { mode: currentMode }).catch(()=>{});
-    }, [currentMode, currentUser]);
+    // // 在模式切换时立即发送心跳（确保 mode 最新）
+    // useEffect(() => {
+    //     if (!currentUser) return;
+    //     AV.Cloud.run('heartbeat', { mode: currentMode }).catch(()=>{});
+    // }, [currentMode, currentUser]);
 
     // 自动加载评论和用户解析（无官方解析时）
     useEffect(() => {
