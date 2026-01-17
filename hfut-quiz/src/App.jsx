@@ -407,6 +407,61 @@ function App() {
         return questions;
     };
 
+    // 【新增】检查版本更新
+    useEffect(() => {
+        const checkVersion = async () => {
+            try {
+                const query = new AV.Query('SystemConfig');
+                query.equalTo('key', 'app_version');
+                const config = await query.first();
+
+                if (config) {
+                    const latestVersion = config.get('value');
+                    const changelog = config.get('changelog') || '修复了一些已知问题，优化了使用体验。';
+
+                    // 如果云端版本与本地不一致，且云端版本存在
+                    if (latestVersion && latestVersion !== CURRENT_APP_VERSION) {
+                        setRemoteVersionInfo({
+                            version: latestVersion,
+                            log: changelog
+                        });
+                        setShowUpdateModal(true);
+                    }
+                }
+                console.log('查到的配置:', config);
+            } catch (e) {
+                console.error('检查更新失败', e);
+            }
+        };
+
+        // 延迟 2 秒检查，避免跟主数据加载抢网络资源
+        const timer = setTimeout(() => checkVersion(), 2000);
+        return () => clearTimeout(timer);
+    }, []);
+
+    useEffect(() => {
+        const debugCheck = async () => {
+            console.log("开始调试 SystemConfig...");
+            try {
+                const query = new AV.Query('SystemConfig');
+                // 【注意】这里我不加 equalTo，直接查所有数据
+                const results = await query.find();
+
+                console.log("查询结果长度:", results.length);
+
+                if (results.length > 0) {
+                    // 打印第一条数据的所有内容，看看列名到底叫什么
+                    console.log("第一条数据详情:", results[0].toJSON());
+                } else {
+                    console.log("结果为空：权限不足 或者 表里真的没数据");
+                }
+            } catch (e) {
+                console.error('查询报错:', e);
+            }
+        };
+        debugCheck();
+    }, []);
+
     // --- Hooks ---
     // 加载本地数据
     useEffect(() => {
@@ -433,33 +488,6 @@ function App() {
             }
         };
         loadLocal();
-        const checkVersion = async () => {
-            try {
-                const query = new AV.Query('SystemConfig');
-                query.equalTo('key', 'app_version');
-                const config = await query.first();
-
-                if (config) {
-                    const latestVersion = config.get('value');
-                    const changelog = config.get('changelog') || '修复了一些已知问题，优化了使用体验。';
-
-                    // 如果云端版本与本地不一致，且云端版本存在
-                    if (latestVersion && latestVersion !== CURRENT_APP_VERSION) {
-                        setRemoteVersionInfo({
-                            version: latestVersion,
-                            log: changelog
-                        });
-                        setShowUpdateModal(true);
-                    }
-                }
-            } catch (e) {
-                console.error('检查更新失败', e);
-            }
-        };
-
-        // 延迟 2 秒检查，避免跟主数据加载抢网络资源
-        const timer = setTimeout(() => checkVersion(), 2000);
-        return () => clearTimeout(timer);
     }, []);
 
     // 保存本地数据
