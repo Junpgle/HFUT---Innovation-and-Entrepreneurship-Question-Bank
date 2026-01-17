@@ -148,10 +148,12 @@ async function updateQuestionStats({ questionId, isCorrect, userAnswer, question
 // ==========================================
 
 /**
- * 1. 安全同步进度
+ * 1. 安全同步进度 (secureSync)
  */
 AV.Cloud.define('secureSync', async (request) => {
   const currentUser = request.currentUser;
+
+  // 1. 基础权限校验
   if (!currentUser) throw new AV.Cloud.Error('未登录用户无法保存进度', { code: 401 });
 
   const email = currentUser.get('email');
@@ -163,23 +165,23 @@ AV.Cloud.define('secureSync', async (request) => {
   const params = request.params;
   const now = new Date();
 
-  // 基础校验
+  // 2. 数据格式校验
   if (!Array.isArray(params.brushedIds)) throw new AV.Cloud.Error('数据格式错误');
 
-  // --- 防作弊 ---
+  // --- 3. 原有的用户进度保存逻辑 ---
+
   const query = new AV.Query('UserProgress');
   query.equalTo('user', currentUser);
   let progressRecord = await query.first({ useMasterKey: true });
 
+  // 防作弊检查 (保留原有逻辑)
   if (progressRecord) {
     const oldBrushedIds = progressRecord.get('brushedIds') || [];
     const lastUpdatedAt = progressRecord.updatedAt;
     const diffCount = params.brushedIds.length - oldBrushedIds.length;
     const timeDeltaSeconds = (now.getTime() - lastUpdatedAt.getTime()) / 1000;
 
-    // 简单限流检查：如果是大量数据更新，检查时间间隔
-    if (diffCount > 10 && timeDeltaSeconds < diffCount * 1.0) { // 稍微放宽到 1.0秒/题
-      // 仅做警告，暂不阻断，避免误伤
+    if (diffCount > 10 && timeDeltaSeconds < diffCount * 1.0) {
       console.warn(`[Suspicious] User: ${currentUser.id}, Speed: ${diffCount} in ${timeDeltaSeconds}s`);
     }
   } else {
@@ -188,10 +190,11 @@ AV.Cloud.define('secureSync', async (request) => {
     progressRecord.set('user', currentUser);
     const acl = new AV.ACL();
     acl.setReadAccess(currentUser, true);
-    acl.setWriteAccess(currentUser, false); // 用户不可直接写，必须走云函数
+    acl.setWriteAccess(currentUser, false);
     progressRecord.setACL(acl);
   }
 
+  // 更新字段
   progressRecord.set('brushedIds', params.brushedIds);
   progressRecord.set('memorizedIds', params.memorizedIds);
   progressRecord.set('masteredIds', params.masteredIds);
@@ -394,6 +397,202 @@ AV.Cloud.define('likeExplanation', async (request) => {
   });
 
   return { ...result, votes: result.count };
+});
+
+/**
+ * 【独立补录接口】recoverOutageStats
+ * 作用：专门用于扫描客户端上传的历史记录，将故障期间的答题数据补录到排行榜
+ */
+AV.Cloud.define('recoverOutageStats', async (request) => {
+  const currentUser = request.currentUser;
+
+  // 1. 必须登录才能确保不重复统计
+  if (!currentUser) return { success: false, msg: '未登录，跳过补录' };
+
+  const params = request.params;
+
+  // 2. 获取用户进度对象（用于检查是否已经补录过）
+  const query = new AV.Query('UserProgress');
+  query.equalTo('user', currentUser);
+  let progressRecord = await query.first({ useMasterKey: true });
+
+  // 如果用户还没有进度记录，说明他是新用户，肯定没参与过那次故障，直接跳过
+  if (!progressRecord) return { success: true, msg: '无进度记录，无需补录' };
+
+  // 3. 检查标记：如果已经补录过 v2 版本，直接结束
+  const hasPatched = progressRecord.get('patched_20260117_v2');
+  if (hasPatched) {
+    return { success: true, msg: '已完成补录，无需重复操作' };
+  }
+
+  // =========================================================
+  // 🔥 核心补录逻辑
+  // =========================================================
+  const OUTAGE_START = new Date('2026-01-17T18:52:51.000+08:00');
+  const OUTAGE_END   = new Date('2026-01-17T23:59:59.000+08:00');
+
+  try {
+    const history = Array.isArray(params.history) ? params.history : [];
+    const pendingStats = {};
+
+    history.forEach(h => {
+      // 筛选条件：答题操作 + 有题号 + 在故障时间窗内
+      if (h.action === 'answer' && h.questionId) {
+        const recordTime = new Date(h.timestamp);
+        if (recordTime > OUTAGE_START && recordTime < OUTAGE_END) {
+
+          if (!pendingStats[h.questionId]) {
+            pendingStats[h.questionId] = { errors: 0, attempts: 0 };
+          }
+          pendingStats[h.questionId].attempts += 1;
+          if (h.isCorrect === false) {
+            pendingStats[h.questionId].errors += 1;
+          }
+        }
+      }
+    });
+
+    const questionIdsToUpdate = Object.keys(pendingStats);
+
+    if (questionIdsToUpdate.length > 0) {
+      console.log(`[Auto Recovery] User ${currentUser.id} patching ${questionIdsToUpdate.length} questions.`);
+
+      const statQuery = new AV.Query('WrongQuestionStats');
+      statQuery.containedIn('questionId', questionIdsToUpdate);
+      statQuery.limit(1000);
+      const existingStats = await statQuery.find({ useMasterKey: true });
+
+      const statsMap = new Map();
+      existingStats.forEach(stat => statsMap.set(stat.get('questionId'), stat));
+
+      const dirtyObjects = [];
+
+      for (const qId of questionIdsToUpdate) {
+        const { errors, attempts } = pendingStats[qId];
+        let statObj = statsMap.get(qId);
+
+        if (!statObj) {
+          const WrongQuestionStats = AV.Object.extend('WrongQuestionStats');
+          statObj = new WrongQuestionStats();
+          statObj.set('questionId', qId);
+          statObj.set('questionTitle', '补录数据-等待刷新');
+          statObj.set('category', '未知');
+          statObj.set('errorCount', 0);
+          statObj.set('totalAttempts', 0);
+          const acl = new AV.ACL();
+          acl.setPublicReadAccess(true);
+          acl.setPublicWriteAccess(false);
+          statObj.setACL(acl);
+        }
+
+        if (errors > 0) statObj.increment('errorCount', errors);
+        if (attempts > 0) statObj.increment('totalAttempts', attempts);
+        dirtyObjects.push(statObj);
+      }
+
+      if (dirtyObjects.length > 0) {
+        await AV.Object.saveAll(dirtyObjects, { useMasterKey: true });
+      }
+    }
+
+    // ✅ 无论这次有没有找到数据，都打上标记。
+    // 因为只要检查过一次历史记录没发现问题，以后也不用再检查了。
+    progressRecord.set('patched_20260117_v2', true);
+    await progressRecord.save(null, { useMasterKey: true });
+
+    return { success: true, count: questionIdsToUpdate.length };
+
+  } catch (err) {
+    console.error('[Auto Recovery Failed]', err);
+    throw new AV.Cloud.Error('补录失败: ' + err.message);
+  }
+});
+
+/**
+ * 9. 批量提交答题统计 (batchRecordQuestionResult)
+ * 作用：接收前端攒的一批数据，一次性写入数据库
+ */
+AV.Cloud.define('batchRecordQuestionResult', async (request) => {
+  const currentUser = request.currentUser;
+  if (!currentUser) throw new AV.Cloud.Error('未登录', { code: 401 });
+
+  const { results } = request.params; // results 是一个数组
+  if (!Array.isArray(results) || results.length === 0) return { success: true };
+
+  try {
+    // 1. 提取所有涉及的 questionId
+    const qIds = results.map(r => r.questionId);
+
+    // 2. 批量查询现有的统计对象 (只需 1 次 API)
+    const query = new AV.Query('WrongQuestionStats');
+    query.containedIn('questionId', qIds);
+    query.limit(1000);
+    const existingStats = await query.find({ useMasterKey: true });
+
+    // 建立映射表方便查找: questionId -> AV.Object
+    const statMap = new Map();
+    existingStats.forEach(stat => statMap.set(stat.get('questionId'), stat));
+
+    const dirtyObjects = [];
+
+    // 3. 遍历上传的结果，更新统计数据
+    for (const item of results) {
+      const { questionId, isCorrect, userAnswer, questionTitle, category } = item;
+
+      let stat = statMap.get(questionId);
+
+      // 如果数据库还没这题，新建一个
+      if (!stat) {
+        const WrongQuestionStats = AV.Object.extend('WrongQuestionStats');
+        stat = new WrongQuestionStats();
+        stat.set('questionId', questionId);
+        stat.set('questionTitle', questionTitle || '未知题目');
+        stat.set('category', category || '默认');
+        stat.set('errorCount', 0);
+        stat.set('totalAttempts', 0);
+        stat.set('optionStats', {});
+
+        const acl = new AV.ACL();
+        acl.setPublicReadAccess(true);
+        acl.setPublicWriteAccess(false);
+        stat.setACL(acl);
+
+        // 放入 Map 防止同一次批次里有重复题目导致创建多个对象
+        statMap.set(questionId, stat);
+      }
+
+      // 原子更新数据
+      stat.increment('totalAttempts', 1);
+
+      if (isCorrect === false) {
+        stat.increment('errorCount', 1);
+        if (userAnswer) {
+          const optionStats = stat.get('optionStats') || {};
+          for (const char of String(userAnswer)) {
+            optionStats[char] = (optionStats[char] || 0) + 1;
+          }
+          stat.set('optionStats', optionStats);
+        }
+      }
+
+      // 标记为待保存 (去重，防止同一个对象被 push 两次)
+      if (!dirtyObjects.includes(stat)) {
+        dirtyObjects.push(stat);
+      }
+    }
+
+    // 4. 批量保存 (只需 1 次 API)
+    if (dirtyObjects.length > 0) {
+      await AV.Object.saveAll(dirtyObjects, { useMasterKey: true });
+    }
+
+    return { success: true, count: results.length };
+
+  } catch (error) {
+    console.error('Batch stats error:', error);
+    // 不抛出错误，避免前端红字
+    return { success: false, msg: error.message };
+  }
 });
 
 module.exports = AV.Cloud;
