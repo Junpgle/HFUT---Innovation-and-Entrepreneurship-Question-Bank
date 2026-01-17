@@ -265,6 +265,20 @@ function App() {
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [remoteVersionInfo, setRemoteVersionInfo] = useState({ version: '', log: '' });
 
+    // API 额度受限状态
+    const [apiLimitReached, setApiLimitReached] = useState(false);
+
+    // 统一处理 API 限制错误
+    const checkApiLimitError = (error) => {
+        if (!error) return;
+        // 错误码 140: 超过应用额度 (免费版每天3万次)
+        // 错误码 429: 请求过于频繁
+        if (error.code === 140) {
+            setApiLimitReached(true);
+            console.error("API Daily Limit Exceeded");
+        }
+    };
+
     // 搜索功能状态
     const [searchKeyword, setSearchKeyword] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -276,6 +290,7 @@ function App() {
         includeUnanswered: true
     });
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+
 
     // --- 数据加载工具 ---
 
@@ -771,6 +786,7 @@ function App() {
             }
 
         } catch (e) {
+            checkApiLimitError(e);
             if (!silent) {
                 setSyncStatus('error');
 
@@ -1089,6 +1105,7 @@ function App() {
             });
             // console.log('统计提交成功');
         } catch (e) {
+            checkApiLimitError(e);
             // 统计是非关键业务，发生错误记录日志即可，不要阻断用户继续答题
             console.error('提交答题统计失败:', e);
         }
@@ -2789,6 +2806,34 @@ function App() {
 
             {/* Question Detail Modal for Leaderboard */}
             {viewingRankQuestion && renderQuestionDetailModal()}
+
+            {/* 【新增】API 额度耗尽提示横幅 */}
+            {apiLimitReached && (
+                <div className="fixed bottom-0 left-0 right-0 z-[100] animate-enter">
+                    <div className="bg-red-600 text-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.2)]">
+                        <div className="max-w-4xl mx-auto flex items-start md:items-center gap-4">
+                            <div className="p-2 bg-white/20 rounded-full shrink-0 animate-pulse">
+                                <Zap size={24} className="text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-lg flex items-center gap-2">
+                                    服务暂时受限 (API 额度耗尽)
+                                </h3>
+                                <p className="text-red-100 text-sm mt-1 leading-snug">
+                                    开发者也是"用爱发电"💸，今天的服务器免费资源已被大家的热情耗尽啦！<br className="hidden md:block"/>
+                                    <strong>云端同步、用户提供的解析、评论、点赞和全站错题统计功能</strong>暂时无法使用，但<strong>本地刷题不受影响</strong>。请明天再来同步数据吧！
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setApiLimitReached(false)}
+                                className="p-2 hover:bg-white/20 rounded-lg transition-colors shrink-0"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
