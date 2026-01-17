@@ -18,7 +18,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.5.5';
+const CURRENT_APP_VERSION = '3.5.6';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -437,29 +437,6 @@ function App() {
         // 延迟 2 秒检查，避免跟主数据加载抢网络资源
         const timer = setTimeout(() => checkVersion(), 2000);
         return () => clearTimeout(timer);
-    }, []);
-
-    useEffect(() => {
-        const debugCheck = async () => {
-            console.log("开始调试 SystemConfig...");
-            try {
-                const query = new AV.Query('SystemConfig');
-                // 【注意】这里我不加 equalTo，直接查所有数据
-                const results = await query.find();
-
-                console.log("查询结果长度:", results.length);
-
-                if (results.length > 0) {
-                    // 打印第一条数据的所有内容，看看列名到底叫什么
-                    console.log("第一条数据详情:", results[0].toJSON());
-                } else {
-                    console.log("结果为空：权限不足 或者 表里真的没数据");
-                }
-            } catch (e) {
-                console.error('查询报错:', e);
-            }
-        };
-        debugCheck();
     }, []);
 
     // --- Hooks ---
