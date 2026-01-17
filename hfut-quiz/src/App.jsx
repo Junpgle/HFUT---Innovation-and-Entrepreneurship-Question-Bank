@@ -1,6 +1,10 @@
 /*
-* version:3.6.1
-* log: 非常感谢大家的支持!目前服务器爆火,免费额度已经榨干。此版本优化api调用次数,新增api受限提示。（查询在线人数为4分钟一次）若遇到api受限提示，请明天再来同步数据！
+* version:3.6.2
+* log: 非常感谢大家的支持!目前服务器爆火,免费额度已经榨干。若遇到api受限提示，请明天再来同步数据！
+* 1. 此版本优化api调用次数,新增api受限提示
+* 2. 查询在线人数为修改为4分钟一次
+* 3. 新增API受限期间错题自动补录
+* 4. 新增后端批量保存功能，大幅减少api调用次数
 * */
 
 import {useState, useEffect, useRef} from 'react';
@@ -23,7 +27,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.6.1';
+const CURRENT_APP_VERSION = '3.6.2';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -273,6 +277,11 @@ function App() {
     // API 额度受限状态
     const [apiLimitReached, setApiLimitReached] = useState(false);
 
+    // 批量发送题目状态策略
+    const statsBuffer = useRef([]);
+    const BATCH_THRESHOLD = 5; // 攒够 5 题发一次
+    const FLUSH_INTERVAL = 30 * 1000; // 或者每 30 秒发一次
+
     // 统一处理 API 限制错误
     const checkApiLimitError = (error) => {
         if (!error) return;
@@ -281,6 +290,24 @@ function App() {
         if (error.code === 140) {
             setApiLimitReached(true);
             console.error("API Daily Limit Exceeded");
+        }
+    };
+
+    // 【新增】将缓冲区的数据发送到云端
+    const flushStats = async () => {
+        const payload = [...statsBuffer.current]; // 复制一份
+        if (payload.length === 0) return;
+
+        // 立刻清空缓冲区，防止重复发送
+        statsBuffer.current = [];
+
+        try {
+            // console.log(`正在批量发送 ${payload.length} 条统计数据...`);
+            await AV.Cloud.run('batchRecordQuestionResult', { results: payload });
+        } catch (e) {
+            checkApiLimitError(e);
+            console.error('批量统计发送失败', e);
+            // 可选：发送失败可以把数据塞回去下次再发，但为了逻辑简单，这里选择丢弃（非核心数据）
         }
     };
 
@@ -579,6 +606,42 @@ function App() {
             }
         })();
     }, []);
+
+    // 【新增】自动补录故障期间的数据
+    useEffect(() => {
+        const tryAutoRecovery = async () => {
+            // 必须满足：已加载本地数据、用户已登录、API 没受限
+            if (!hydrated || !currentUser || apiLimitReached) return;
+
+            // 为了避免每次刷新页面都请求 API，我们可以先在本地 localStorage 查一下标记
+            // 这样能节省大量的 API 调用（连云函数都不用调）
+            const localPatchedKey = `patched_20260117_v2_${currentUser.id}`;
+            if (localStorage.getItem(localPatchedKey) === 'true') {
+                return; // 本地标记已处理，直接跳过
+            }
+
+            try {
+                // console.log('正在尝试自动补录数据...');
+                const res = await AV.Cloud.run('recoverOutageStats', {
+                    history: history // 把本地历史传上去
+                });
+
+                if (res && res.success) {
+                    // 云端处理成功（或者是显示"无需补录"），在本地打个标记
+                    // 这样下次刷新页面就不用再发请求了
+                    localStorage.setItem(localPatchedKey, 'true');
+                    console.log('数据补录检查完成:', res.msg || res.count);
+                }
+            } catch (e) {
+                // 补录失败（可能是网络问题），不打标记，下次进来再试
+                console.warn('自动补录请求失败（不影响使用）:', e);
+            }
+        };
+
+        // 延迟 5 秒执行，让网页先渲染完，避免抢占启动资源
+        const timer = setTimeout(tryAutoRecovery, 5000);
+        return () => clearTimeout(timer);
+    }, [hydrated, currentUser, history, apiLimitReached]);
 
     // 加载题库
     useEffect(() => {
@@ -1096,23 +1159,22 @@ function App() {
         setShowSearchResults(false);
     };
 
+    // 发送问题状态
     const submitQuestionResult = async (questionId, isCorrect, questionTitle, category, userAnswer = '') => {
-        // 确保已登录 (根据你的项目实际情况获取 currentUser)
         if (!currentUser) return;
 
-        try {
-            await AV.Cloud.run('recordQuestionResult', {
-                questionId,
-                isCorrect,      // 【关键新增参数】 true=答对, false=答错
-                questionTitle,
-                category,
-                userAnswer      // 选填：仅当 isCorrect 为 false 时，后端会记录此选项用于分析干扰项
-            });
-            // console.log('统计提交成功');
-        } catch (e) {
-            checkApiLimitError(e);
-            // 统计是非关键业务，发生错误记录日志即可，不要阻断用户继续答题
-            console.error('提交答题统计失败:', e);
+        // 1. 推入缓冲区
+        statsBuffer.current.push({
+            questionId,
+            isCorrect,
+            questionTitle,
+            category,
+            userAnswer
+        });
+
+        // 2. 检查是否达到发送阈值
+        if (statsBuffer.current.length >= BATCH_THRESHOLD) {
+            await flushStats();
         }
     };
 
@@ -2624,6 +2686,24 @@ function App() {
             ensureExplanationsLoaded(q.id);
         }
     }, [showExplanation, currentIndex, questions, currentMode]);
+
+    // 定时发送统计数据，确保数据不滞留太久
+    useEffect(() => {
+        const timer = setInterval(() => {
+            if (statsBuffer.current.length > 0) {
+                flushStats();
+            }
+        }, FLUSH_INTERVAL);
+
+        // 组件卸载或页面刷新时，尝试发送剩余数据
+        return () => {
+            clearInterval(timer);
+            // 注意：React卸载时的异步请求不一定能保证发出，但在单页应用切换路由时是有效的
+            if (statsBuffer.current.length > 0) {
+                flushStats();
+            }
+        };
+    }, []);
 
     // 渲染错题排行榜页面
     const renderRankingPage = () => (
