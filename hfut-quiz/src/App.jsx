@@ -1,10 +1,12 @@
 /*
-* version:3.6.3
+* version:3.6.5
 * log: 非常感谢大家的支持!目前服务器爆火，若遇到api受限提示，请明天再来同步数据！
 * 1. 此版本优化api调用次数,新增api受限提示
 * 2. 查询在线人数为修改为5分钟一次
 * 3. 新增API受限期间错题自动补录
 * 4. 新增后端批量保存功能，大幅减少api调用次数
+* 5. 修复了函数丢失的问题
+* 6. 新增api耗尽时cloudflare版本指引
 * */
 
 import {useState, useEffect, useRef} from 'react';
@@ -27,7 +29,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.6.3';
+const CURRENT_APP_VERSION = '3.6.5';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -62,6 +64,35 @@ const BANK_CACHE_VERSION = 1;
 
 // 初始化 SDK
 AV.init({appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL});
+
+const formatDate = (isoString) => {
+    if (!isoString) return '未知时间';
+
+    // 如果是 SQLite 默认格式 "YYYY-MM-DD HH:MM:SS" (没有 T 和 Z)
+    // 我们手动补上 " UTC" 让浏览器正确识别
+    let dateStr = String(isoString);
+    if (!dateStr.includes('T') && !dateStr.includes('Z')) {
+        dateStr = dateStr.replace(' ', 'T') + 'Z';
+    }
+
+    // 如果已经是 ISO 格式但没带 Z (极少见)，也补上
+    // 这里主要处理 D1 返回的格式
+
+    const date = new Date(dateStr);
+
+    // 检查是否有效
+    if (isNaN(date.getTime())) return isoString;
+
+    // 转为本地字符串 (例如: 2026/1/17 21:00:00)
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false // 24小时制
+    });
+};
 
 // 安全存储封装：IndexedDB 不可用时回退到 localStorage
 const safeGet = async (key, fallback = null) => {
@@ -2584,7 +2615,44 @@ function App() {
     // );
 
     const renderLoginScreen = () => (
-        <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
+        <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200 relative">
+            {/* API 受限提示横幅 - 登录界面专用 */}
+            {apiLimitReached && (
+                <div className="fixed top-0 left-0 right-0 z-[100] animate-enter">
+                    <div className="bg-red-600 text-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
+                        <div className="max-w-4xl mx-auto flex items-start md:items-center gap-4">
+                            <div className="p-2 bg-white/20 rounded-full shrink-0 animate-pulse">
+                                <Zap size={24} className="text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-lg flex items-center gap-2">
+                                    服务暂时受限 (API 额度耗尽)
+                                </h3>
+                                <p className="text-red-100 text-sm mt-1 leading-snug">
+                                    今天的服务器免费资源已被耗尽，<strong>请前往备用网站继续刷题</strong>：<br className="hidden md:block"/>
+                                    👉 <a
+                                        href="https://cxcy.junpgle.me/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="underline font-bold hover:text-white transition-colors text-yellow-200"
+                                    >
+                                        https://cxcy.junpgle.me/
+                                    </a>
+                                    <br className="hidden md:block"/>
+                                    <span className="text-xs opacity-90">(已迁移全部数据，截止 2026.1.18 11:00)</span>
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => setApiLimitReached(false)}
+                                className="p-2 hover:bg-white/20 rounded-lg transition-colors shrink-0"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="glass p-6 md:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50">
                 <div className="text-center mb-8">
                     <div
@@ -2905,7 +2973,7 @@ function App() {
             {/* Question Detail Modal for Leaderboard */}
             {viewingRankQuestion && renderQuestionDetailModal()}
 
-            {/* 【新增】API 额度耗尽提示横幅 */}
+            {/* 【修改】API 额度耗尽提示横幅 - 区分登录状态 */}
             {apiLimitReached && (
                 <div className="fixed bottom-0 left-0 right-0 z-[100] animate-enter">
                     <div className="bg-red-600 text-white p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.2)]">
@@ -2917,10 +2985,36 @@ function App() {
                                 <h3 className="font-bold text-lg flex items-center gap-2">
                                     服务暂时受限 (API 额度耗尽)
                                 </h3>
-                                <p className="text-red-100 text-sm mt-1 leading-snug">
-                                    开发者也是"用爱发电"💸，今天的服务器免费资源已被大家的热情耗尽啦！<br className="hidden md:block"/>
-                                    <strong>云端同步、用户提供的解析、评论、点赞和全站错题统计功能</strong>暂时无法使用，但<strong>本地刷题不受影响</strong>。请明天再来同步数据吧！
-                                </p>
+                                {!currentUser ? (
+                                    // 未登录用户的提示
+                                    <p className="text-red-100 text-sm mt-1 leading-snug">
+                                        今天的服务器免费资源已被耗尽，<strong>请前往备用网站继续刷题</strong>：<br className="hidden md:block"/>
+                                        👉 <a
+                                            href="https://cxcy.junpgle.me/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline font-bold hover:text-white transition-colors text-yellow-200"
+                                        >
+                                            https://cxcy.junpgle.me/
+                                        </a>
+                                        <br className="hidden md:block"/>
+                                        <span className="text-xs opacity-90">(已迁移全部数据，截止 2026.1.18 11:00)</span>
+                                    </p>
+                                ) : (
+                                    // 已登录用户的提示
+                                    <p className="text-red-100 text-sm mt-1 leading-snug">
+                                        开发者也是"用爱发电"💸，今天的服务器免费资源已被大家的热情耗尽啦！<br className="hidden md:block"/>
+                                        <strong>云端同步、用户提供的解析、评论、点赞和全站错题统计功能</strong>暂时无法使用，但<strong>本地刷题不受影响</strong>。请明天再来同步数据吧！
+                                        或者尝试我的备用网站 <a
+                                            href="https://cxcy.junpgle.me/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="underline font-bold hover:text-white transition-colors"
+                                        >
+                                            https://cxcy.junpgle.me/
+                                        </a>, 已迁移Leancloud数据 (截止2026.1.18 11:00)
+                                    </p>
+                                )}
                             </div>
                             <button
                                 onClick={() => setApiLimitReached(false)}
