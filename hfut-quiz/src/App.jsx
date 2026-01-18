@@ -1486,7 +1486,7 @@ function App() {
                     return (
                         <div key={exp.id} className="p-2 rounded-lg bg-white border border-slate-100 space-y-2">
                             <div className="text-xs text-slate-500 flex justify-between items-center">
-                                <span>{exp.author} · {new Date(exp.createdAt).toLocaleString()}</span>
+                                <span>{exp.author} · {formatDate(exp.createdAt)}</span>
                                 {isOwner && !isEditing && (
                                     <button onClick={() => {setEditingExplanationId(exp.id); setEditingExplanationContent(exp.content);}} className="text-blue-600 text-xs">编辑</button>
                                 )}

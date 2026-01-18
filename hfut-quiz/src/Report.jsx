@@ -388,7 +388,7 @@ function Report() {
           return (
             <div key={exp.id} className="bg-white border border-slate-100 p-3 rounded-lg space-y-2">
               <div className="text-xs text-slate-500 flex items-center justify-between">
-                <span>{exp.author} · {new Date(exp.createdAt).toLocaleString()}</span>
+                <span>{exp.author} · {formatDate(exp.createdAt)}</span>
                 {isOwner && !isEditing && <button onClick={() => handleStartEditExp(exp)} className="text-blue-600 text-xs">编辑</button>}
               </div>
               {isEditing ? (
@@ -515,7 +515,7 @@ function Report() {
                         <>
                           <p className="text-sm text-slate-600">{comment.content}</p>
                           <div className="flex items-center gap-2 text-xs text-slate-400">
-                            <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
+                            <span>{formatDate(comment.createdAt)}</span>
                             <button onClick={() => {setEditingCommentId(comment.id); setEditingCommentContent(comment.content);}} className="text-blue-600 hover:text-blue-700">编辑</button>
                             <button onClick={() => handleDeleteComment(comment.id)} className="text-red-600 hover:text-red-700">删除</button>
                           </div>
