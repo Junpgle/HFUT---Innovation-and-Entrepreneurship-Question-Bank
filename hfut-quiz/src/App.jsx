@@ -1,8 +1,8 @@
 /*
-* version:3.6.2
-* log: 非常感谢大家的支持!目前服务器爆火,免费额度已经榨干。若遇到api受限提示，请明天再来同步数据！
+* version:3.6.3
+* log: 非常感谢大家的支持!目前服务器爆火，若遇到api受限提示，请明天再来同步数据！
 * 1. 此版本优化api调用次数,新增api受限提示
-* 2. 查询在线人数为修改为4分钟一次
+* 2. 查询在线人数为修改为5分钟一次
 * 3. 新增API受限期间错题自动补录
 * 4. 新增后端批量保存功能，大幅减少api调用次数
 * */
@@ -27,7 +27,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.6.2';
+const CURRENT_APP_VERSION = '3.6.3';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -279,8 +279,8 @@ function App() {
 
     // 批量发送题目状态策略
     const statsBuffer = useRef([]);
-    const BATCH_THRESHOLD = 5; // 攒够 5 题发一次
-    const FLUSH_INTERVAL = 30 * 1000; // 或者每 30 秒发一次
+    const BATCH_THRESHOLD = 15; // 攒够 15 题发一次
+    const FLUSH_INTERVAL = 60 * 1000; // 或者每 60 秒发一次
 
     // 统一处理 API 限制错误
     const checkApiLimitError = (error) => {
@@ -293,7 +293,13 @@ function App() {
         }
     };
 
-    // 【新增】将缓冲区的数据发送到云端
+    // 💾 新增：内存缓存池 (不会触发重新渲染，专门存数据)
+    const dataCache = useRef({
+        comments: {},     // 格式: { questionId: [list...] }
+        explanations: {}  // 格式: { questionId: [list...] }
+    });
+
+    // 将缓冲区的数据发送到云端
     const flushStats = async () => {
         const payload = [...statsBuffer.current]; // 复制一份
         if (payload.length === 0) return;
@@ -2658,9 +2664,9 @@ function App() {
         sendHeartbeat();
         fetchCount();
 
-        // 这里的 240000 是 4 分钟，非常省流
-        const hTimer = setInterval(() => sendHeartbeat(), 240000);
-        const cTimer = setInterval(() => fetchCount(), 240000);
+        // 这里的 300000 是 5 分钟，非常省流
+        const hTimer = setInterval(() => sendHeartbeat(), 300000);
+        const cTimer = setInterval(() => fetchCount(), 300000);
 
         return () => { cancelled = true; clearInterval(hTimer); clearInterval(cTimer); };
     }, [currentUser, currentMode]);
