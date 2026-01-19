@@ -1,5 +1,5 @@
 /*
-* version:3.6.6
+* version:3.6.7
 * log: 非常感谢大家的支持!目前服务器爆火，若遇到api受限提示，请明天再来同步数据！
 * 如还未开始刷题的,可以移步cxcy.junpgle.me新注册使用
 * 1. 此版本优化api调用次数,新增api受限提示
@@ -8,6 +8,7 @@
 * 4. 新增后端批量保存功能，大幅减少api调用次数
 * 5. 修复了函数丢失的问题
 * 6. 新增api耗尽时cloudflare版本指引
+* 7. 新增数据导入和导出功能
 * */
 
 import {useState, useEffect, useRef} from 'react';
@@ -22,7 +23,7 @@ import {
     AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
     UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
     Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
-    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy
+    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy, FileUp, FileDown
 } from 'lucide-react';
 import { validateContent } from './contentFilter.js';
 
@@ -30,7 +31,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.6.6';
+const CURRENT_APP_VERSION = '3.6.7';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -1015,6 +1016,107 @@ function App() {
         }
     };
 
+    /**
+     * 【新增】本地刷题记录导出为 JSON 文件
+     */
+    const handleExportProgress = () => {
+        try {
+            const data = {
+                header: {
+                    appName: "HFUT Innovation & Entrepreneurship Question Bank",
+                    version: CURRENT_APP_VERSION,
+                    exportDate: new Date().toISOString(),
+                    userId: currentUser?.id || 'guest'
+                },
+                payload: {
+                    brushedIds: Array.from(brushedIds),
+                    memorizedIds: Array.from(memorizedIds),
+                    masteredIds: Array.from(masteredIds),
+                    wrongIds: Array.from(wrongIds),
+                    history: history
+                }
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `HFUT_Quiz_Sync_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setSyncStatus('success');
+            setSyncMsg("导出成功");
+        } catch (err) {
+            console.error('Export failed', err);
+            setSyncStatus('error');
+            setSyncMsg("导出失败");
+        }
+    };
+
+    /**
+     * 【新增】从 JSON 文件恢复本地刷题记录
+     */
+    const handleImportProgress = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                // 允许一些宽松的格式检查
+                const p = data.payload || data.progress || data;
+
+                if (!p.brushedIds && !p.history) {
+                    throw new Error("文件格式不正确，未发现有效的刷题进度数据");
+                }
+
+                const confirmMerge = window.confirm("发现有效数据。点击'确定'将新数据与当前进度【合并】，点击'取消'则【覆盖】当前进度。");
+
+                if (confirmMerge) {
+                    setBrushedIds(prev => new Set([...prev, ...(p.brushedIds || [])]));
+                    setMemorizedIds(prev => new Set([...prev, ...(p.memorizedIds || [])]));
+                    setMasteredIds(prev => new Set([...prev, ...(p.masteredIds || [])]));
+                    setWrongIds(prev => new Set([...prev, ...(p.wrongIds || [])]));
+
+                    setHistory(prev => {
+                        const combined = [...(p.history || []), ...prev];
+                        const seen = new Set();
+                        return combined.filter(h => {
+                            const key = h.id || `${h.timestamp}-${h.questionId}`;
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    });
+                } else {
+                    if (window.confirm("❗ 警告：完全覆盖将清空当前所有本地进度及历史，确定继续吗？")) {
+                        setBrushedIds(new Set(p.brushedIds || []));
+                        setMemorizedIds(new Set(p.memorizedIds || []));
+                        setMasteredIds(new Set(p.masteredIds || []));
+                        setWrongIds(new Set(p.wrongIds || []));
+                        setHistory((p.history || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+                    } else {
+                        event.target.value = '';
+                        return;
+                    }
+                }
+
+                setSyncStatus('success');
+                setSyncMsg("导入完成");
+            } catch (err) {
+                console.error('Import failed', err);
+                alert("导入失败: " + err.message);
+                setSyncStatus('error');
+                setSyncMsg("导入出错");
+            }
+        };
+        reader.readAsText(file);
+        // 清空 input 确保同一个文件能多次触发
+        event.target.value = '';
+    };
+
     // eslint-disable-next-line no-unused-vars
     const handleManualLocalSave = async () => {
         setSyncStatus('saving-local');
@@ -1938,11 +2040,14 @@ function App() {
                             {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16}/> :
                                 <DownloadCloud size={18}/>} 恢复
                         </button>
-                        <button onClick={() => setShowResetModal(true)}
-                                className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all"
-                                title="重置进度">
-                            <Trash2 size={18}/>
+                        <button onClick={handleExportProgress}
+                                className="p-2 bg-white text-blue-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center">
+                            <FileUp size={16}/>
                         </button>
+                        <label className="p-2 bg-white text-indigo-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center cursor-pointer">
+                            <FileDown size={16}/>
+                            <input type="file" className="hidden" accept=".json" onChange={handleImportProgress} />
+                        </label>
                     </div>
                     <button onClick={() => {
                         AV.User.logOut();
@@ -2058,7 +2163,9 @@ function App() {
                                         onClick={() => openSearchQuestion(idx)}
                                         className="w-full text-left p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 transition flex flex-col gap-1 group"
                                     >
-                                        <div className="text-slate-800 font-semibold group-hover:text-blue-600 transition">{res.question}</div>
+                                        <div className="text-slate-800 font-semibold group-hover:text-blue-600 transition-colors">
+                                            {res.question}
+                                        </div>
                                         <div className="flex items-center justify-between">
                                             <span className="text-[12px] text-slate-500">{res.category} · {res.type === 'multiple' ? '多选' : res.type === 'judgment' ? '判断' : '单选'}</span>
                                             <span className="text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition">查看详情 →</span>
@@ -2085,10 +2192,14 @@ function App() {
                             className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                         <DownloadCloud size={14}/> 恢复
                     </button>
-                    <button onClick={() => setShowResetModal(true)}
-                            className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <Trash2 size={14}/>
+                    <button onClick={handleExportProgress}
+                            className="p-2 bg-white text-blue-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center">
+                        <FileUp size={16}/>
                     </button>
+                    <label className="p-2 bg-white text-indigo-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center cursor-pointer">
+                        <FileDown size={16}/>
+                        <input type="file" className="hidden" accept=".json" onChange={handleImportProgress} />
+                    </label>
                 </div>
             )}
 
@@ -2852,7 +2963,7 @@ function App() {
         sendHeartbeat();
         fetchCount();
 
-        // 这里的 300000 是 5 分钟，非常省流
+        // 这里的 300000 是 5 分，非常省流
         const hTimer = setInterval(() => sendHeartbeat(), 300000);
         const cTimer = setInterval(() => fetchCount(), 300000);
 
