@@ -54,6 +54,38 @@
       box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
     }
 
+    /* 新增：提示框样式 */
+    .notice-box {
+      background: rgba(245, 158, 11, 0.15); /* Amber 500 透明度 */
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24; /* Amber 400 */
+      padding: 1rem;
+      border-radius: 1rem;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      text-align: left;
+    }
+
+    .notice-box svg {
+      shrink-0: 0;
+      margin-top: 0.125rem;
+    }
+
+    .notice-link {
+      color: #ffffff;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+
+    .notice-link:hover {
+      color: #fbbf24;
+    }
+
     h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
     .subtitle { color: #94a3b8; font-size: 0.875rem; }
 
@@ -166,6 +198,15 @@
     </div>
     <h1>注册新账号</h1>
     <p class="subtitle">HFUT 创新创业题库 Pro</p>
+  </div>
+
+  <div class="notice-box">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+    <div>
+      <strong>重要建议：</strong>如果你还未开始刷题，推荐尝试使用备用站点：
+      <a href="https://cxcy.junpgle.me" class="notice-link">cxcy.junpgle.me</a>。
+      该站点 API 限制较松，能支撑更持久的练习体验。
+    </div>
   </div>
 
   <!-- Form -->
