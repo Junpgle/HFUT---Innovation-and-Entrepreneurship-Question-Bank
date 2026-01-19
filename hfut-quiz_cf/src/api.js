@@ -1,7 +1,6 @@
 // 🔧 如果在本地调试，用 localhost；上线后改成您的 Workers 域名
 // 💡 调试提示：请确认您的后端 Hono 实例是否使用了 app.basePath('/api')
-// 如果使用了，那么 app.post('/api/register') 会变成 /api/api/register
-const API_BASE = 'https://hfut-backend.a674155783.workers.dev/api';
+const API_BASE = 'https://worker.junpgle.me/api';
 
 // 从本地存储获取 Token
 const getToken = () => localStorage.getItem('auth_token');
@@ -22,7 +21,7 @@ export const api = {
 
         try {
             // 调试用：在控制台打印实际发送的请求
-            console.log(`[API Request] ${method} ${url}`, body || '');
+            // console.log(`[API Request] ${method} ${url}`, body || '');
 
             const res = await fetch(url, {
                 method,
@@ -56,7 +55,7 @@ export const api = {
             return data;
         } catch (err) {
             // 这里的日志能帮助你快速定位 404 到底请求的是哪个 URL
-            console.error('[API Fetch Error]', err.message);
+            // console.error('[API Fetch Error]', err.message);
             throw err;
         }
     },
