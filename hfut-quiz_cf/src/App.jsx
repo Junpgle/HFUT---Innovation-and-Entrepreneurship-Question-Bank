@@ -1,9 +1,11 @@
 /*
-* version: 4.0.1 (Cloudflare Migration)
+* version: 4.0.3 (Cloudflare Migration)
 * 1. 移除 LeanCloud SDK，完全迁移至 Cloudflare Workers + D1
 * 2. 优化 API 调用，适配 Hono 后端
 * 3. 数据结构适配 SQL 模式
 * 4. 题库源加回Leancloud File 直链
+* 5. 新增数据导入和导出功能,可以无缝从原有网站迁移旧有刷题数据
+* 6. 优化api调用次数我真没招了
 * */
 
 import {useState, useEffect, useRef} from 'react';
@@ -18,12 +20,12 @@ import {
     AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
     UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
     Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
-    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy
+    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy, FileUp, FileDown
 } from 'lucide-react';
 import { validateContent } from './contentFilter.js';
 
 // --- 配置常量 ---
-const CURRENT_APP_VERSION = '4.0.1';
+const CURRENT_APP_VERSION = '4.0.2';
 const LEADERBOARD_LIMIT = 20;
 
 // 题库源：GitHub raw 兜底
@@ -50,6 +52,7 @@ const LECTURES = [
     {id: 5, name: "第五讲：商业模式与计划", file: "创新创业基础第五讲习题.xlsx", fileId: FILE_ID_MAP[5], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/pmwL2rBspHySjkkGLY6cT4jTSENOw2QE/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%94%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
     {id: 6, name: "第六讲：融资与企业设立", file: "创新创业基础第六讲习题.xlsx", fileId: FILE_ID_MAP[6], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/7ftQpmkKv4VtISulAbszw5y9gMtShUUO/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%85%AD%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
     {id: 7, name: "第七讲：新企业成长管理", file: "创新创业基础第七讲习题.xlsx", fileId: FILE_ID_MAP[7], url: "http://lc-5wPsbnak.cn-n1.lcfile.com/ng2YT8p8yeERNwiaPXWMJBFwEdPwM7XI/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%83%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"},
+    {id: 99, name: "经典旧题库 (综合)", file: "questions_old.xls", fileId: null, url: "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/questions_old.xls"},
 ];
 
 const BANK_CACHE_KEY = 'hf_question_bank';
@@ -279,8 +282,8 @@ function App() {
 
     // 批量发送题目状态策略
     const statsBuffer = useRef([]);
-    const BATCH_THRESHOLD = 5; // 攒够 5 题发一次
-    const FLUSH_INTERVAL = 30 * 1000; // 或者每 30 秒发一次
+    const BATCH_THRESHOLD = 15; // 攒够 5 题发一次
+    const FLUSH_INTERVAL = 300 * 1000; // 或者每 300 秒发一次
 
     // 统一处理 API 限制错误 (适配 Cloudflare 429 错误)
     const checkApiLimitError = (error) => {
@@ -291,6 +294,111 @@ function App() {
             console.error("API Daily Limit Exceeded");
         }
     };
+
+    // 题目互动缓存 (优化点 3)
+    const [questionThread, setQuestionThread] = useState({});
+
+    // ==========================================
+    // 🚀 优化逻辑 1: 登录 & 初始同步
+    // ==========================================
+    const handleLogin = async (username, password) => {
+        setAuthLoading(true);
+        try {
+            const res = await api.login(username, password);
+            setCurrentUser(res.user);
+
+            if (res.initialProgress) {
+                const p = res.initialProgress;
+                setBrushedIds(new Set(p.brushedIds || []));
+                setMemorizedIds(new Set(p.memorizedIds || []));
+                setMasteredIds(new Set(p.masteredIds || []));
+                setWrongIds(new Set(p.wrongIds || []));
+                setHistory(p.history || []);
+                if (res.onlineCount) setOnlineCount(res.onlineCount);
+                setSyncMsg("同步已完成");
+                setSyncStatus('success');
+            }
+        } catch (err) {
+            alert(err.message || "登录失败");
+        } finally {
+            setAuthLoading(false);
+        }
+    };
+
+    // ==========================================
+    // 🚀 优化逻辑 2: 聚合同步 (心跳 + 进度)
+    // ==========================================
+    const performGlobalSync = async (includeProgress = false) => {
+        if (!currentUser) return;
+
+        const payload = {
+            heartbeat: true,
+            progress: includeProgress ? {
+                brushedIds: Array.from(brushedIds),
+                memorizedIds: Array.from(memorizedIds),
+                masteredIds: Array.from(masteredIds),
+                wrongIds: Array.from(wrongIds),
+                history: history.slice(0, 500)
+            } : null
+        };
+
+        try {
+            if (includeProgress) {
+                setSyncStatus('uploading');
+                setSyncMsg("同步中...");
+            }
+
+            const res = await api.request('/sync-all', 'POST', payload);
+
+            if (res.success) {
+                if (res.onlineCount) setOnlineCount(res.onlineCount);
+                if (includeProgress) {
+                    setSyncStatus('success');
+                    setSyncMsg("备份成功");
+                }
+            }
+        } catch (e) {
+            console.error("同步失败", e);
+            if (includeProgress) {
+                setSyncStatus('error');
+                setSyncMsg("同步失败");
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (!currentUser) return;
+        const timer = setInterval(() => performGlobalSync(true), 5 * 60 * 1000);
+        return () => clearInterval(timer);
+    }, [currentUser, brushedIds, history]);
+
+    // ==========================================
+    // 🚀 优化逻辑 3: 聚合加载互动内容
+    // ==========================================
+    const loadQuestionThread = async (questionId) => {
+        if (!questionId) return;
+        try {
+            const res = await api.request(`/thread/${questionId}`);
+            setQuestionThread(prev => ({
+                ...prev,
+                [questionId]: {
+                    comments: res.comments || [],
+                    explanations: res.explanations || []
+                }
+            }));
+        } catch (e) {
+            console.error("加载互动内容失败", e);
+        }
+    };
+
+    useEffect(() => {
+        if (!questions.length) return;
+        const q = questions[currentIndex];
+        if (q && !questionThread[q.id]) {
+            loadQuestionThread(q.id);
+        }
+    }, [currentIndex, questions]);
+
 
     // ✅ 改动：使用 api.batchRecord
     const flushStats = async () => {
@@ -386,13 +494,131 @@ function App() {
         }
         return Promise.reject(new Error(`所有题库源均不可用: ${errors.join(' | ')}`));
     }
-        const parseExcelData = (rows, lectureId, lectureName) => {
-            const cleanRows = rows.filter(r => r && r.length > 0);
-            if (cleanRows.length === 0) return [];
-            const questions = [];
-            let startIndex = 0;
-            const headerStr = JSON.stringify(cleanRows[0]);
-            if (headerStr.includes("题型") || headerStr.includes("题干")) startIndex = 1;
+
+    // 新增：旧题库格式解析器
+    const parseOldFormatData = (rows, lectureId, lectureName) => {
+        const cleanRows = rows.filter(r => r && r.length > 0);
+        if (cleanRows.length === 0) return [];
+
+        let startIndex = 0;
+        const h = cleanRows[0];
+        // 简单判断表头
+        if (h && (String(h[0]).includes('目录') || String(h[1]).includes('题目类型'))) startIndex = 1;
+
+        const questions = [];
+
+        for (let i = startIndex; i < cleanRows.length; i++) {
+            const row = cleanRows[i];
+            // 防止空行
+            if (!row || row.length < 2) continue;
+
+            const categoryRaw = String(row[0] || "").trim();
+            const mainType = String(row[1] || "").trim();
+            const bigQ = String(row[2] || "").trim();
+            const subType = String(row[3] || "").trim();
+            const subQ = String(row[4] || "").trim();
+            const ansRaw = String(row[5] || "").trim();
+            const exp = String(row[6] || "").trim();
+
+            if (!subQ && !bigQ) continue;
+
+            let type = 'single';
+            const typeCheck = (mainType + subType);
+
+            if (typeCheck.includes('多选')) type = 'multiple';
+            else if (typeCheck.includes('判断')) type = 'judgment';
+
+            // 填空题和大题特殊处理
+            const isFill = typeCheck.includes('填空');
+            const isBig = typeCheck.includes('大题') || mainType.includes('大题') || typeCheck.includes('简答') || mainType.includes('简答');
+
+            // 构造题干
+            let qText = subQ;
+            if (bigQ && bigQ !== subQ) {
+                if (!subQ) qText = bigQ;
+                else qText = `【背景】${bigQ}\n\n${subQ}`;
+            }
+            if (!qText && bigQ) qText = bigQ; // 只有大题题干的情况
+            if (!qText) qText = "题目内容缺失";
+
+            let options = [];
+            let rawAnswer = [];
+
+            if (isFill || isBig) {
+                // 填空题/简答题：将答案放在 Option A (index 11)
+                const fillAns = String(row[11] || "").trim(); // 尝试获取选项A作为答案
+                const explicitAns = fillAns || ansRaw; // 优先使用选项A，用户指出答案在这里
+
+                // 为了让用户能“翻卡片”看答案，构造一个“点击查看答案”的选项
+                options = [explicitAns || "（暂无标准答案，点击查看解析）"];
+                rawAnswer = [0];
+                if (isFill) type = 'fill';
+                else if (isBig) type = 'big';
+                else type = 'single'; // 兜底
+            } else if (type === 'judgment') {
+                // 判断
+                const optA = String(row[11] || "").trim();
+                const optB = String(row[12] || "").trim();
+
+                if (optA || optB) {
+                    if(optA) options.push(optA);
+                    if(optB) options.push(optB);
+                } else {
+                    options = ['正确', '错误'];
+                }
+
+                // 答案解析
+                if (/^[对TtA√Yes]/.test(ansRaw) || ansRaw === '正确') rawAnswer = [0];
+                else if (/^[错FfB×No]/.test(ansRaw) || ansRaw === '错误') rawAnswer = [1];
+                else {
+                    // 默认按 A=对 B=错
+                    if (ansRaw.toUpperCase() === 'A') rawAnswer = [0];
+                    else rawAnswer = [1];
+                }
+            } else {
+                // 单选/多选
+                const optIndices = [11, 12, 13, 14, 15, 16, 17, 18];
+                options = optIndices.map(idx => String(row[idx] || "").trim()).filter(Boolean);
+
+                if (options.length === 0) continue; // 没有选项
+
+                const normalized = ansRaw.toUpperCase().replace(/[^A-H]/g, '');
+                for (let char of normalized) {
+                    const idx = char.charCodeAt(0) - 65;
+                    if (idx >= 0 && idx < options.length) rawAnswer.push(idx);
+                }
+                rawAnswer.sort((a,b)=>a-b);
+            }
+
+            // Category精简: "/创新创业/第3讲" -> "第3讲"
+            let displayCat = categoryRaw;
+            if (displayCat.includes('/')) {
+                const parts = displayCat.split('/');
+                if(parts.length > 0) displayCat = parts[parts.length-1];
+            }
+            if(!displayCat) displayCat = lectureName;
+
+            questions.push({
+                id: `OLD-${lectureId}-${i}`,
+                type,
+                question: qText,
+                options,
+                rawAnswer,
+                explanation: exp || "暂无解析",
+                category: displayCat,
+                lectureId: lectureId
+            });
+        }
+        return questions;
+    };
+
+    const parseExcelData = (rows, lectureId, lectureName) => {
+        const cleanRows = rows.filter(r => r && r.length > 0);
+        if (cleanRows.length === 0) return [];
+        const questions = [];
+        let startIndex = 0;
+        const headerStr = JSON.stringify(cleanRows[0]);
+        if (headerStr.includes("题型") || headerStr.includes("题干")) startIndex = 1;
 
             for (let i = startIndex; i < cleanRows.length; i++) {
                 const row = cleanRows[i];
@@ -661,7 +887,15 @@ function App() {
                             const workbook = await safeParseXLSX(data);
                             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                             const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-                            const parsed = parseExcelData(rawData, lecture.id, lecture.name);
+
+                            let parsed = [];
+                            // 根据 ID 判断使用哪个解析器
+                            if (lecture.id === 99) {
+                                parsed = parseOldFormatData(rawData, lecture.id, lecture.name);
+                            } else {
+                                parsed = parseExcelData(rawData, lecture.id, lecture.name);
+                            }
+
                             if (parsed.length > 0) newBank[lecture.id] = parsed;
                         } catch (error) {
                             console.warn(`Load failed: ${lecture.file}`, error);
@@ -718,7 +952,14 @@ function App() {
                     const workbook = await safeParseXLSX(data);
                     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                     const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-                    const parsed = parseExcelData(rawData, lecture.id, lecture.name);
+
+                    let parsed = [];
+                    if (lecture.id === 99) {
+                        parsed = parseOldFormatData(rawData, lecture.id, lecture.name);
+                    } else {
+                        parsed = parseExcelData(rawData, lecture.id, lecture.name);
+                    }
+
                     if (parsed.length > 0) newBank[lecture.id] = parsed;
                 } catch (error) {
                     console.warn(`强制更新失败: ${lecture.file}`, error);
@@ -820,8 +1061,6 @@ function App() {
             }
         };
 
-        // ✅ 改动：手动恢复 (适配 Cloudflare，假设后端暂未提供专用 GET 接口，则无法恢复或需补充接口)
-        // ⚠️ 注意：之前的后端代码没有提供 GET /userProgress 接口。这里保留逻辑框架。
         // 如果您需要此功能，请在后端添加 GET 接口。
         const handleManualRestore = async (silent = false) => {
             if (!currentUser) return;
@@ -908,6 +1147,108 @@ function App() {
             }
         };
 
+
+    /**
+     * 【新增】本地刷题记录导出为 JSON 文件
+     */
+    const handleExportProgress = () => {
+        try {
+            const data = {
+                header: {
+                    appName: "HFUT Innovation & Entrepreneurship Question Bank (CF)",
+                    version: CURRENT_APP_VERSION,
+                    exportDate: new Date().toISOString(),
+                    userId: currentUser?.id || 'guest'
+                },
+                payload: {
+                    brushedIds: Array.from(brushedIds),
+                    memorizedIds: Array.from(memorizedIds),
+                    masteredIds: Array.from(masteredIds),
+                    wrongIds: Array.from(wrongIds),
+                    history: history
+                }
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `HFUT_Quiz_CF_Sync_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setSyncStatus('success');
+            setSyncMsg("导出成功");
+        } catch (err) {
+            console.error('Export failed', err);
+            setSyncStatus('error');
+            setSyncMsg("导出失败");
+        }
+    };
+
+    /**
+     * 【新增】从 JSON 文件恢复本地刷题记录
+     */
+    const handleImportProgress = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                // 允许一些宽松的格式检查
+                const p = data.payload || data.progress || data;
+
+                if (!p.brushedIds && !p.history) {
+                    throw new Error("文件格式不正确，未发现有效的刷题进度数据");
+                }
+
+                const confirmMerge = window.confirm("发现有效数据。点击'确定'将新数据与当前进度【合并】，点击'取消'则【覆盖】当前进度。");
+
+                if (confirmMerge) {
+                    setBrushedIds(prev => new Set([...prev, ...(p.brushedIds || [])]));
+                    setMemorizedIds(prev => new Set([...prev, ...(p.memorizedIds || [])]));
+                    setMasteredIds(prev => new Set([...prev, ...(p.masteredIds || [])]));
+                    setWrongIds(prev => new Set([...prev, ...(p.wrongIds || [])]));
+
+                    setHistory(prev => {
+                        const combined = [...(p.history || []), ...prev];
+                        const seen = new Set();
+                        return combined.filter(h => {
+                            const key = h.id || `${h.timestamp}-${h.questionId}`;
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    });
+                } else {
+                    if (window.confirm("❗ 警告：完全覆盖将清空当前所有本地进度及历史，确定继续吗？")) {
+                        setBrushedIds(new Set(p.brushedIds || []));
+                        setMemorizedIds(new Set(p.memorizedIds || []));
+                        setMasteredIds(new Set(p.masteredIds || []));
+                        setWrongIds(new Set(p.wrongIds || []));
+                        setHistory((p.history || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+                    } else {
+                        event.target.value = '';
+                        return;
+                    }
+                }
+
+                setSyncStatus('success');
+                setSyncMsg("导入完成");
+            } catch (err) {
+                console.error('Import failed', err);
+                alert("导入失败: " + err.message);
+                setSyncStatus('error');
+                setSyncMsg("导入出错");
+            }
+        };
+        reader.readAsText(file);
+        // 清空 input 确保同一个文件能多次触发
+        event.target.value = '';
+    };
+
         const handleManualLocalSave = async () => {
             setSyncStatus('saving-local');
             setSyncMsg("本地保存中...");
@@ -983,6 +1324,7 @@ function App() {
             }
         };
 
+        // 迁移至新结构
         const performReset = () => {
             setBrushedIds(new Set());
             setMemorizedIds(new Set());
@@ -1029,7 +1371,7 @@ function App() {
             if (!lastSession) return;
             setQuestions(lastSession.questions);
             setCurrentIndex(lastSession.currentIndex);
-            setQuizConfig(lastSession.quizConfig);
+            setQuizConfig(lastSession.mode);
             startMode(lastSession.mode);
         };
 
@@ -1660,6 +2002,21 @@ function App() {
                                 {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16}/> :
                                     <DownloadCloud size={18}/>} 恢复
                             </button>
+
+                            {/* 【新增】本地备份与恢复按钮 */}
+                            <div className="flex gap-2">
+                                <button onClick={handleExportProgress}
+                                        className="px-4 py-2 bg-slate-50 text-blue-600 rounded-xl shadow-sm border border-blue-100 hover:bg-blue-100 flex items-center gap-2 text-sm font-bold transition-all"
+                                        title="将本地进度导出为文件">
+                                    <FileUp size={18}/> 导出
+                                </button>
+                                <label className="px-4 py-2 bg-slate-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100 hover:bg-indigo-100 flex items-center gap-2 text-sm font-bold transition-all cursor-pointer"
+                                       title="从文件恢复本地进度">
+                                    <FileDown size={18}/> 导入
+                                    <input type="file" className="hidden" accept=".json" onChange={handleImportProgress} />
+                                </label>
+                            </div>
+
                             <button onClick={() => setShowResetModal(true)}
                                     className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all"
                                     title="重置进度">
@@ -1737,6 +2094,8 @@ function App() {
                                     <option value="single">单选</option>
                                     <option value="multiple">多选</option>
                                     <option value="judgment">判断</option>
+                                    <option value="fill">填空</option>
+                                    <option value="big">简答</option>
                                 </select>
                             </div>
                         </div>
@@ -1801,7 +2160,12 @@ function App() {
                                                 className="text-slate-800 font-semibold group-hover:text-blue-600 transition">{res.question}</div>
                                             <div className="flex items-center justify-between">
                                                 <span
-                                                    className="text-[12px] text-slate-500">{res.category} · {res.type === 'multiple' ? '多选' : res.type === 'judgment' ? '判断' : '单选'}</span>
+                                                    className="text-[12px] text-slate-500">{res.category} · {
+                                                    res.type === 'multiple' ? '多选' :
+                                                    res.type === 'judgment' ? '判断' :
+                                                    res.type === 'fill' ? '填空' :
+                                                    res.type === 'big' ? '简答' : '单选'
+                                                }</span>
                                                 <span
                                                     className="text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition">查看详情 →</span>
                                             </div>
@@ -1827,10 +2191,14 @@ function App() {
                                 className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
                             <DownloadCloud size={14}/> 恢复
                         </button>
-                        <button onClick={() => setShowResetModal(true)}
-                                className="px-3 py-2 bg-white text-red-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                            <Trash2 size={14}/>
+                        <button onClick={handleExportProgress}
+                                className="p-2 bg-white text-blue-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center">
+                            <FileUp size={16}/>
                         </button>
+                        <label className="p-2 bg-white text-indigo-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center cursor-pointer">
+                            <FileDown size={16}/>
+                            <input type="file" className="hidden" accept=".json" onChange={handleImportProgress} />
+                        </label>
                     </div>
                 )}
 
@@ -1952,11 +2320,15 @@ function App() {
                                         <div>
                                             <label
                                                 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题目类型</label>
-                                            <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1.5 rounded-2xl">
-                                                {[{v: 'all', l: '全部'}, {v: 'single', l: '单选'}, {
-                                                    v: 'multiple',
-                                                    l: '多选'
-                                                }, {v: 'judgment', l: '判断'}].map(t => (
+                                            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 bg-slate-50 p-1.5 rounded-2xl">
+                                                {[
+                                                    {v: 'all', l: '全部'},
+                                                    {v: 'single', l: '单选'},
+                                                    {v: 'multiple', l: '多选'},
+                                                    {v: 'judgment', l: '判断'},
+                                                    {v: 'fill', l: '填空'},
+                                                    {v: 'big', l: '简答'}
+                                                ].map(t => (
                                                     <button key={t.v}
                                                             onClick={() => setQuizConfig({...quizConfig, type: t.v})}
                                                             className={`py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${quizConfig.type === t.v ? 'bg-white shadow text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}>{t.l}</button>
@@ -2270,15 +2642,14 @@ function App() {
                                             <ChevronLeft size={12}/> 上一题
                                         </button>
                                         <div
-                                            className="text-xs font-semibold text-slate-500 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100">
-                                            {currentIndex + 1}/{questions.length}
+                                            className="text-[11px] text-slate-500 font-semibold border-y border-slate-100 py-1 w-full text-center">{currentIndex + 1}/{questions.length}
                                         </div>
                                         <button
                                             onClick={isQuiz ? nextQuestion : handleMemorizeCheck}
                                             className="flex-1 min-w-[130px] px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
                                         >
                                             {isQuiz ? (currentIndex === questions.length - 1 ? '完成' : '下一题') : '记住了，下一题'}
-                                            <ChevronRight size={14}/>
+                                            <ChevronRight size={12}/>
                                         </button>
                                     </div>
                                 </div>
@@ -2288,8 +2659,18 @@ function App() {
                                         className="md:col-span-2 bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter h-full flex flex-col">
                                         <div className="flex items-center gap-3 mb-4 md:mb-6">
                                         <span
-                                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${currentQ.type === 'multiple' ? 'bg-purple-100 text-purple-700' : (currentQ.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')}`}>
-                                            {currentQ.type === 'multiple' ? '多选题' : (currentQ.type === 'judgment' ? '判断题' : '单选题')}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
+                                                currentQ.type === 'multiple' ? 'bg-purple-100 text-purple-700' : 
+                                                (currentQ.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 
+                                                (currentQ.type === 'fill' ? 'bg-indigo-100 text-indigo-700' : 
+                                                (currentQ.type === 'big' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700')))
+                                            }`}>
+                                            {
+                                                currentQ.type === 'multiple' ? '多选题' :
+                                                (currentQ.type === 'judgment' ? '判断题' :
+                                                (currentQ.type === 'fill' ? '填空题' :
+                                                (currentQ.type === 'big' ? '简答题' : '单选题')))
+                                            }
                                         </span>
                                             <span
                                                 className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers
@@ -2369,7 +2750,8 @@ function App() {
                                                 <ChevronLeft size={12}/> 上一题
                                             </button>
                                             <div
-                                                className="text-[11px] text-slate-500 font-semibold border-y border-slate-100 py-1 w-full text-center">{currentIndex + 1}/{questions.length}</div>
+                                                className="text-[11px] text-slate-500 font-semibold border-y border-slate-100 py-1 w-full text-center">{currentIndex + 1}/{questions.length}
+                                            </div>
                                             {isQuiz ? (
                                                 <button
                                                     onClick={nextQuestion}
@@ -2408,9 +2790,8 @@ function App() {
 
                                             <div
                                                 className="animate-enter bg-indigo-50 p-5 md:p-6 rounded-[1.5rem] border border-indigo-100">
-                                                <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold">
-                                                    <Zap size={20} className="text-indigo-500"/>
-                                                    <span>答案解析</span>
+                                                <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
+                                                    <Zap size={18} className="text-indigo-600"/> <span>答案解析</span>
                                                 </div>
                                                 <Markdown content={currentQ.explanation} size="sm"
                                                           className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base flex-1"/>
@@ -2429,7 +2810,7 @@ function App() {
                                                                 value={newExplanation}
                                                                 onChange={(e) => setNewExplanation(e.target.value)}
                                                                 placeholder="分享你对这道题的理解（支持Markdown格式）..."
-                                                                className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                                                                className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                                                 rows={4}
                                                             />
                                                                 <div className="flex gap-2">
@@ -2582,7 +2963,7 @@ function App() {
                         </div>
                     </div>
                 </div>
-            );
+            )
         };
 
         // --- 登录界面 (适配 Cloudflare API) ---
@@ -2672,8 +3053,8 @@ function App() {
             fetchCount();
 
             // 定时器
-            const hTimer = setInterval(sendHeartbeat, 60 * 1000); // 1分钟一次心跳
-            const cTimer = setInterval(fetchCount, 60 * 1000);   // 1分钟更新在线人数
+            const hTimer = setInterval(sendHeartbeat, 10*60 * 1000); // 10分钟一次心跳
+            const cTimer = setInterval(fetchCount, 10*60 * 1000);   // 10分钟更新在线人数
 
             return () => {
                 cancelled = true;
@@ -2804,10 +3185,17 @@ function App() {
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                 <span className={`text-xs px-2 py-1 rounded font-bold ${
-                                    viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
-                                        (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700')
+                                    viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' : 
+                                    (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' : 
+                                    (viewingRankQuestion.type === 'fill' ? 'bg-indigo-100 text-indigo-700' : 
+                                    (viewingRankQuestion.type === 'big' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700')))
                                 }`}>
-                                    {viewingRankQuestion.type === 'multiple' ? '多选' : viewingRankQuestion.type === 'judgment' ? '判断' : '单选'}
+                                    {
+                                        viewingRankQuestion.type === 'multiple' ? '多选' :
+                                        viewingRankQuestion.type === 'judgment' ? '判断' :
+                                        viewingRankQuestion.type === 'fill' ? '填空' :
+                                        viewingRankQuestion.type === 'big' ? '简答' : '单选'
+                                    }
                                 </span>
                                     <span
                                         className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
@@ -2910,3 +3298,4 @@ function App() {
     }
 
 export default App;
+
