@@ -24,55 +24,68 @@ const STATS_ID_CACHE = new Map();
  * 通用点赞处理逻辑
  * OPTIMIZATION: 使用 Promise.all 并行查询，虽不减 API 数但提升速度
  */
+// 在文件顶部定义缓存
+const AUTHOR_CACHE = new Map();
+
 async function handleLikeToggle(config) {
   const { currentUser, targetId, targetClass, likeClass, targetIdField, countField, arrayField } = config;
 
-  // 1. 并行执行两次查询
-  const targetQuery = new AV.Query(targetClass).get(targetId, { useMasterKey: true });
+  // 1. 获取作者 ID (优先查缓存)
+  let targetAuthorId = AUTHOR_CACHE.get(targetId);
+  if (!targetAuthorId) {
+    const targetObj = await new AV.Query(targetClass)
+        .select(['author', countField]) // 仅读取必要字段
+        .get(targetId, { useMasterKey: true });
+    targetAuthorId = targetObj.get('author')?.id || 'unknown';
+    AUTHOR_CACHE.set(targetId, targetAuthorId);
+  }
 
-  const likeQuery = new AV.Query(likeClass);
-  likeQuery.equalTo('user', currentUser);
-  likeQuery.equalTo(targetIdField, targetId);
-  const existQuery = likeQuery.first({ useMasterKey: true }).catch(e => null); // 忽略查询不到的错误
-
-  const [target, existing] = await Promise.all([targetQuery, existQuery]);
-
-  // 2. 禁止给自己点赞
-  const author = target.get('author');
-  if (author && author.id === currentUser.id) {
+  if (targetAuthorId === currentUser.id) {
     throw new AV.Cloud.Error('不能给自己点赞', { code: 400 });
   }
 
-  const Like = AV.Object.extend(likeClass);
+  // 2. 检查点赞记录
+  const likeQuery = new AV.Query(likeClass);
+  likeQuery.equalTo('user', currentUser);
+  likeQuery.equalTo(targetIdField, targetId);
+  const existing = await likeQuery.first({ useMasterKey: true });
+
+  // 3. 构造 Pointer 对象进行原子操作
+  const targetPointer = AV.Object.createWithoutData(targetClass, targetId);
   let liked;
 
   if (existing) {
-    // 已点赞 -> 取消
+    // 取消点赞
     await existing.destroy({ useMasterKey: true });
-    target.increment(countField, -1);
-    if (arrayField) target.remove(arrayField, currentUser);
+    targetPointer.increment(countField, -1);
+    if (arrayField) targetPointer.remove(arrayField, currentUser);
+
+    // 为了兼容返回 count，这里执行 save 后 fetch
+    const savedTarget = await targetPointer.save(null, { useMasterKey: true });
+    // 如果不放心负数，这里可以做个兜底逻辑
     liked = false;
+    return { success: true, liked, count: savedTarget.get(countField) || 0 };
   } else {
-    // 未点赞 -> 添加
+    // 添加点赞
+    const Like = AV.Object.extend(likeClass);
     const like = new Like();
     like.set('user', currentUser);
     like.set(targetIdField, targetId);
 
-    const acl = new AV.ACL();
-    acl.setPublicReadAccess(true);
-    acl.setPublicWriteAccess(false);
-    acl.setWriteAccess(currentUser, true);
-    like.setACL(acl);
-    await like.save(null, { useMasterKey: true });
-    target.increment(countField, 1);
-    if (arrayField) target.addUnique(arrayField, currentUser);
+    const acl = new AV.ACL(currentUser); // 为当前用户设置读写权限
+    acl.setPublicReadAccess(true);        // 额外开启所有人可读权限
+    like.setACL(acl);                     // 显式传递 ACL 对象
+
+    targetPointer.increment(countField, 1);
+    if (arrayField) targetPointer.addUnique(arrayField, currentUser);
+
+    // 使用 saveAll 合并请求
+    await AV.Object.saveAll([like, targetPointer], { useMasterKey: true });
     liked = true;
+
+    // 注意：saveAll 后的 targetPointer 已包含最新数据
+    return { success: true, liked, count: targetPointer.get(countField) || 0 };
   }
-
-  if ((target.get(countField) || 0) < 0) target.set(countField, 0);
-
-  await target.save(null, { useMasterKey: true });
-  return { success: true, liked, count: target.get(countField) || 0 };
 }
 
 /**
@@ -419,8 +432,8 @@ AV.Cloud.define('recoverOutageStats', async (request) => {
   // 如果用户还没有进度记录，说明他是新用户，肯定没参与过那次故障，直接跳过
   if (!progressRecord) return { success: true, msg: '无进度记录，无需补录' };
 
-  // 3. 检查标记：如果已经补录过 v2 版本，直接结束
-  const hasPatched = progressRecord.get('patched_20260117_v2');
+  // 3. 检查标记：如果已经补录过 v3 版本，直接结束
+  const hasPatched = progressRecord.get('patched_20260118_v3');
   if (hasPatched) {
     return { success: true, msg: '已完成补录，无需重复操作' };
   }
@@ -428,8 +441,10 @@ AV.Cloud.define('recoverOutageStats', async (request) => {
   // =========================================================
   // 🔥 核心补录逻辑
   // =========================================================
-  const OUTAGE_START = new Date('2026-01-17T18:52:51.000+08:00');
-  const OUTAGE_END   = new Date('2026-01-17T23:59:59.000+08:00');
+  const WINDOWS = [
+    { start: new Date('2026-01-17T18:52:51.000+08:00'), end: new Date('2026-01-17T23:59:59.000+08:00') },
+    { start: new Date('2026-01-18T22:05:00.000+08:00'), end: new Date('2026-01-19T00:00:00.000+08:00') }
+  ];
 
   try {
     const history = Array.isArray(params.history) ? params.history : [];
@@ -439,7 +454,9 @@ AV.Cloud.define('recoverOutageStats', async (request) => {
       // 筛选条件：答题操作 + 有题号 + 在故障时间窗内
       if (h.action === 'answer' && h.questionId) {
         const recordTime = new Date(h.timestamp);
-        if (recordTime > OUTAGE_START && recordTime < OUTAGE_END) {
+        const inWindow = WINDOWS.some(w => recordTime >= w.start && recordTime <= w.end);
+
+        if (inWindow) {
 
           if (!pendingStats[h.questionId]) {
             pendingStats[h.questionId] = { errors: 0, attempts: 0 };
@@ -497,7 +514,7 @@ AV.Cloud.define('recoverOutageStats', async (request) => {
 
     // ✅ 无论这次有没有找到数据，都打上标记。
     // 因为只要检查过一次历史记录没发现问题，以后也不用再检查了。
-    progressRecord.set('patched_20260117_v2', true);
+    progressRecord.set('patched_20260118_v3', true);
     await progressRecord.save(null, { useMasterKey: true });
 
     return { success: true, count: questionIdsToUpdate.length };

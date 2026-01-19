@@ -40,3 +40,35 @@
 .read-the-docs {
   color: #888;
 }
+
+/* 新增：提示框样式 */
+.notice-box {
+  background: rgba(245, 158, 11, 0.15); /* Amber 500 透明度 */
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24; /* Amber 400 */
+  padding: 1rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  text-align: left;
+}
+
+.notice-box svg {
+  shrink-0: 0;
+  margin-top: 0.125rem;
+}
+
+.notice-link {
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.notice-link:hover {
+  color: #fbbf24;
+}

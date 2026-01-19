@@ -1,6 +1,7 @@
 /*
-* version:3.6.5
+* version:3.6.6
 * log: 非常感谢大家的支持!目前服务器爆火，若遇到api受限提示，请明天再来同步数据！
+* 如还未开始刷题的,可以移步cxcy.junpgle.me新注册使用
 * 1. 此版本优化api调用次数,新增api受限提示
 * 2. 查询在线人数为修改为5分钟一次
 * 3. 新增API受限期间错题自动补录
@@ -29,7 +30,7 @@ import { validateContent } from './contentFilter.js';
 const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
-const CURRENT_APP_VERSION = '3.6.5';
+const CURRENT_APP_VERSION = '3.6.6';
 const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
@@ -93,6 +94,31 @@ const formatDate = (isoString) => {
         hour12: false // 24小时制
     });
 };
+
+// 统一缓存池
+const APP_CACHE = {
+    comments: new Map(),      // 必须是 Map 对象
+    explanations: new Map(),
+    TTL: 10 * 60 * 1000        // 10 分钟有效期
+};
+
+/**
+ * 修复后的工具函数：确保 cacheMap 存在且是 Map
+ */
+function getValidCache(type, questionId) {
+    const cacheMap = APP_CACHE[type];
+
+    // 安全检查：防止 type 传错或者 Map 未初始化
+    if (!cacheMap || typeof cacheMap.get !== 'function') {
+        return null;
+    }
+
+    const cache = cacheMap.get(questionId);
+    if (cache && (Date.now() - cache.timestamp < APP_CACHE.TTL)) {
+        return cache.data;
+    }
+    return null;
+}
 
 // 安全存储封装：IndexedDB 不可用时回退到 localStorage
 const safeGet = async (key, fallback = null) => {
@@ -652,7 +678,7 @@ function App() {
 
             // 为了避免每次刷新页面都请求 API，我们可以先在本地 localStorage 查一下标记
             // 这样能节省大量的 API 调用（连云函数都不用调）
-            const localPatchedKey = `patched_20260117_v2_${currentUser.id}`;
+            const localPatchedKey = `patched_20260118_v3_${currentUser.id}`;
             if (localStorage.getItem(localPatchedKey) === 'true') {
                 return; // 本地标记已处理，直接跳过
             }
@@ -1306,24 +1332,37 @@ function App() {
     };
 
     // 加载题目评论
-    const loadQuestionComments = async (questionId) => {
+    const loadQuestionComments = async (questionId, forceRefresh = false) => {
+        if (!questionId) return;
+
+        // 1. 检查并拦截缓存
+        const cachedData = getValidCache('comments', questionId);
+        if (!forceRefresh && cachedData) {
+            setQuestionComments(prev => ({ ...prev, [questionId]: cachedData }));
+            return;
+        }
+
         try {
             const query = new AV.Query('QuestionComment');
             query.equalTo('questionId', questionId);
             query.descending('createdAt');
             query.limit(50);
             query.include('author');
+
             const results = await query.find();
-            const ids = results.map(r => r.id);
+
+            // 处理点赞逻辑 (保持你原有的 likedSet 逻辑即可)
             let likedSet = new Set();
+            const ids = results.map(r => r.id);
             if (currentUser && ids.length) {
-                const likeQuery = new AV.Query('CommentLike');
-                likeQuery.equalTo('user', currentUser);
-                likeQuery.containedIn('commentId', ids);
-                const liked = await likeQuery.find();
+                const liked = await new AV.Query('CommentLike')
+                    .equalTo('user', currentUser)
+                    .containedIn('commentId', ids)
+                    .find();
                 likedSet = new Set(liked.map(l => l.get('commentId')));
             }
-            const comments = results.map(r => ({
+
+            const data = results.map(r => ({
                 id: r.id,
                 content: r.get('content'),
                 author: r.get('author')?.get('username') || '匿名',
@@ -1332,7 +1371,14 @@ function App() {
                 likes: r.get('likes') || 0,
                 liked: likedSet.has(r.id)
             }));
-            setQuestionComments(prev => ({...prev, [questionId]: comments}));
+
+            // 2. 写入缓存 (注意结构: { data, timestamp })
+            APP_CACHE.comments.set(questionId, {
+                data: data,
+                timestamp: Date.now()
+            });
+
+            setQuestionComments(prev => ({ ...prev, [questionId]: data }));
         } catch (e) {
             console.error('加载评论失败:', e);
         }
@@ -1342,27 +1388,56 @@ function App() {
     const submitComment = async (questionId) => {
         if (!currentUser || !newComment.trim()) return;
 
-        // 内容审核
         const validation = validateContent(newComment.trim());
         if (!validation.valid) {
             alert(validation.message);
-            setSyncMsg(validation.message);
-            setSyncStatus('error');
             return;
         }
 
         try {
+            setSyncStatus('syncing');
+            setSyncMsg('正在发布...');
+
             const Comment = AV.Object.extend('QuestionComment');
             const comment = new Comment();
             comment.set('questionId', questionId);
             comment.set('content', newComment.trim());
             comment.set('author', currentUser);
             comment.set('likes', 0);
-            await comment.save();
+
+            // 1. 保存到数据库
+            const savedComment = await comment.save();
+
+            // 2. 构造一个符合你 UI 格式的评论对象
+            const tempNewComment = {
+                id: savedComment.id,
+                content: savedComment.get('content'),
+                author: currentUser.get('username') || '匿名',
+                authorId: currentUser.id,
+                createdAt: savedComment.createdAt,
+                likes: 0,
+                liked: false
+            };
+
+            // 3. 手动更新全局缓存 APP_CACHE (保证切题回来还有)
+            const cache = APP_CACHE.comments.get(questionId);
+            if (cache) {
+                APP_CACHE.comments.set(questionId, {
+                    ...cache,
+                    data: [tempNewComment, ...cache.data] // 将新评论插入到列表最前面
+                });
+            }
+
+            // 4. 精准更新 React State (让 UI 立即显示)
+            setQuestionComments(prev => ({
+                ...prev,
+                [questionId]: [tempNewComment, ...(prev[questionId] || [])]
+            }));
+
             setNewComment('');
-            await loadQuestionComments(questionId);
             setSyncMsg('评论发布成功');
             setSyncStatus('success');
+
         } catch (e) {
             console.error('发布评论失败:', e);
             setSyncMsg('评论发布失败');
@@ -1371,56 +1446,81 @@ function App() {
     };
 
     const handleLikeComment = async (questionId, comment) => {
-        // 1. 基础校验
         if (!currentUser || !comment?.id) return;
-
-        // 2. 防止作者给自己点赞 (保持原有逻辑)
-        if (comment.authorId && comment.authorId === currentUser.id) {
-            alert("不能给自己点赞哦");
-            return;
-        }
+        if (comment.authorId === currentUser.id) return alert("不能给自己点赞哦");
 
         try {
-            // 3. 请求云函数 (后端会自动判断是点赞还是取消)
+            // 1. 调用云函数 (后端已优化合并写入)
             const result = await AV.Cloud.run('likeComment', { commentId: comment.id });
 
-            // result 结构预期: { liked: boolean, likes: number }
+            // 定义统一的更新逻辑
+            const updateMapper = (list) => list.map(c =>
+                c.id === comment.id ? { ...c, likes: result.likes, liked: result.liked } : c
+            );
 
-            // 4. 精准更新本地状态 (局部刷新，体验更丝滑)
-            setQuestionComments(prev => {
-                const currentList = prev[questionId] || [];
-                // 遍历当前题目的评论列表，找到刚才操作的那一条
-                const newList = currentList.map(c => {
-                    if (c.id === comment.id) {
-                        return {
-                            ...c,
-                            likes: result.likes, // 使用后端返回的最新数量
-                            liked: result.liked  // 使用后端返回的最新状态(true/false)
-                        };
-                    }
-                    return c;
+            // 2. 更新 React UI 状态
+            setQuestionComments(prev => ({
+                ...prev,
+                [questionId]: updateMapper(prev[questionId] || [])
+            }));
+
+            // 3. 同步更新内存缓存 (确保切回来时也是最新的)
+            const cache = APP_CACHE.comments.get(questionId);
+            if (cache) {
+                APP_CACHE.comments.set(questionId, {
+                    ...cache,
+                    data: updateMapper(cache.data)
                 });
-
-                return { ...prev, [questionId]: newList };
-            });
-
+            }
         } catch (e) {
-            console.error('点赞操作失败', e);
-            // 可以在这里加个 alert 或 setSyncMsg 提示网络错误
+            console.error('点赞失败', e);
         }
     };
 
     const handleDeleteComment = async (questionId, comment) => {
+        // 1. 权限校验
         if (!currentUser || !comment?.id || comment.authorId !== currentUser.id) return;
+
+        // 2. 二次确认
         if (!window.confirm('确定删除这条评论吗？')) return;
+
         try {
+            setSyncStatus('syncing');
+            setSyncMsg('正在删除...');
+
+            // 3. 物理删除：直接通过 ID 创建指针删除，无需 fetch 整个对象 (节省 1 次 Read)
             const obj = AV.Object.createWithoutData('QuestionComment', comment.id);
             await obj.destroy();
+
+            // 4. 定义过滤逻辑：从数组中剔除掉被删除的 ID
+            const filterList = (list) => list.filter(c => c.id !== comment.id);
+
+            // 5. 手动更新内存缓存 APP_CACHE
+            const cache = APP_CACHE.comments.get(questionId);
+            if (cache) {
+                APP_CACHE.comments.set(questionId, {
+                    ...cache,
+                    data: filterList(cache.data)
+                });
+            }
+
+            // 6. 更新 React State (UI 立即消失)
+            setQuestionComments(prev => ({
+                ...prev,
+                [questionId]: filterList(prev[questionId] || [])
+            }));
+
+            // 7. 清理编辑状态
             setEditingCommentId(null);
             setEditingCommentContent('');
-            await loadQuestionComments(questionId);
+
+            setSyncMsg('删除成功');
+            setSyncStatus('success');
+
         } catch (e) {
             console.error('删除评论失败', e);
+            setSyncMsg('删除失败');
+            setSyncStatus('error');
         }
     };
 
@@ -1455,41 +1555,51 @@ function App() {
         }
     };
 
-    const handleLikeExplanation = async (questionId, explanation) => {
-        if (!currentUser || !explanation?.id) return;
-        // 只允许给他人点赞
-        if (explanation.authorId && explanation.authorId === currentUser.id) return;
+    const handleLikeExplanation = async (questionId, exp) => {
+        if (!currentUser || !exp?.id) return;
+        if (exp.authorId === currentUser.id) return alert("不能给自己点赞哦");
+
         try {
-            await AV.Cloud.run('likeExplanation', { explanationId: explanation.id });
-            await loadUserExplanations(questionId);
-        } catch (e) {
-            console.error('解析点赞失败', e);
-        }
+            const result = await AV.Cloud.run('likeExplanation', { explanationId: exp.id });
+            const updateMapper = (list) => list.map(item =>
+                item.id === exp.id ? { ...item, votes: result.votes, liked: result.liked } : item
+            );
+
+            setUserExplanations(prev => ({
+                ...prev,
+                [questionId]: updateMapper(prev[questionId] || [])
+            }));
+
+            const cache = APP_CACHE.explanations.get(questionId);
+            if (cache) {
+                APP_CACHE.explanations.set(questionId, {
+                    ...cache,
+                    data: updateMapper(cache.data)
+                });
+            }
+        } catch (e) { console.error('点赞失败', e); }
     };
 
-    const loadUserExplanations = async (questionId) => {
+    // 加载解析
+    const loadUserExplanations = async (questionId, forceRefresh = false) => {
+        const cached = getValidCache('explanations', questionId);
+        if (!forceRefresh && cached) {
+            setUserExplanations(prev => ({ ...prev, [questionId]: cached }));
+            return;
+        }
+
         try {
-            const query = new AV.Query('UserExplanation');
-            query.equalTo('questionId', questionId);
-            query.descending('votes');
-            query.include('author');
+            const query = new AV.Query('UserExplanation').equalTo('questionId', questionId).descending('votes').include('author');
             const results = await query.find();
             const ids = results.map(r => r.id);
+
             let likedSet = new Set();
             if (currentUser && ids.length) {
-                try {
-                    const likeQuery = new AV.Query('ExplanationLike');
-                    likeQuery.equalTo('user', currentUser);
-                    likeQuery.containedIn('explanationId', ids);
-                    const liked = await likeQuery.find();
-                    likedSet = new Set(liked.map(l => l.get('explanationId')));
-                } catch (err) {
-                    // 如果点赞表未建或无权限，忽略错误，保持功能可用
-                    console.debug('load ExplanationLike failed, skip likes', err?.message || err);
-                    likedSet = new Set();
-                }
+                const liked = await new AV.Query('ExplanationLike').equalTo('user', currentUser).containedIn('explanationId', ids).find();
+                likedSet = new Set(liked.map(l => l.get('explanationId')));
             }
-            const explanations = results.map(r => ({
+
+            const data = results.map(r => ({
                 id: r.id,
                 content: r.get('content'),
                 author: r.get('author')?.get('username') || '匿名',
@@ -1498,10 +1608,11 @@ function App() {
                 createdAt: r.get('createdAt'),
                 liked: likedSet.has(r.id)
             }));
-            setUserExplanations(prev => ({...prev, [questionId]: explanations}));
-        } catch (e) {
-            console.error('加载用户解析失败:', e);
-        }
+
+            // 更新缓存和状态
+            APP_CACHE.explanations.set(questionId, { data, timestamp: Date.now() });
+            setUserExplanations(prev => ({ ...prev, [questionId]: data }));
+        } catch (e) { console.error('加载解析失败:', e); }
     };
 
     // 复用刷题的解析加载与展示逻辑
@@ -2629,17 +2740,9 @@ function App() {
                                     服务暂时受限 (API 额度耗尽)
                                 </h3>
                                 <p className="text-red-100 text-sm mt-1 leading-snug">
-                                    今天的服务器免费资源已被耗尽，<strong>请前往备用网站继续刷题</strong>：<br className="hidden md:block"/>
-                                    👉 <a
-                                        href="https://cxcy.junpgle.me/"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="underline font-bold hover:text-white transition-colors text-yellow-200"
-                                    >
-                                        https://cxcy.junpgle.me/
-                                    </a>
-                                    <br className="hidden md:block"/>
-                                    <span className="text-xs opacity-90">(已迁移全部数据，截止 2026.1.18 11:00)</span>
+                                    开发者也是"用爱发电"💸，今天的服务器免费资源已被大家的热情耗尽啦！<br className="hidden md:block"/>
+                                    <strong>云端同步、用户提供的解析、评论、点赞和全站错题统计功能</strong>暂时无法使用，但<strong>本地刷题不受影响</strong>。请明天再来同步数据吧！
+                                    或者尝试我的备用网站 <a href="https://cxcy.junpgle.me/" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-white transition-colors text-yellow-200">https://cxcy.junpgle.me/</a>, 已迁移Leancloud数据 (截止2026.1.18 11:00)
                                 </p>
                             </div>
                             <button
@@ -2695,9 +2798,26 @@ function App() {
                 <div className="mt-6 text-center">
                     <a href="register.html" target="_blank"
                        className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
-                        没有账号？<span className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span> <ChevronRight size={14}/>
+                        没有账号？<span
+                        className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span>
+                        <ChevronRight size={14}/>
                     </a>
                 </div>
+
+                <div className="notice-box">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <div>
+                        <strong>重要建议：</strong>如果你还未开始刷题或本站点API受限无法登录，推荐尝试使用备用站点：
+                        <a href="https://cxcy.junpgle.me" className="notice-link">cxcy.junpgle.me</a>。
+                        该站点 API 限制较松，能支撑更持久的练习体验。
+                    </div>
+                </div>
+
             </div>
         </div>
     );
@@ -2710,7 +2830,7 @@ function App() {
 
         const sendHeartbeat = async (mode = currentMode) => {
             try {
-                await AV.Cloud.run('heartbeat', { mode });
+                await AV.Cloud.run('heartbeat', {mode});
             } catch (error) {
                 checkApiLimitError(error); // 别忘了保留之前的额度检查
                 console.debug('Heartbeat failed:', error);
@@ -2985,36 +3105,11 @@ function App() {
                                 <h3 className="font-bold text-lg flex items-center gap-2">
                                     服务暂时受限 (API 额度耗尽)
                                 </h3>
-                                {!currentUser ? (
-                                    // 未登录用户的提示
-                                    <p className="text-red-100 text-sm mt-1 leading-snug">
-                                        今天的服务器免费资源已被耗尽，<strong>请前往备用网站继续刷题</strong>：<br className="hidden md:block"/>
-                                        👉 <a
-                                            href="https://cxcy.junpgle.me/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="underline font-bold hover:text-white transition-colors text-yellow-200"
-                                        >
-                                            https://cxcy.junpgle.me/
-                                        </a>
-                                        <br className="hidden md:block"/>
-                                        <span className="text-xs opacity-90">(已迁移全部数据，截止 2026.1.18 11:00)</span>
-                                    </p>
-                                ) : (
-                                    // 已登录用户的提示
-                                    <p className="text-red-100 text-sm mt-1 leading-snug">
-                                        开发者也是"用爱发电"💸，今天的服务器免费资源已被大家的热情耗尽啦！<br className="hidden md:block"/>
-                                        <strong>云端同步、用户提供的解析、评论、点赞和全站错题统计功能</strong>暂时无法使用，但<strong>本地刷题不受影响</strong>。请明天再来同步数据吧！
-                                        或者尝试我的备用网站 <a
-                                            href="https://cxcy.junpgle.me/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="underline font-bold hover:text-white transition-colors"
-                                        >
-                                            https://cxcy.junpgle.me/
-                                        </a>, 已迁移Leancloud数据 (截止2026.1.18 11:00)
-                                    </p>
-                                )}
+                                <p className="text-red-100 text-sm mt-1 leading-snug">
+                                    开发者也是"用爱发电"💸，今天的服务器免费资源已被大家的热情耗尽啦！<br className="hidden md:block"/>
+                                    <strong>云端同步、用户提供的解析、评论、点赞和全站错题统计功能</strong>暂时无法使用，但<strong>本地刷题不受影响</strong>。请明天再来同步数据吧！
+                                    或者尝试我的备用网站 <a href="https://cxcy.junpgle.me/" target="_blank" rel="noopener noreferrer" className="underline font-bold hover:text-white transition-colors text-yellow-200">https://cxcy.junpgle.me/</a>, 已迁移Leancloud数据 (截止2026.1.18 11:00)
+                                </p>
                             </div>
                             <button
                                 onClick={() => setApiLimitReached(false)}

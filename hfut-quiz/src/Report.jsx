@@ -35,6 +35,35 @@ const LECTURES = [
   { id: 7, name: '第七讲：新企业成长管理', file: '创新创业基础第七讲习题.xlsx', fileId: FILE_ID_MAP[7], url: 'http://lc-5wPsbnak.cn-n1.lcfile.com/ng2YT8p8yeERNwiaPXWMJBFwEdPwM7XI/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%83%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx' },
 ];
 
+const formatDate = (isoString) => {
+  if (!isoString) return '未知时间';
+
+  // 如果是 SQLite 默认格式 "YYYY-MM-DD HH:MM:SS" (没有 T 和 Z)
+  // 我们手动补上 " UTC" 让浏览器正确识别
+  let dateStr = String(isoString);
+  if (!dateStr.includes('T') && !dateStr.includes('Z')) {
+    dateStr = dateStr.replace(' ', 'T') + 'Z';
+  }
+
+  // 如果已经是 ISO 格式但没带 Z (极少见)，也补上
+  // 这里主要处理 D1 返回的格式
+
+  const date = new Date(dateStr);
+
+  // 检查是否有效
+  if (isNaN(date.getTime())) return isoString;
+
+  // 转为本地字符串 (例如: 2026/1/17 21:00:00)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false // 24小时制
+  });
+};
+
 AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
 
 const safeText = (v) => typeof v === 'string' ? v : (v ? String(v) : '');
