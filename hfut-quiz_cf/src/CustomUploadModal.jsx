@@ -497,25 +497,25 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={handleClose}>
-            <div className="bg-white w-full max-w-lg md:max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl transition-all duration-300" onClick={e => e.stopPropagation()}>
-                <div className="sticky top-0 bg-white border-b border-slate-100 p-5 sm:p-6 flex justify-between items-start z-10">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-lg md:max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl transition-all duration-300" onClick={e => e.stopPropagation()}>
+                <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-5 sm:p-6 flex justify-between items-start z-10">
                     <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 sm:w-12 sm:h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center shrink-0">
                             <UploadCloud size={22} className="sm:w-6 sm:h-6" />
                         </div>
                         <div>
-                            <h2 className="text-lg sm:text-xl font-bold text-slate-800">上传自定义题库</h2>
-                            <p className="text-xs sm:text-sm text-slate-400">纯离线解析，数据安全地保存在本地</p>
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100">上传自定义题库</h2>
+                            <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500">纯离线解析，数据安全地保存在本地</p>
                         </div>
                     </div>
-                    <button onClick={handleClose} disabled={uploading} className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-full transition-colors shrink-0">
+                    <button onClick={handleClose} disabled={uploading} className="p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors shrink-0">
                         <X size={18} className="text-slate-400 sm:w-5 sm:h-5" />
                     </button>
                 </div>
 
                 <div className="p-5 sm:p-6 flex flex-col md:grid md:grid-cols-2 md:gap-8 md:items-start space-y-5 md:space-y-0">
                     {error && (
-                        <div className="md:col-span-2 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center gap-3">
+                        <div className="md:col-span-2 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-400 rounded-xl text-sm flex items-center gap-3">
                             <AlertCircle size={18} className="shrink-0" />
                             <span>{error}</span>
                         </div>
@@ -524,23 +524,23 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                     {/* 左侧栏：学科配置栏 */}
                     <div className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">学科名称 *</label>
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">学科名称 *</label>
                             <input type="text" placeholder="例如：高等数学、大学物理" value={subjectName} onChange={e => setSubjectName(e.target.value)} disabled={uploading}
-                                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">简称（可选）</label>
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">简称（可选）</label>
                             <input type="text" placeholder="例如：高数、大物" value={shortName} onChange={e => setShortName(e.target.value)} disabled={uploading}
-                                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                                   className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">图标选择（可选）</label>
-                            <div className="flex gap-2 flex-wrap max-h-[120px] overflow-y-auto p-1.5 bg-slate-50 border border-slate-200 rounded-xl no-scrollbar">
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">图标选择（可选）</label>
+                            <div className="flex gap-2 flex-wrap max-h-[120px] overflow-y-auto p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl no-scrollbar">
                                 {['📚', '📖', '📝', '✏️', '🔬', '🧮', '💻', '⚛️', '🎨', '🌍', '📐', '🔭', '🧬', '🏛️', '📊'].map(emoji => (
                                     <button key={emoji} type="button" onClick={() => setIcon(emoji)} disabled={uploading}
-                                            className={'w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all ' + (icon === emoji ? 'bg-blue-100 border-2 border-blue-500 scale-105 shadow-sm' : 'hover:bg-slate-200/60')}>
+                                            className={'w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all ' + (icon === emoji ? 'bg-blue-100 dark:bg-blue-950/60 border-2 border-blue-500 scale-105 shadow-sm' : 'hover:bg-slate-200/60 dark:hover:bg-slate-700')}>
                                         {emoji}
                                     </button>
                                 ))}
@@ -551,42 +551,42 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                     {/* 右侧栏：文件与提交区 */}
                     <div className="space-y-4">
                         <div className="space-y-1.5">
-                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">题库文件 *</label>
-                            <label className={'block border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ' + (file ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50')}>
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">题库文件 *</label>
+                            <label className={'block border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ' + (file ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800/60' : 'border-slate-300 dark:border-slate-700 hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/50')}>
                                 <input ref={fileInputRef} type="file" accept=".json,.xlsx,.xls" onChange={e => setFile(e.target.files[0])} disabled={uploading} className="hidden" />
                                 {file ? (
                                     <div className="space-y-1">
                                         <FileUp size={24} className="mx-auto text-blue-500 animate-bounce" />
-                                        <p className="text-sm font-bold text-slate-700 truncate max-w-[220px] mx-auto">{file.name}</p>
-                                        <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
+                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[220px] mx-auto">{file.name}</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-1">
-                                        <UploadCloud size={24} className="mx-auto text-slate-400" />
-                                        <p className="text-sm font-bold text-slate-600">点击选择文件</p>
-                                        <p className="text-xs text-slate-400">支持 JSON、Excel (.xlsx / .xls)</p>
+                                        <UploadCloud size={24} className="mx-auto text-slate-400 dark:text-slate-500" />
+                                        <p className="text-sm font-bold text-slate-600 dark:text-slate-300">点击选择文件</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500">支持 JSON、Excel (.xlsx / .xls)</p>
                                     </div>
                                 )}
                             </label>
                         </div>
 
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-0.5">
-                            <p className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl p-3.5 space-y-0.5">
+                            <p className="text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-1">
                                 <AlertCircle size={12} />
                                 <span>导入指南</span>
                             </p>
-                            <p className="text-[11px] text-amber-700 leading-relaxed">
-                                Excel 须含“题型”、“题干”、“答案”等列名。JSON 支持以章节名为键的键值数组或直接以题目为元素的平面数组，系统将智能提取。
+                            <p className="text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">
+                                Excel 须含"题型"、"题干"、"答案"等列名。JSON 支持以章节名为键的键值数组或直接以题目为元素的平面数组，系统将智能提取。
                             </p>
                         </div>
 
                         <div className="flex gap-3 pt-1">
                             <button onClick={handleClose} disabled={uploading}
-                                    className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm">
+                                    className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-sm">
                                 取消
                             </button>
                             <button onClick={handleUpload} disabled={uploading || !file || !subjectName.trim()}
-                                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-blue-500/20">
+                                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-blue-500/20 dark:shadow-blue-900/20">
                                 {uploading ? <><Loader2 size={16} className="animate-spin" /> 正在解析...</> : <><UploadCloud size={16} /> 上传并解析</>}
                             </button>
                         </div>
@@ -596,3 +596,4 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
         </div>
     );
 }
+

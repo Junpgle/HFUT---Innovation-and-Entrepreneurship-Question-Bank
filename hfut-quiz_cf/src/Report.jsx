@@ -7,9 +7,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   ChevronLeft, Calendar, CheckCircle, XCircle, Clock, ArrowRight, BookOpen,
-  Zap, AlertCircle, Eye, X, MessageCircle, RefreshCw
+  Zap, AlertCircle, Eye, X, MessageCircle, RefreshCw, Sun, Moon, Monitor
 } from 'lucide-react';
 import './index.css';
+import {
+  getThemeMode,
+  applyTheme,
+  initThemeListener,
+  destroyThemeListener,
+  setThemeMode
+} from './utils/theme';
 
 // ✅ 静态题库配置
 const LECTURES = [
@@ -273,6 +280,23 @@ const parseHgdmyMaogaiJson = (data) => {
 };
 
 function Report() {
+  const [themeMode, setThemeModeState] = useState(getThemeMode());
+
+  useEffect(() => {
+    initThemeListener();
+    applyTheme(themeMode);
+
+    const handleThemeChanged = (e) => {
+      setThemeModeState(e.detail);
+    };
+    window.addEventListener('app_theme_changed', handleThemeChanged);
+
+    return () => {
+      destroyThemeListener();
+      window.removeEventListener('app_theme_changed', handleThemeChanged);
+    };
+  }, [themeMode]);
+
   const [ready, setReady] = useState(false);
   const [customSubjects, setCustomSubjects] = useState([]);
   const allSubjects = useMemo(() => [...SUBJECTS, ...customSubjects], [customSubjects]);
@@ -673,32 +697,32 @@ function Report() {
 
   const renderMyCommentsSection = () => (
     <button onClick={() => { setShowModal('comments'); setCommentPage(1); }}
-            className="glass-card rounded-2xl p-6 w-full hover:shadow-lg transition-shadow bg-white border border-slate-200">
+            className="glass-card rounded-2xl p-6 w-full hover:shadow-lg transition-shadow bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <MessageCircle size={24} className="text-blue-600" />
+          <MessageCircle size={24} className="text-blue-600 dark:text-blue-400" />
           <div className="text-left">
-            <div className="font-bold text-slate-800">我的评论</div>
-            <div className="text-sm text-slate-500">共 {userComments.length} 条</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">我的评论</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">共 {userComments.length} 条</div>
           </div>
         </div>
-        <div className="text-2xl font-bold text-blue-600">{userComments.length}</div>
+        <div className="text-2xl font-bold text-blue-600 dark:text-blue-450">{userComments.length}</div>
       </div>
     </button>
   );
 
   const renderMyExplanationsSection = () => (
     <button onClick={() => { setShowModal('explanations'); setExplanationPage(1); }}
-            className="glass-card rounded-2xl p-6 w-full hover:shadow-lg transition-shadow bg-white border border-slate-200">
+            className="glass-card rounded-2xl p-6 w-full hover:shadow-lg transition-shadow bg-white border border-slate-200 dark:bg-slate-900 dark:border-slate-800">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Zap size={24} className="text-yellow-600" />
+          <Zap size={24} className="text-yellow-600 dark:text-amber-500" />
           <div className="text-left">
-            <div className="font-bold text-slate-800">我的解析</div>
-            <div className="text-sm text-slate-500">共 {userExplList.length} 条</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">我的解析</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">共 {userExplList.length} 条</div>
           </div>
         </div>
-        <div className="text-2xl font-bold text-yellow-600">{userExplList.length}</div>
+        <div className="text-2xl font-bold text-yellow-600 dark:text-amber-500">{userExplList.length}</div>
       </div>
     </button>
   );
@@ -708,42 +732,42 @@ function Report() {
     const totalPages = Math.ceil(userComments.length / ITEMS_PER_PAGE);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(null)}>
-        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[80vh] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between p-6 border-b border-slate-200">
-            <h2 className="font-bold text-slate-800 flex items-center gap-2"><MessageCircle size={20} className="text-blue-600"/>我的评论</h2>
-            <button onClick={() => setShowModal(null)} className="p-1 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowModal(null)}>
+        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[80vh] shadow-2xl flex flex-col dark:bg-slate-900 dark:border dark:border-slate-800" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-850">
+            <h2 className="font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100"><MessageCircle size={20} className="text-blue-600 dark:text-blue-400"/>我的评论</h2>
+            <button onClick={() => setShowModal(null)} className="p-1 hover:bg-slate-100 rounded-full dark:hover:bg-slate-800 dark:text-slate-400"><X size={20}/></button>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
-            {userComments.length === 0 ? <p className="text-center text-slate-400">暂无评论</p> : paginatedComments.map(comment => {
+            {userComments.length === 0 ? <p className="text-center text-slate-400 dark:text-slate-500">暂无评论</p> : paginatedComments.map(comment => {
               const isEditing = editingCommentId === comment.id;
               const normId = normalizeQuestionId(comment.questionId);
               const isMaogai = normId.startsWith('MG-');
               return (
-                <div key={comment.id} className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-2">
+                <div key={comment.id} className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-2 dark:bg-slate-950 dark:border-slate-850">
                   <div className="flex justify-between">
-                    <p className="text-sm font-medium text-slate-700 cursor-pointer hover:text-blue-600" onClick={() => { openQuestion(comment.questionId); setShowModal(null); }}>
-                      <span className={`px-1.5 py-0.5 rounded text-xs mr-2 font-bold ${isMaogai ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                    <p className="text-sm font-medium text-slate-700 cursor-pointer hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400" onClick={() => { openQuestion(comment.questionId); setShowModal(null); }}>
+                      <span className={`px-1.5 py-0.5 rounded text-xs mr-2 font-bold ${isMaogai ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'}`}>
                         {isMaogai ? '毛概' : '创新创业'}
                       </span>
                       ID: {normId}
                     </p>
-                    <span className="text-xs text-amber-600">👍 {comment.likes}</span>
+                    <span className="text-xs text-amber-600 dark:text-amber-500">👍 {comment.likes}</span>
                   </div>
                   {isEditing ? (
                     <div className="space-y-2">
-                      <textarea value={editingCommentContent} onChange={e=>setEditingCommentContent(e.target.value)} className="w-full p-2 border rounded text-sm"/>
+                      <textarea value={editingCommentContent} onChange={e=>setEditingCommentContent(e.target.value)} className="w-full p-2 border rounded text-sm dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200"/>
                       <div className="flex justify-end gap-2 text-xs">
-                        <button onClick={() => handleUpdateComment(comment.id)} className="text-blue-600">保存</button>
-                        <button onClick={() => setEditingCommentId(null)} className="text-slate-500">取消</button>
+                        <button onClick={() => handleUpdateComment(comment.id)} className="text-blue-600 dark:text-blue-400">保存</button>
+                        <button onClick={() => setEditingCommentId(null)} className="text-slate-500 dark:text-slate-400">取消</button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex justify-between items-end">
-                      <p className="text-sm text-slate-600">{comment.content}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">{comment.content}</p>
                       <div className="flex gap-2 text-xs">
-                        <button onClick={() => { setEditingCommentId(comment.id); setEditingCommentContent(comment.content); }} className="text-blue-600">编辑</button>
-                        <button onClick={() => handleDeleteComment(comment.id)} className="text-red-600">删除</button>
+                        <button onClick={() => { setEditingCommentId(comment.id); setEditingCommentContent(comment.content); }} className="text-blue-600 dark:text-blue-400">编辑</button>
+                        <button onClick={() => handleDeleteComment(comment.id)} className="text-red-600 dark:text-red-400">删除</button>
                       </div>
                     </div>
                   )}
@@ -752,10 +776,10 @@ function Report() {
             })}
           </div>
           {totalPages > 1 && (
-            <div className="flex justify-between p-6 border-t border-slate-200">
-              <button onClick={() => setCommentPage(p => Math.max(1, p-1))} disabled={commentPage===1} className="text-sm disabled:opacity-50">上一页</button>
-              <span className="text-sm">{commentPage} / {totalPages}</span>
-              <button onClick={() => setCommentPage(p => Math.min(totalPages, p+1))} disabled={commentPage===totalPages} className="text-sm disabled:opacity-50">下一页</button>
+            <div className="flex justify-between p-6 border-t border-slate-200 dark:border-slate-850">
+              <button onClick={() => setCommentPage(p => Math.max(1, p-1))} disabled={commentPage===1} className="text-sm disabled:opacity-50 dark:text-slate-400 dark:disabled:opacity-20">上一页</button>
+              <span className="text-sm dark:text-slate-300">{commentPage} / {totalPages}</span>
+              <button onClick={() => setCommentPage(p => Math.min(totalPages, p+1))} disabled={commentPage===totalPages} className="text-sm disabled:opacity-50 dark:text-slate-400 dark:disabled:opacity-20">下一页</button>
             </div>
           )}
         </div>
@@ -768,40 +792,40 @@ function Report() {
     const totalPages = Math.ceil(userExplList.length / ITEMS_PER_PAGE);
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowModal(null)}>
-        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[80vh] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between p-6 border-b border-slate-200">
-            <h2 className="font-bold text-slate-800 flex items-center gap-2"><Zap size={20} className="text-yellow-600"/>我的解析</h2>
-            <button onClick={() => setShowModal(null)} className="p-1 hover:bg-slate-100 rounded-full"><X size={20}/></button>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowModal(null)}>
+        <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[80vh] shadow-2xl flex flex-col dark:bg-slate-900 dark:border dark:border-slate-800" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-850">
+            <h2 className="font-bold text-slate-800 flex items-center gap-2 dark:text-slate-100"><Zap size={20} className="text-yellow-600 dark:text-amber-500"/>我的解析</h2>
+            <button onClick={() => setShowModal(null)} className="p-1 hover:bg-slate-100 rounded-full dark:hover:bg-slate-800 dark:text-slate-400"><X size={20}/></button>
           </div>
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
-            {userExplList.length === 0 ? <p className="text-center text-slate-400">暂无解析</p> : paginated.map(exp => {
+            {userExplList.length === 0 ? <p className="text-center text-slate-400 dark:text-slate-500">暂无解析</p> : paginated.map(exp => {
               const normId = normalizeQuestionId(exp.questionId);
               const isMaogai = normId.startsWith('MG-');
               return (
-                <div key={exp.id} className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg space-y-2">
+                <div key={exp.id} className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg space-y-2 dark:bg-indigo-950/20 dark:border-indigo-900/30">
                   <div className="flex justify-between">
-                    <p className="text-sm font-medium text-indigo-900 cursor-pointer hover:text-indigo-600" onClick={() => { openQuestion(exp.questionId); setShowModal(null); }}>
-                      <span className={`px-1.5 py-0.5 rounded text-xs mr-2 font-bold ${isMaogai ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                    <p className="text-sm font-medium text-indigo-900 cursor-pointer hover:text-indigo-600 dark:text-indigo-300 dark:hover:text-indigo-400" onClick={() => { openQuestion(exp.questionId); setShowModal(null); }}>
+                      <span className={`px-1.5 py-0.5 rounded text-xs mr-2 font-bold ${isMaogai ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'}`}>
                         {isMaogai ? '毛概' : '创新创业'}
                       </span>
                       ID: {normId}
                     </p>
-                    <span className="text-xs text-amber-600">👍 {exp.votes}</span>
+                    <span className="text-xs text-amber-600 dark:text-amber-500">👍 {exp.votes}</span>
                   </div>
-                  <div className="text-sm text-indigo-900 line-clamp-3"><Markdown content={exp.content}/></div>
+                  <div className="text-sm text-indigo-900 line-clamp-3 dark:text-indigo-200"><Markdown content={exp.content}/></div>
                   <div className="flex justify-end gap-2 text-xs">
-                    <button onClick={() => handleDeleteExplanation(exp.id)} className="text-red-600">删除</button>
+                    <button onClick={() => handleDeleteExplanation(exp.id)} className="text-red-600 dark:text-red-400">删除</button>
                   </div>
                 </div>
               );
             })}
           </div>
           {totalPages > 1 && (
-            <div className="flex justify-between p-6 border-t border-slate-200">
-              <button onClick={() => setExplanationPage(p => Math.max(1, p-1))} disabled={explanationPage===1} className="text-sm disabled:opacity-50">上一页</button>
-              <span className="text-sm">{explanationPage} / {totalPages}</span>
-              <button onClick={() => setExplanationPage(p => Math.min(totalPages, p+1))} disabled={explanationPage===totalPages} className="text-sm disabled:opacity-50">下一页</button>
+            <div className="flex justify-between p-6 border-t border-slate-200 dark:border-slate-850">
+              <button onClick={() => setExplanationPage(p => Math.max(1, p-1))} disabled={explanationPage===1} className="text-sm disabled:opacity-50 dark:text-slate-400 dark:disabled:opacity-20">上一页</button>
+              <span className="text-sm dark:text-slate-300">{explanationPage} / {totalPages}</span>
+              <button onClick={() => setExplanationPage(p => Math.min(totalPages, p+1))} disabled={explanationPage===totalPages} className="text-sm disabled:opacity-50 dark:text-slate-400 dark:disabled:opacity-20">下一页</button>
             </div>
           )}
         </div>
@@ -811,20 +835,20 @@ function Report() {
 
   if (gateReason) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="bg-white border border-slate-200 shadow-lg rounded-2xl p-6 w-full max-w-md space-y-4 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 dark:bg-slate-950 transition-colors duration-300">
+        <div className="bg-white border border-slate-200 shadow-lg rounded-2xl p-6 w-full max-w-md space-y-4 text-center dark:bg-slate-900 dark:border-slate-800">
           <AlertCircle className="mx-auto text-amber-500" size={32}/>
-          <div className="text-lg font-bold text-slate-800">访问受限</div>
-          <p className="text-slate-600 text-sm">{gateReason}</p>
-          <button onClick={() => location.href='/'} className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold">返回主页</button>
+          <div className="text-lg font-bold text-slate-800 dark:text-slate-100">访问受限</div>
+          <p className="text-slate-600 text-sm dark:text-slate-400">{gateReason}</p>
+          <button onClick={() => location.href='/'} className="w-full py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold dark:bg-slate-850 dark:text-slate-200 dark:hover:bg-slate-800">返回主页</button>
         </div>
       </div>
     );
   }
 
   if (!ready) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="flex items-center gap-2 text-slate-500 text-sm"><RefreshCw className="animate-spin" size={16}/> 正在同步数据...</div>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+      <div className="flex items-center gap-2 text-slate-500 text-sm dark:text-slate-400"><RefreshCw className="animate-spin" size={16}/> 正在同步数据...</div>
     </div>
   );
 
@@ -838,28 +862,61 @@ function Report() {
     ? (currentSubjectObj?.lectures || [])
     : (selectedSubject === 'maogai' ? MAOGAI_CHAPTERS : selectedSubject === 'hgdmy-maogai' ? [{ id: 1, name: '全部题目' }] : LECTURES);
 
+  const nextModeMap = {
+    'system': 'light',
+    'light': 'dark',
+    'dark': 'auto',
+    'auto': 'system'
+  };
+
+  const getThemeIcon = () => {
+    switch (themeMode) {
+      case 'light': return <Sun size={18} className="text-amber-500" />;
+      case 'dark': return <Moon size={18} className="text-indigo-400" />;
+      case 'auto': return <Clock size={18} className="text-emerald-500" />;
+      default: return <Monitor size={18} className="text-slate-500" />;
+    }
+  };
+
+  const getThemeTitle = () => {
+    switch (themeMode) {
+      case 'light': return '主题: 极简日间 (点击切换)';
+      case 'dark': return '主题: 护眼夜间 (点击切换)';
+      case 'auto': return '主题: 自动切换 (18:00-06:00夜间, 点击切换)';
+      default: return '主题: 跟随系统 (点击切换)';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <div className="sticky top-0 bg-white border-b border-slate-200 z-10 px-4 py-3 flex items-center justify-between shadow-sm">
-        <button onClick={() => location.href='/'} className="p-2 -ml-2 text-slate-600 hover:bg-slate-50 rounded-full flex items-center gap-1">
+    <div className="min-h-screen bg-slate-50 flex flex-col dark:bg-slate-950 transition-colors duration-300">
+      <div className="sticky top-0 bg-white border-b border-slate-200 z-10 px-4 py-3 flex items-center justify-between shadow-sm dark:bg-slate-900 dark:border-slate-800">
+        <button onClick={() => location.href='/'} className="p-2 -ml-2 text-slate-600 hover:bg-slate-50 rounded-full flex items-center gap-1 dark:text-slate-300 dark:hover:bg-slate-800">
           <ChevronLeft size={20} /> <span className="text-sm font-bold">返回主页</span>
         </button>
-        <h1 className="font-bold text-slate-800">学习数据报表</h1>
-        <div className="w-8"></div>
+        <h1 className="font-bold text-slate-800 dark:text-slate-100">学习数据报表</h1>
+        
+        {/* 🌗 同步主题切换按钮 */}
+        <button onClick={() => {
+          const next = nextModeMap[themeMode] || 'system';
+          setThemeModeState(next);
+          setThemeMode(next);
+        }} className="p-2 text-slate-600 hover:bg-slate-50 rounded-full flex items-center justify-center dark:text-slate-300 dark:hover:bg-slate-800" title={getThemeTitle()}>
+          {getThemeIcon()}
+        </button>
       </div>
 
       <div className="flex-1 max-w-3xl mx-auto w-full p-4 space-y-6">
         
         {/* ✅ 学科切换选项卡 (WOW 高级设计) */}
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar">
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar dark:bg-slate-900 dark:border-slate-800">
           {allSubjects.map(sub => (
             <button
               key={sub.id}
               onClick={() => { setSelectedSubject(sub.id); setSelectedDate(null); }}
               className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 min-w-[100px] ${
                 selectedSubject === sub.id
-                  ? 'bg-white shadow text-blue-600'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white shadow text-blue-600 dark:bg-slate-950 dark:text-blue-400 dark:shadow-indigo-950/20'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
               }`}
             >
               <span>{sub.icon}</span>
@@ -870,12 +927,12 @@ function Report() {
 
         {/* 日期选择器 */}
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-slate-500 px-2">选择学习记录日期 ({dates.length} 天)</div>
+          <div className="text-xs font-semibold text-slate-500 px-2 dark:text-slate-400">选择学习记录日期 ({dates.length} 天)</div>
           <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
             <div className="flex gap-2 w-max">
               {dates.map(d => (
                 <button key={d} onClick={() => setSelectedDate(d)}
-                        className={`px-4 py-2 rounded-full text-sm font-bold transition-all border flex-shrink-0 ${selectedDate === d ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-500 border-slate-200'}`}>
+                        className={`px-4 py-2 rounded-full text-sm font-bold transition-all border flex-shrink-0 ${selectedDate === d ? 'bg-blue-600 text-white border-blue-600 shadow-md dark:bg-blue-700 dark:border-blue-700' : 'bg-white text-slate-500 border-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:border-slate-800'}`}>
                   {d === new Date().toLocaleDateString() ? '今天' : d.split('/')[1] + '.' + d.split('/')[2]}
                 </button>
               ))}
@@ -903,7 +960,7 @@ function Report() {
 
         {/* 章节进度 */}
         <div>
-          <h3 className="text-slate-500 font-bold text-sm mb-3 ml-1">{currentSubjectObj?.shortName || currentSubjectObj?.name || '未知学科'} 章节统计</h3>
+          <h3 className="text-slate-500 font-bold text-sm mb-3 ml-1 dark:text-slate-400">{currentSubjectObj?.shortName || currentSubjectObj?.name || '未知学科'} 章节统计</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {activeChapters.map(l => {
               const total = activeBank[l.id]?.length || 0;
@@ -923,16 +980,16 @@ function Report() {
               }).length;
               const pct = total ? Math.round((done/total)*100) : 0;
               return (
-                <div key={l.id} className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between">
+                <div key={l.id} className="bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between dark:bg-slate-900 dark:border-slate-800">
                   <div className="flex-1 mr-4">
-                    <div className="font-bold text-slate-700 text-sm truncate">{safeText(l.name.includes('：') ? l.name.split('：')[1] : l.name)}</div>
-                    <div className="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full" style={{width: `${pct}%`}}></div>
+                    <div className="font-bold text-slate-700 text-sm truncate dark:text-slate-300">{safeText(l.name.includes('：') ? l.name.split('：')[1] : l.name)}</div>
+                    <div className="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden dark:bg-slate-850">
+                      <div className="h-full bg-blue-500 rounded-full dark:bg-blue-600" style={{width: `${pct}%`}}></div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-bold text-slate-800">{pct}%</div>
-                    <div className="text-xs text-slate-400">{done}/{total}</div>
+                    <div className="text-lg font-bold text-slate-800 dark:text-slate-200">{pct}%</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500">{done}/{total}</div>
                   </div>
                 </div>
               );
@@ -941,23 +998,23 @@ function Report() {
         </div>
 
         {/* 详细记录列表 */}
-        <div className="bg-white border border-slate-200 rounded-[2rem] p-4 sm:p-6 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Clock size={18}/> 详细做题记录</h3>
+        <div className="bg-white border border-slate-200 rounded-[2rem] p-4 sm:p-6 shadow-sm dark:bg-slate-900 dark:border-slate-800">
+          <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 dark:text-slate-100"><Clock size={18}/> 详细做题记录</h3>
           <div className="space-y-4">
-            {dailyRecords.length === 0 ? <p className="text-center text-slate-400 py-8">本日暂无记录</p> : dailyRecords.map(h => (
-              <div key={h.id} onClick={() => openQuestion(h.questionId)} className="flex gap-3 pb-3 border-b border-slate-50 last:border-0 last:pb-0 cursor-pointer hover:bg-slate-50 p-2 -mx-2 rounded-lg transition-colors">
+            {dailyRecords.length === 0 ? <p className="text-center text-slate-400 py-8 dark:text-slate-500">本日暂无记录</p> : dailyRecords.map(h => (
+              <div key={h.id} onClick={() => openQuestion(h.questionId)} className="flex gap-3 pb-3 border-b border-slate-50 last:border-0 last:pb-0 cursor-pointer hover:bg-slate-50 p-2 -mx-2 rounded-lg transition-colors dark:border-slate-800 dark:hover:bg-slate-850">
                 <div className={`mt-0.5 ${h.isCorrect ? 'text-green-500' : 'text-red-500'}`}>
-                  {h.action==='memorize' ? <Eye size={18} className="text-purple-500"/> : (h.isCorrect ? <CheckCircle size={18}/> : <XCircle size={18}/>)}
+                  {h.action==='memorize' ? <Eye size={18} className="text-purple-500 dark:text-purple-400"/> : (h.isCorrect ? <CheckCircle size={18} className="dark:text-green-400"/> : <XCircle size={18} className="dark:text-red-400"/>)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-slate-800 line-clamp-2">{safeText(h.questionTitle)}</div>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
-                    {h.action==='answer' && <span className={`px-1.5 py-0.5 rounded border ${h.isCorrect?'bg-green-50 border-green-200 text-green-700':'bg-red-50 border-red-200 text-red-700'}`}>选 {safeText(h.userAnswer)}</span>}
-                    {h.action==='memorize' && <span className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">背题模式</span>}
-                    <span className="ml-auto text-slate-400">{formatDate(h.timestamp).split(' ')[1]}</span>
+                  <div className="text-sm font-medium text-slate-800 line-clamp-2 dark:text-slate-200">{safeText(h.questionTitle)}</div>
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    {h.action==='answer' && <span className={`px-1.5 py-0.5 rounded border ${h.isCorrect?'bg-green-50 border-green-200 text-green-700 dark:bg-green-950/20 dark:border-green-900/30 dark:text-green-450':'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/20 dark:border-red-900/30 dark:text-red-450'}`}>选 {safeText(h.userAnswer)}</span>}
+                    {h.action==='memorize' && <span className="text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100 dark:bg-purple-950/20 dark:border-purple-900/30 dark:text-purple-400">背题模式</span>}
+                    <span className="ml-auto text-slate-400 dark:text-slate-500">{formatDate(h.timestamp).split(' ')[1]}</span>
                   </div>
                 </div>
-                <ArrowRight size={16} className="self-center text-slate-300"/>
+                <ArrowRight size={16} className="self-center text-slate-300 dark:text-slate-650"/>
               </div>
             ))}
           </div>

@@ -12,15 +12,29 @@ html, body, #root {
 }
 
 body {
-    background-color: #f8fafc;
+    background-image: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    background-attachment: fixed;
     color: #1e293b;
     -webkit-tap-highlight-color: transparent;
     font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* --- 全局暗色模式美化 (Light/Dark Silk Transitions) --- */
+html.dark body {
+    background-image: linear-gradient(135deg, #0b0f19 0%, #020617 100%);
+    background-attachment: fixed;
+    color: #f1f5f9;
+}
+
+body, .bg-white, .bg-slate-50, .text-slate-800, .text-slate-700, .text-slate-600, .text-slate-500, .border, .border-slate-200, .border-slate-100, .glass-card {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); }
+html.dark .glass { background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255, 255, 255, 0.05); }
+
 .animate-enter { animation: enter 0.3s ease-out; }
 @keyframes enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 640px) { .mobile-safe-bottom { padding-bottom: max(env(safe-area-inset-bottom, 0px), 1rem); } }

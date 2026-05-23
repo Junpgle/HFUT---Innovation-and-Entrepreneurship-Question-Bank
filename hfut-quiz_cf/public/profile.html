@@ -5,6 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>个人中心 - HFUT 创新创业</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <script>
+        (function() {
+            const getThemeMode = () => localStorage.getItem('app_theme_mode') || 'system';
+            const isNight = () => {
+                const hour = new Date().getHours();
+                return hour >= 18 || hour < 6;
+            };
+            const apply = () => {
+                const mode = getThemeMode();
+                const isDark = mode === 'dark' || 
+                               (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ||
+                               (mode === 'auto' && isNight());
+                if (isDark) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            };
+            apply();
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                if (getThemeMode() === 'system') apply();
+            });
+        })();
+    </script>
     <!-- React & Babel -->
     <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
@@ -14,7 +43,8 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; transition: background-color 0.3s ease, color 0.3s ease; }
+        html.dark body { background-color: #0b0f19; color: #f1f5f9; }
     </style>
 </head>
 <body>
@@ -80,18 +110,18 @@
             safeNavigate('index.html');
         };
 
-        if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-500">加载中...</div>;
+        if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-500 dark:text-slate-400 dark:bg-slate-950">加载中...</div>;
 
         if (!user) {
             return (
-                <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-                    <div className="bg-white p-8 rounded-3xl shadow-lg text-center max-w-sm w-full">
-                        <div className="w-16 h-16 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950">
+                    <div className="bg-white p-8 rounded-3xl shadow-lg text-center max-w-sm w-full dark:bg-slate-900 dark:border dark:border-slate-800 dark:shadow-indigo-950/20">
+                        <div className="w-16 h-16 bg-orange-100 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 dark:bg-orange-950/40 dark:text-orange-400">
                             <Icons.User className="w-8 h-8" />
                         </div>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">请先登录</h2>
-                        <p className="text-slate-500 mb-6 text-sm">无法自动跳转到登录页，请手动返回。</p>
-                        <button onClick={() => safeNavigate('index.html')} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition">
+                        <h2 className="text-xl font-bold text-slate-800 mb-2 dark:text-slate-100">请先登录</h2>
+                        <p className="text-slate-500 mb-6 text-sm dark:text-slate-400">无法自动跳转到登录页，请手动返回。</p>
+                        <button onClick={() => safeNavigate('index.html')} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition dark:bg-slate-800 dark:hover:bg-slate-700">
                             返回主页
                         </button>
                     </div>
@@ -100,32 +130,32 @@
         }
 
         return (
-            <div className="min-h-screen p-4 md:p-8 flex justify-center">
+            <div className="min-h-screen p-4 md:p-8 flex justify-center dark:bg-slate-950">
                 <div className="w-full max-w-lg space-y-6">
                     {/* Header */}
                     <div className="flex items-center gap-4">
-                        <button onClick={() => safeNavigate('index.html')} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                            <Icons.ArrowLeft className="text-slate-600" />
+                        <button onClick={() => safeNavigate('index.html')} className="p-2 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors dark:bg-slate-900 dark:border-slate-800 dark:hover:bg-slate-800 dark:text-slate-300">
+                            <Icons.ArrowLeft className="text-slate-600 dark:text-slate-400" />
                         </button>
-                        <h1 className="text-2xl font-bold text-slate-800">个人账号中心</h1>
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">个人账号中心</h1>
                     </div>
 
                     {/* Info Card */}
-                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-100 dark:shadow-indigo-950/20">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-16 h-16 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                                 {user.username ? user.username.charAt(0).toUpperCase() : 'U'}
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-slate-900">{user.username}</h2>
-                                <p className="text-slate-500 text-sm">用户邮箱: {user.email || "未绑定"}</p>
+                                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">{user.username}</h2>
+                                <p className="text-slate-500 text-sm dark:text-slate-400">用户邮箱: {user.email || "未绑定"}</p>
                             </div>
                         </div>
 
                         {/* Cloudflare Pages Alert */}
-                        <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100 mb-4 text-xs sm:text-sm text-blue-700 leading-relaxed space-y-2">
+                        <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100 mb-4 text-xs sm:text-sm text-blue-700 leading-relaxed space-y-2 dark:bg-blue-950/20 dark:border-blue-900/30 dark:text-blue-300">
                             <div className="font-bold flex items-center gap-1">
-                                <Icons.Alert className="w-4 h-4 text-blue-500" /> 物理隔离安全保障
+                                <Icons.Alert className="w-4 h-4 text-blue-500 dark:text-blue-400" /> 物理隔离安全保障
                             </div>
                             <p>
                                 刷题系统现已全面升级为本地与云端物理隔离的高速架构。您的所有答题数据、自定义题库和个性化进度均完全安全地保存在本地缓存中。
@@ -138,13 +168,13 @@
 
                     {/* Feedback Message */}
                     {msg.text && (
-                        <div className={`p-4 rounded-2xl flex items-center gap-3 ${msg.type === 'error' ? 'bg-red-50 text-red-700' : (msg.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700')}`}>
+                        <div className={`p-4 rounded-2xl flex items-center gap-3 ${msg.type === 'error' ? 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400' : (msg.type === 'success' ? 'bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400' : 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400')}`}>
                             {msg.type === 'error' ? <Icons.Alert /> : <Icons.Check />}
                             <span>{msg.text}</span>
                         </div>
                     )}
 
-                    <button onClick={logout} className="w-full py-4 text-slate-400 font-bold hover:text-red-500 transition-colors">
+                    <button onClick={logout} className="w-full py-4 text-slate-400 font-bold hover:text-red-500 transition-colors dark:text-slate-500 dark:hover:text-red-400">
                         退出登录
                     </button>
                 </div>
