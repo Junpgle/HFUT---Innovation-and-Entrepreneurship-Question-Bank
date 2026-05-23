@@ -1,4 +1,4 @@
-/*
+﻿/*
 * version: 4.0.4 (Cloudflare Migration)
 * 1. 移除 LeanCloud SDK，完全迁移至 Cloudflare Workers + D1
 * 2. 优化 API 调用，适配 Hono 后端
@@ -22,6 +22,10 @@ import {
 } from 'lucide-react';
 import {validateContent} from './contentFilter.js';
 import {Markdown} from './components/Markdown';
+import {LoginScreen} from './components/LoginScreen';
+import {RankingPage} from './components/RankingPage';
+import {QuestionDetailModal} from './components/QuestionDetailModal';
+import {SubjectSelector} from './components/SubjectSelector';
 import {
     BANK_CACHE_VERSION,
     CURRENT_APP_VERSION,
@@ -1868,52 +1872,8 @@ function App() {
         setLastSession(null);
     };
     const renderSubjectSelector = () => (
-        <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
-            <div className="w-full max-w-2xl">
-                <div className="text-center mb-10">
-                    <div
-                        className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
-                        <BookOpen size={32} className="md:w-10 md:h-10"/>
-                    </div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 刷题系统</h1>
-                    <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">请选择要练习的学科</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {SUBJECTS.map(subject => {
-                        const isInnovation = subject.id === 'innovation';
-                        const Icon = isInnovation ? Brain : BookOpen;
-                        return (
-                            <button
-                                key={subject.id}
-                                onClick={async () => {
-                                    setSelectedSubject(subject.id);
-                                    setBankStatus('idle');
-                                    setAllQuestionBank({});
-                                }}
-                                className="group relative bg-white rounded-[2rem] p-8 shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-blue-200 text-left hover:-translate-y-1"
-                            >
-                                <div
-                                    className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-12 -mt-12 opacity-50 group-hover:opacity-100 transition-opacity blur-2xl"/>
-                                <div className="relative z-10">
-                                    <div
-                                        className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 ${isInnovation ? 'bg-blue-100 text-blue-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                                        <Icon size={28}/>
-                                    </div>
-                                    <h2 className="text-xl font-bold text-slate-800 mb-2">{subject.shortName || subject.name}</h2>
-                                    <p className="text-sm text-slate-400 leading-relaxed">
-                                        {isInnovation
-                                            ? '7个章节 + 经典旧题库，涵盖创新创业基础全部内容'
-                                            : '9个章节，涵盖毛泽东思想和中国特色社会主义理论体系概论全部内容'}
-                                    </p>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
+        <SubjectSelector subjects={SUBJECTS} onSelectSubject={setSelectedSubject}/>
     );
-    // Helper renderers moved out of JSX return
     const renderDashboard = () => (
         <div className="h-screen flex flex-col max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-6 overflow-hidden">
             <header className="flex justify-between items-center mb-6 md:mb-8 shrink-0">
@@ -2940,58 +2900,28 @@ function App() {
     };
     // --- 登录界面 (适配 Cloudflare API) ---
     const renderLoginScreen = () => (
-        <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
-            <div className="glass p-6 md:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-white/50">
-                <div className="text-center mb-8">
-                    <div
-                        className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
-                        <Brain size={32} className="md:w-10 md:h-10"/>
-                    </div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 刷题系统</h1>
-                    <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">Pro 学习系统</p>
-                    {brushedIds.size > 0 &&
-                        <p className="text-xs text-blue-500 mt-2">本地缓存: {brushedIds.size} 题记录</p>}
-                </div>
-                <form onSubmit={async (e) => {
-                    e.preventDefault();
-                    setAuthLoading(true);
-                    setAuthError(null);
-                    try {
-                        // ✅ 改动：调用 api.login
-                        const user = await api.login(username, password);
-                        setCurrentUser(user);
-                        setAuthLoading(false);
-                    } catch (err) {
-                        setAuthError(err.message || "登录失败");
-                        setAuthLoading(false);
-                    }
-                }} className="space-y-4 md:space-y-5">
-                    <div className="space-y-4">
-                        <input type="text" required placeholder="用户名"
-                               className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none"
-                               value={username} onChange={e => setUsername(e.target.value)}/>
-                        <input type="password" required placeholder="密码"
-                               className="w-full px-5 py-3 bg-white/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none"
-                               value={password} onChange={e => setPassword(e.target.value)}/>
-                    </div>
-                    {authError &&
-                        <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-                            <AlertCircle size={16}/>{authError}</div>}
-                    <button disabled={authLoading}
-                            className="w-full py-3.5 bg-slate-900 hover:bg-black text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:shadow-xl transition-all disabled:opacity-70">
-                        {authLoading ? '登录中...' : '立即登录'}
-                    </button>
-                </form>
-                <div className="mt-6 text-center">
-                    <a href="/#/register"
-                       className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors flex items-center justify-center gap-1">
-                        没有账号？<span
-                        className="underline decoration-blue-300 decoration-2 underline-offset-2">去注册新账号</span>
-                        <ChevronRight size={14}/>
-                    </a>
-                </div>
-            </div>
-        </div>
+        <LoginScreen
+            brushedCount={brushedIds.size}
+            username={username}
+            password={password}
+            authLoading={authLoading}
+            authError={authError}
+            onUsernameChange={setUsername}
+            onPasswordChange={setPassword}
+            onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthLoading(true);
+                setAuthError(null);
+                try {
+                    const user = await api.login(username, password);
+                    setCurrentUser(user);
+                    setAuthLoading(false);
+                } catch (err) {
+                    setAuthError(err.message || '登录失败');
+                    setAuthLoading(false);
+                }
+            }}
+        />
     );
 // ✅ 优化版：自动加载互动数据 (防抖 + 缓存检查)
     useEffect(() => {
@@ -3026,171 +2956,23 @@ function App() {
     }, []);
     // --- 排行榜页面 ---
     const renderRankingPage = () => (
-        <div className="h-screen flex flex-col bg-slate-100">
-            <div
-                className="bg-white border-b border-slate-200 p-4 md:p-6 flex justify-between items-center sticky top-0 z-10">
-                <button
-                    onClick={() => setCurrentMode('dashboard')}
-                    className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
-                    <ChevronLeft size={18}/> 返回
-                </button>
-                <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
-                    <TrendingUp className="text-orange-600" size={24}/> 全站易错榜
-                </h1>
-                <button
-                    onClick={() => {
-                        setWrongQuestionRanking([]);
-                        loadWrongQuestionRanking();
-                    }}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-full transition-all"
-                    title="刷新榜单"
-                >
-                    <RefreshCw size={20}/>
-                </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 md:p-8">
-                <div className="max-w-4xl mx-auto space-y-4">
-                    {wrongQuestionRanking.length === 0 ? (
-                        <div className="bg-white rounded-2xl p-8 text-center text-slate-400">
-                            <AlertCircle size={48} className="mx-auto mb-4 opacity-50"/>
-                            <p>暂无数据或加载中...</p>
-                        </div>
-                    ) : (
-                        wrongQuestionRanking.map((item, index) => (
-                            <div
-                                key={item.questionId}
-                                onClick={() => openRankingQuestion(item)}
-                                className="bg-white rounded-2xl p-5 md:p-6 shadow-sm border border-slate-200 hover:border-orange-300 transition-all cursor-pointer group"
-                            >
-                                <div className="flex gap-4">
-                                    <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center font-bold text-xl
-                                        ${index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500 text-white' :
-                                        index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' :
-                                            index === 2 ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white' :
-                                                'bg-slate-100 text-slate-600'}`}>
-                                        {index < 3 ? <Trophy size={24}/> : (index + 1)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-start justify-between gap-4 mb-2">
-                                            <h3 className="font-semibold text-slate-800 text-base md:text-lg leading-snug group-hover:text-orange-600 transition-colors">
-                                                {item.questionTitle}
-                                            </h3>
-                                            <span
-                                                className="shrink-0 px-3 py-1 bg-red-100 text-red-700 rounded-lg text-sm font-bold">
-                                                错{item.errorCount}次
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-3 text-sm text-slate-500">
-                                                <span className="flex items-center gap-1"><Layers
-                                                    size={14}/> {item.category}</span>
-                                            <span className="flex items-center gap-1"><AlertTriangle
-                                                size={14}/> 错误率 {item.errorRate}%</span>
-                                        </div>
-                                    </div>
-                                    <div className="shrink-0 flex items-center">
-                                        <ChevronRight size={20}
-                                                      className="text-slate-300 group-hover:text-orange-500 transition-colors"/>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
-        </div>
+        <RankingPage
+            wrongQuestionRanking={wrongQuestionRanking}
+            onBack={() => setCurrentMode('dashboard')}
+            onRefresh={() => {
+                setWrongQuestionRanking([]);
+                loadWrongQuestionRanking();
+            }}
+            onOpenQuestion={openRankingQuestion}
+        />
     );
-    // --- 错题详情弹窗 ---
-    const renderQuestionDetailModal = () => {
-        if (!viewingRankQuestion) return null;
-        const {question, options, rawAnswer, explanation, id, rankInfo} = viewingRankQuestion;
-        return (
-            <div
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-enter">
-                <div className="bg-white w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl"
-                     onClick={e => e.stopPropagation()}>
-                    <div
-                        className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-start z-10">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Trophy size={18} className="text-amber-500"/>
-                                <span
-                                    className="text-xs font-bold text-slate-500">错题排行榜 #{rankInfo.rank}</span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                <span className={`text-xs px-2 py-1 rounded font-bold ${
-                                    viewingRankQuestion.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
-                                        (viewingRankQuestion.type === 'judgment' ? 'bg-orange-100 text-orange-700' :
-                                            (viewingRankQuestion.type === 'fill' ? 'bg-indigo-100 text-indigo-700' :
-                                                (viewingRankQuestion.type === 'big' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700')))
-                                }`}>
-                                    {
-                                        viewingRankQuestion.type === 'multiple' ? '多选' :
-                                            viewingRankQuestion.type === 'judgment' ? '判断' :
-                                                viewingRankQuestion.type === 'fill' ? '填空' :
-                                                    viewingRankQuestion.type === 'big' ? '简答' : '单选'
-                                    }
-                                </span>
-                                <span
-                                    className="text-xs px-2 py-1 bg-slate-100 text-slate-500 rounded">{viewingRankQuestion.category}</span>
-                                <span className="text-xs px-2 py-1 bg-red-50 text-red-700 rounded font-bold">
-                                    错误 {rankInfo.errorCount} 次 · 错误率 {rankInfo.errorRate}%
-                                </span>
-                            </div>
-                        </div>
-                        <button onClick={() => setViewingRankQuestion(null)}
-                                className="p-2 hover:bg-slate-100 rounded-full transition-colors ml-4">
-                            <X size={20} className="text-slate-400"/>
-                        </button>
-                    </div>
-                    <div className="p-6">
-                        <h3 className="text-xl font-bold text-slate-900 mb-6 leading-relaxed">{question}</h3>
-                        <div className="space-y-3 mb-6">
-                            {options.map((opt, i) => {
-                                const isCorrect = rawAnswer.includes(i);
-                                const optionLetter = ['A', 'B', 'C', 'D', 'E'][i];
-                                const optionStats = rankInfo?.optionStats || {};
-                                const selectionCount = optionStats[optionLetter] || 0;
-                                const totalSelections = Object.values(optionStats).reduce((sum, count) => sum + count, 0);
-                                const selectionRate = totalSelections > 0 ? Math.round((selectionCount / totalSelections) * 100) : 0;
-                                const isFrequentlyWrong = !isCorrect && selectionCount > 0 && selectionRate >= 15;
-                                return (
-                                    <div key={i}
-                                         className={`p-4 rounded-xl border-2 text-sm flex gap-3 transition-all ${
-                                             isCorrect ? 'bg-green-50 border-green-300 text-green-900 shadow-sm' :
-                                                 isFrequentlyWrong ? 'bg-red-50 border-red-300 text-red-900 shadow-sm' :
-                                                     'bg-white border-slate-100 text-slate-600'
-                                         }`}>
-                                        <span
-                                            className={`font-bold shrink-0 ${isCorrect ? 'text-green-700' : isFrequentlyWrong ? 'text-red-700' : 'text-slate-400'}`}>
-                                            {optionLetter}.
-                                        </span>
-                                        <span className="flex-1">{opt}</span>
-                                        {isCorrect &&
-                                            <div className="flex items-center gap-1 shrink-0"><CheckCircle size={18}
-                                                                                                           className="text-green-600"/><span
-                                                className="text-xs font-bold text-green-700">正确答案</span></div>}
-                                        {isFrequentlyWrong &&
-                                            <div className="flex items-center gap-1 shrink-0"><XCircle size={18}
-                                                                                                       className="text-red-600"/><span
-                                                className="text-xs font-bold text-red-700">易错项 {selectionRate}%</span>
-                                            </div>}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
-                            <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
-                                <Zap size={18} className="text-indigo-600"/> <span>答案解析</span>
-                            </div>
-                            <Markdown content={explanation} size="sm"
-                                      className="text-indigo-800 text-sm leading-relaxed"/>
-                            {renderUserExplanations(id)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    };
+    const renderQuestionDetailModal = () => (
+        <QuestionDetailModal
+            viewingRankQuestion={viewingRankQuestion}
+            onClose={() => setViewingRankQuestion(null)}
+            renderUserExplanations={renderUserExplanations}
+        />
+    );
     if (!currentUser) return renderLoginScreen();
     if (!selectedSubject) return renderSubjectSelector();
     return (
