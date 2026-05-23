@@ -12,8 +12,6 @@ import {useState, useEffect, useRef, useMemo} from 'react';
 import {api} from './api'; //
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import {
     BookOpen, CheckCircle, XCircle, Brain, Settings,
     ChevronRight, ChevronLeft, RotateCcw, LogOut, AlertCircle, Layers, Loader2,
@@ -23,260 +21,21 @@ import {
     ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy, FileUp, FileDown
 } from 'lucide-react';
 import {validateContent} from './contentFilter.js';
-// --- 配置常量 ---
-const CURRENT_APP_VERSION = '4.0.4';
-const LEADERBOARD_LIMIT = 50;
-// 题库源：GitHub raw 兜底
-const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
-const REPORT_URL = "/#/report";
-// LeanCloud 文件 objectId 映射，优先从 _File 拉取题库
-const FILE_ID_MAP = {
-    1: "69650188d606e2613f1b18e1",
-    2: "69650188d606e2613f1b18dc",
-    3: "69650188d606e2613f1b18de",
-    4: "69650188d606e2613f1b18df",
-    5: "69650188d606e2613f1b18e0",
-    6: "69650188d606e2613f1b18db",
-    7: "69650188d606e2613f1b18dd",
-};
-const LECTURES = [
-    {
-        id: 1,
-        name: "第一讲：创新创业概述",
-        file: "创新创业基础第一讲习题.xlsx",
-        fileId: FILE_ID_MAP[1],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/sCwXv74yKdHuwzz440gSIKvciB8w5Oxt/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%80%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 2,
-        name: "第二讲：创新思维与方法",
-        file: "创新创业基础第二讲习题.xlsx",
-        fileId: FILE_ID_MAP[2],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/LW7iNTXd04MjT6xIIgoghNavzJh78BM3/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%8C%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 3,
-        name: "第三讲：机会与风险识别",
-        file: "创新创业基础第三讲习题.xlsx",
-        fileId: FILE_ID_MAP[3],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/89otiFHMEs0D6EPKY7h6nLLlKT4e3FlW/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%89%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 4,
-        name: "第四讲：团队与资源整合",
-        file: "创新创业基础第四讲习题.xlsx",
-        fileId: FILE_ID_MAP[4],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/iDvr6YL2DqyDJNQ8WtHF8JoGu8VhXJpB/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%9B%9B%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 5,
-        name: "第五讲：商业模式与计划",
-        file: "创新创业基础第五讲习题.xlsx",
-        fileId: FILE_ID_MAP[5],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/pmwL2rBspHySjkkGLY6cT4jTSENOw2QE/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%BA%94%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 6,
-        name: "第六讲：融资与企业设立",
-        file: "创新创业基础第六讲习题.xlsx",
-        fileId: FILE_ID_MAP[6],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/7ftQpmkKv4VtISulAbszw5y9gMtShUUO/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E5%85%AD%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 7,
-        name: "第七讲：新企业成长管理",
-        file: "创新创业基础第七讲习题.xlsx",
-        fileId: FILE_ID_MAP[7],
-        url: "http://lc-5wPsbnak.cn-n1.lcfile.com/ng2YT8p8yeERNwiaPXWMJBFwEdPwM7XI/%E5%88%9B%E6%96%B0%E5%88%9B%E4%B8%9A%E5%9F%BA%E7%A1%80%E7%AC%AC%E4%B8%83%E8%AE%B2%E4%B9%A0%E9%A2%98.xlsx"
-    },
-    {
-        id: 99,
-        name: "经典旧题库 (综合)",
-        file: "questions_old.xls",
-        fileId: null,
-        url: "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/questions_old.xls"
-    },
-];
-const MAOGAO_CHAPTERS = [
-    {id: 1, name: '导论'},
-    {id: 2, name: '第一章'},
-    {id: 3, name: '第二章'},
-    {id: 4, name: '第三章'},
-    {id: 5, name: '第四章'},
-    {id: 6, name: '第五章'},
-    {id: 7, name: '第六章'},
-    {id: 8, name: '第七章'},
-    {id: 9, name: '第八章'},
-];
-const SUBJECTS = [
-    {
-        id: 'innovation',
-        name: '创新创业',
-        icon: '🚀',
-        lectures: LECTURES,
-        getChapters: (bank) => LECTURES.filter(l => bank[l.id]?.length),
-        getChapterName: (id) => LECTURES.find(l => l.id === id)?.name || `章节${id}`,
-    },
-    {
-        id: 'maogai',
-        name: '毛泽东思想和中国特色社会主义理论体系概论',
-        shortName: '毛概',
-        icon: '📖',
-        file: 'maogai_full.json',
-        chapters: MAOGAO_CHAPTERS,
-        getChapters: (bank) => MAOGAO_CHAPTERS.filter(ch => bank[ch.id]?.length),
-        getChapterName: (id) => MAOGAO_CHAPTERS.find(ch => ch.id === id)?.name || `章节${id}`,
-    },
-];
-const getBankCacheKey = (subjectId) => `hf_question_bank_${subjectId}`;
-const getBankCacheVersionKey = (subjectId) => `hf_bank_version_${subjectId}`;
-const BANK_CACHE_VERSION = 3;
-// 🕒 时间格式化工具：强制将数据库时间视为 UTC 并转为本地时间
-const formatDate = (isoString) => {
-    if (!isoString) return '未知时间';
-    // 如果是 SQLite 默认格式 "YYYY-MM-DD HH:MM:SS" (没有 T 和 Z)
-    // 我们手动补上 " UTC" 让浏览器正确识别
-    let dateStr = String(isoString);
-    if (!dateStr.includes('T') && !dateStr.includes('Z')) {
-        dateStr = dateStr.replace(' ', 'T') + 'Z';
-    }
-    // 如果已经是 ISO 格式但没带 Z (极少见)，也补上
-    // 这里主要处理 D1 返回的格式
-    const date = new Date(dateStr);
-    // 检查是否有效
-    if (isNaN(date.getTime())) return isoString;
-    // 转为本地字符串 (例如: 2026/1/17 21:00:00)
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false // 24小时制
-    });
-};
-// 安全存储封装
-const safeGet = async (key, fallback = null) => {
-    try {
-        const v = await localforage.getItem(key);
-        if (v !== null && v !== undefined) {
-            try {
-                localStorage.setItem(key, JSON.stringify(v));
-            } catch {
-                // Ignore localStorage errors
-            }
-            return v;
-        }
-    } catch (err) {
-        console.warn(`localforage.getItem(${key}) failed`, err);
-    }
-    try {
-        const raw = localStorage.getItem(key);
-        if (raw !== null) return JSON.parse(raw);
-    } catch (err) {
-        console.warn(`localStorage.getItem(${key}) failed`, err);
-    }
-    return fallback;
-};
-const safeSet = async (key, value) => {
-    try {
-        await localforage.setItem(key, value);
-    } catch (err) {
-        console.warn(`localforage.setItem(${key}) failed`, err);
-    }
-    try {
-        localStorage.setItem(key, JSON.stringify(value));
-    } catch (err) {
-        console.warn(`localStorage.setItem(${key}) failed`, err);
-    }
-};
+import {Markdown} from './components/Markdown';
+import {
+    BANK_CACHE_VERSION,
+    CURRENT_APP_VERSION,
+    GITHUB_BASE,
+    getBankCacheKey,
+    getBankCacheVersionKey,
+    LEADERBOARD_LIMIT,
+    REPORT_URL,
+    SUBJECTS
+} from './config/quizConfig';
+import {formatDate} from './utils/date';
+import {safeGet, safeSet} from './utils/storage';
+import {normalizeQuestionId, normalizeSet} from './utils/questionId';
 function App() {
-    const Markdown = ({content, size = 'sm', className = ''}) => {
-        const components = {
-            h1: ({...props}) => <h1
-                className="text-2xl md:text-3xl font-bold text-slate-900 mt-6 mb-4 border-b border-slate-100 pb-2" {...props} />,
-            h2: ({...props}) => <h2 className="text-xl md:text-2xl font-bold text-slate-800 mt-5 mb-3" {...props} />,
-            h3: ({...props}) => <h3 className="text-lg md:text-xl font-bold text-slate-800 mt-4 mb-2" {...props} />,
-            h4: ({...props}) => <h4 className="text-base md:text-lg font-bold text-slate-700 mt-3 mb-2" {...props} />,
-            p: ({...props}) => <p className="leading-7 text-slate-700 mb-4 break-words" {...props} />,
-            strong: ({...props}) => <strong className="font-bold text-slate-900" {...props} />,
-            em: ({...props}) => <em className="italic text-slate-600" {...props} />,
-            del: ({...props}) => <del className="line-through text-slate-400" {...props} />,
-            hr: ({...props}) => <hr className="my-6 border-slate-200" {...props} />,
-            blockquote: ({...props}) => (
-                <blockquote
-                    className="border-l-4 border-blue-400 bg-blue-50/50 text-slate-600 italic px-4 py-3 rounded-r-lg my-4" {...props} />
-            ),
-            ul: ({...props}) => <ul
-                className="list-disc pl-5 space-y-1.5 my-3 text-slate-700 marker:text-slate-400" {...props} />,
-            ol: ({...props}) => <ol
-                className="list-decimal pl-5 space-y-1.5 my-3 text-slate-700 marker:text-slate-500" {...props} />,
-            li: ({...props}) => <li className="pl-1" {...props} />,
-            a: ({href, children, ...props}) => (
-                <a href={href} target="_blank" rel="noopener noreferrer"
-                   className="text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors break-all" {...props}>
-                    {children}
-                </a>
-            ),
-            code: ({node, inline, className, children, ...props}) => {
-                if (inline) {
-                    return <code
-                        className="px-1.5 py-0.5 mx-0.5 rounded bg-slate-100 text-pink-600 font-mono text-[0.9em] border border-slate-200" {...props}>{children}</code>;
-                }
-                return (
-                    <div className="relative my-4 rounded-xl overflow-hidden bg-slate-800 shadow-sm group">
-                        <div
-                            className="flex items-center justify-between px-4 py-2 bg-slate-900/50 border-b border-slate-700/50">
-                            <div className="flex gap-1.5">
-                                <div className="w-2.5 h-2.5 rounded-full bg-red-500/80"/>
-                                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80"/>
-                                <div className="w-2.5 h-2.5 rounded-full bg-green-500/80"/>
-                            </div>
-                            <span className="text-xs text-slate-400 font-mono">Code</span>
-                        </div>
-                        <pre
-                            className="p-4 overflow-x-auto text-sm text-slate-50 font-mono leading-relaxed custom-scrollbar">
-                        <code className={className} {...props}>{children}</code>
-                    </pre>
-                    </div>
-                );
-            },
-            table: ({...props}) => (
-                <div className="my-6 w-full overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
-                    <table className="w-full text-left text-sm text-slate-600" {...props} />
-                </div>
-            ),
-            thead: ({...props}) => <thead
-                className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold uppercase tracking-wider text-xs" {...props} />,
-            tbody: ({...props}) => <tbody className="divide-y divide-slate-100 bg-white" {...props} />,
-            tr: ({...props}) => <tr className="hover:bg-slate-50/50 transition-colors" {...props} />,
-            th: ({...props}) => <th className="px-4 py-3 whitespace-nowrap" {...props} />,
-            td: ({...props}) => <td className="px-4 py-3 whitespace-normal align-top" {...props} />,
-            img: ({src, alt, ...props}) => (
-                <div className="my-5">
-                    <img src={src} alt={alt}
-                         className="max-w-full h-auto rounded-xl shadow-sm border border-slate-100 mx-auto"
-                         loading="lazy" {...props} />
-                    {alt && <p className="text-center text-xs text-slate-400 mt-2">{alt}</p>}
-                </div>
-            ),
-            input: ({type, ...props}) => {
-                if (type === 'checkbox') {
-                    return <input type="checkbox"
-                                  className="mr-2 rounded border-slate-300 text-blue-600 focus:ring-blue-500 pointer-events-none"
-                                  disabled {...props} />;
-                }
-                return <input type={type} {...props} />;
-            }
-        };
-        return (
-            <div className={`prose prose-${size} max-w-none text-slate-800 ${className}`}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-                    {content}
-                </ReactMarkdown>
-            </div>
-        );
-    };
     // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
     const [currentUser, setCurrentUser] = useState(api.getCurrentUser());
     const [username, setUsername] = useState('');
@@ -285,28 +44,6 @@ function App() {
     const [authError, setAuthError] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     // 学科选择
-    // 新旧题目 ID 偏移投影转换器，将历史老ID MG-188440+ 智能向后投射为 MG-1+ 新ID，彻底激活全站易错排行榜
-    const normalizeQuestionId = (id) => {
-        if (!id || typeof id !== 'string') return id;
-        if (id.startsWith('MG-')) {
-            const numStr = id.substring(3);
-            const num = parseInt(numStr);
-            if (!isNaN(num) && num > 188439) {
-                return `MG-${num - 188439}`;
-            }
-        }
-        return id;
-    };
-    // 个人缓存及云端进度 ID 智能投影转换，完美保留用户的历史进度和错题记录
-    const normalizeSet = (s) => {
-        if (!s) return new Set();
-        const setObj = Array.isArray(s) ? new Set(s) : (s instanceof Set ? s : new Set(Array.from(s)));
-        const newSet = new Set();
-        setObj.forEach(val => {
-            newSet.add(normalizeQuestionId(val));
-        });
-        return newSet;
-    };
     const [selectedSubject, setSelectedSubject] = useState(null);
     const currentSubject = selectedSubject ? SUBJECTS.find(s => s.id === selectedSubject) : null;
     // 题库状态
