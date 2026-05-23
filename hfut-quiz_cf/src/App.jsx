@@ -95,6 +95,7 @@ function App() {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [showExplanation, setShowExplanation] = useState(false);
     const [selectedIndices, setSelectedIndices] = useState([]);
+    const [selectedByQuestion, setSelectedByQuestion] = useState({});
     const [isAnswered, setIsAnswered] = useState(false);
     const [answerResults, setAnswerResults] = useState({});
     // 在线人数统计
@@ -1211,6 +1212,7 @@ function App() {
         const limit = quizConfig.count === 'all' ? shuffled.length : Number(quizConfig.count);
         setQuestions(shuffled.slice(0, limit));
         setAnswerResults({});
+        setSelectedByQuestion({});
         startMode(mode);
     };
     const resumeLastSession = () => {
@@ -1219,6 +1221,17 @@ function App() {
         setCurrentIndex(lastSession.currentIndex);
         setQuizConfig(lastSession.mode);
         startMode(lastSession.mode);
+        const restoredAnswers = lastSession.answerResults || {};
+        const restoredSelections = lastSession.selectedByQuestion || {};
+        setAnswerResults(restoredAnswers);
+        setSelectedByQuestion(restoredSelections);
+        const currentQ = lastSession.questions?.[lastSession.currentIndex];
+        const currentQid = currentQ?.id;
+        const currentSelection = currentQid ? (restoredSelections[currentQid] || []) : [];
+        const answered = currentQid ? Object.prototype.hasOwnProperty.call(restoredAnswers, currentQid) : false;
+        setSelectedIndices(currentSelection);
+        setIsAnswered(answered);
+        setShowExplanation(answered);
     };
     const startMistakeNotebook = () => {
         if (bankStatus !== 'ready') return;
@@ -1232,6 +1245,7 @@ function App() {
         wrongQs.sort(() => 0.5 - Math.random());
         setQuestions(wrongQs);
         setAnswerResults({});
+        setSelectedByQuestion({});
         startMode('mistakes');
     };
     const performSearch = (keyword = searchKeyword) => {
@@ -1280,6 +1294,8 @@ function App() {
         setLastSession(null);
         setQuestions([...searchResults]);
         setCurrentIndex(0);
+        setAnswerResults({});
+        setSelectedByQuestion({});
         startMode('quiz');
         setShowSearchResults(false);
     };
@@ -1841,6 +1857,7 @@ function App() {
         // 2. 更新基础交互状态
         setIsAnswered(true);
         setSelectedIndices(normalizedSelection);
+        setSelectedByQuestion(prev => ({...prev, [currentQ.id]: normalizedSelection}));
         setShowExplanation(true); // 💡 这一步会触发我们之前写的 useEffect，自动去加载互动数据
         // 3. 更新统计数据 (本地 Set 操作)
         setBrushedIds(prev => new Set(prev).add(currentQ.id));
@@ -1889,15 +1906,20 @@ function App() {
         setCurrentMode(mode);
         if (mode !== currentMode) {
             setSelectedIndices([]);
+            setSelectedByQuestion({});
             setIsAnswered(false);
             setShowExplanation(false);
         }
     };
     const changeQuestion = (idx) => {
+        const q = questions[idx];
+        const qid = q?.id;
+        const restored = qid ? (selectedByQuestion[qid] || []) : [];
+        const answered = qid ? Object.prototype.hasOwnProperty.call(answerResults, qid) : false;
         setCurrentIndex(idx);
-        setSelectedIndices([]);
-        setIsAnswered(false);
-        setShowExplanation(false);
+        setSelectedIndices(restored);
+        setIsAnswered(answered);
+        setShowExplanation(answered);
     };
     const nextQuestion = () => {
         if (currentIndex < questions.length - 1) changeQuestion(currentIndex + 1);
@@ -1912,7 +1934,14 @@ function App() {
     };
     const exitToDashboard = () => {
         if (['quiz', 'memorize', 'mistakes'].includes(currentMode) && questions.length > 0 && currentIndex < questions.length - 1) {
-            setLastSession({mode: currentMode, questions, currentIndex, quizConfig});
+            setLastSession({
+                mode: currentMode,
+                questions,
+                currentIndex,
+                quizConfig,
+                answerResults,
+                selectedByQuestion
+            });
         } else {
             setLastSession(null);
         }
