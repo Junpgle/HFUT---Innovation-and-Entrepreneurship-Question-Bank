@@ -67,7 +67,7 @@ function App() {
     // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
     const initialUser = api.getCurrentUser();
     const [currentUser, setCurrentUser] = useState(initialUser);
-    const [showLoginScreen, setShowLoginScreen] = useState(!initialUser);
+    const [showLoginScreen, setShowLoginScreen] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
@@ -87,6 +87,7 @@ function App() {
     const allSubjects = useMemo(() => [...SUBJECTS, ...customSubjects], [customSubjects]);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
+    const lastSelectedSubjectRef = useRef(null);
     const currentSubject = getSubjectById(allSubjects, selectedSubject);
     // 题库状态
     const [allQuestionBank, setAllQuestionBank] = useState({});
@@ -214,6 +215,7 @@ function App() {
     const [showExplanationForm, setShowExplanationForm] = useState(false);
     const [newComment, setNewComment] = useState('');
     const [newExplanation, setNewExplanation] = useState('');
+    const [customNotes, setCustomNotes] = useState({});
     const [editingCommentId, setEditingCommentId] = useState(null);
     const [editingCommentContent, setEditingCommentContent] = useState('');
     const [editingExplanationId, setEditingExplanationId] = useState(null);
@@ -248,6 +250,20 @@ function App() {
             console.error("API Daily Limit Exceeded");
         }
     };
+    useEffect(() => {
+        if (selectedSubject) {
+            lastSelectedSubjectRef.current = selectedSubject;
+        }
+    }, [selectedSubject]);
+    useEffect(() => {
+        // 兜底恢复：如果学科被异常清空，但仍有练习会话，则恢复到上一次有效学科
+        if (!selectedSubject && questions.length > 0 && ['quiz', 'memorize', 'mistakes', 'dashboard'].includes(currentMode)) {
+            const fallback = lastSelectedSubjectRef.current;
+            if (fallback) {
+                setSelectedSubject(fallback);
+            }
+        }
+    }, [selectedSubject, questions.length, currentMode]);
     const openSubjectSelectorModal = ({title, description, options, allowMulti = false, defaultValues = []}) => {
         return new Promise((resolve) => {
             selectorResolveRef.current = resolve;
@@ -359,28 +375,38 @@ function App() {
     // ==========================================
     // 🚀 优化逻辑 3: 聚合加载互动内容
     // ==========================================
+    const isCustomQuestionId = (questionId) => String(questionId || '').startsWith('custom_');
     const loadQuestionThread = async (questionId) => {
-        if (!questionId) return;
+        if (!questionId || !currentUser || isCustomQuestionId(questionId)) return;
         try {
             const res = await api.request(`/thread/${questionId}`);
+            const safeRes = (res && typeof res === 'object') ? res : {};
             setQuestionThread(prev => ({
                 ...prev,
                 [questionId]: {
-                    comments: res.comments || [],
-                    explanations: res.explanations || []
+                    comments: Array.isArray(safeRes.comments) ? safeRes.comments : [],
+                    explanations: Array.isArray(safeRes.explanations) ? safeRes.explanations : []
                 }
             }));
         } catch (e) {
             console.error("加载互动内容失败", e);
+            // 未登录/鉴权失败时不应打断刷题流程，写入空线程以阻止重复请求
+            setQuestionThread(prev => ({
+                ...prev,
+                [questionId]: {
+                    comments: [],
+                    explanations: []
+                }
+            }));
         }
     };
     useEffect(() => {
-        if (!questions.length) return;
+        if (!currentUser || !questions.length) return;
         const q = questions[currentIndex];
-        if (q && !questionThread[q.id]) {
+        if (q && !isCustomQuestionId(q.id) && !questionThread[q.id]) {
             loadQuestionThread(q.id);
         }
-    }, [currentIndex, questions]);
+    }, [currentIndex, questions, currentUser]);
     // ✅ 改动：使用 api.batchRecord
     const flushStats = async () => {
         const payload = [...statsBuffer.current];
@@ -407,7 +433,7 @@ function App() {
     // --- 核心工具函数：数据加载与防抖 ---
     // 加载单题的评论和解析数据 (带缓存检查)
     const loadThreadData = async (questionId) => {
-        if (!questionId) return;
+        if (!questionId || !currentUser || isCustomQuestionId(questionId)) return;
         // 如果本地已有且不为空，暂时跳过（根据需要可增加过期时间策略）
         if (questionThread[questionId]) return;
         try {
@@ -823,6 +849,8 @@ function App() {
                 setWrongIds(normalizeSet(await getSet('app_wrongIds')));
                 const hist = await safeGet('app_history');
                 if (hist) setHistory(hist);
+                const notes = await safeGet('app_custom_notes', {});
+                if (notes && typeof notes === 'object') setCustomNotes(notes);
                 const sess = await safeGet('app_lastSession');
                 if (sess) setLastSession(sess);
                 const customSubs = normalizeCustomSubjects(await safeGet('custom_subjects_list', []));
@@ -880,6 +908,9 @@ function App() {
     useEffect(() => {
         if (hydrated) safeSet('app_history', history);
     }, [history, hydrated]);
+    useEffect(() => {
+        if (hydrated) safeSet('app_custom_notes', customNotes);
+    }, [customNotes, hydrated]);
     useEffect(() => {
         if (!hydrated) return;
         const save = async () => {
@@ -1794,6 +1825,7 @@ function App() {
     };
     const generateAndStartQuiz = (mode = 'quiz') => {
         if (bankStatus !== 'ready') return;
+        setCurrentIndex(0);
         setLastSession(null);
         let sourcePool = quizConfig.lectureId === 0 ? Object.values(allQuestionBank).flat() : (allQuestionBank[quizConfig.lectureId] || []);
         if (quizConfig.type !== 'all') {
@@ -1832,6 +1864,7 @@ function App() {
     };
     const startMistakeNotebook = () => {
         if (bankStatus !== 'ready') return;
+        setCurrentIndex(0);
         setLastSession(null);
         const allQs = Object.values(allQuestionBank).flat();
         const wrongQs = allQs.filter(q => wrongIds.has(q.id));
@@ -1888,9 +1921,9 @@ function App() {
             alert("没有搜索结果");
             return;
         }
+        setCurrentIndex(0);
         setLastSession(null);
         setQuestions([...searchResults]);
-        setCurrentIndex(0);
         setAnswerResults({});
         setSelectedByQuestion({});
         startMode('quiz');
@@ -2393,6 +2426,7 @@ function App() {
     // };
     // ✅ 改动：加载解析 (api.getExplanations)
     const loadUserExplanations = async (questionId) => {
+        if (!currentUser || isCustomQuestionId(questionId)) return;
         try {
             const explanations = await api.getExplanations(questionId);
             if (Array.isArray(explanations)) {
@@ -2403,8 +2437,25 @@ function App() {
         }
     };
     const ensureExplanationsLoaded = (questionId) => {
-        if (!questionId) return;
+        if (!questionId || !currentUser || isCustomQuestionId(questionId)) return;
         if (!userExplanations[questionId]) loadUserExplanations(questionId);
+    };
+    const submitLocalNote = (questionId) => {
+        const content = String(newComment || '').trim();
+        if (!questionId || !content) return;
+        const note = {
+            id: Date.now(),
+            content,
+            createdAt: new Date().toISOString(),
+            author: '本地备注'
+        };
+        setCustomNotes(prev => ({
+            ...prev,
+            [questionId]: [note, ...(Array.isArray(prev[questionId]) ? prev[questionId] : [])]
+        }));
+        setNewComment('');
+        setSyncStatus('success');
+        setSyncMsg('备注已保存（本地）');
     };
     const handleOptionClick = (idx) => {
         // 如果是背题模式，或者已经作答过了，点击无效
@@ -2932,6 +2983,9 @@ function App() {
         if (!questions.length) return <div
             className="h-screen flex items-center justify-center text-slate-400">题库为空</div>;
         const currentQ = questions[currentIndex];
+        if (!currentQ) {
+            return <div className="h-screen flex items-center justify-center text-slate-400">题目索引异常，请返回重试</div>;
+        }
         const isQuiz = currentMode !== 'memorize';
         const showContent = !isQuiz || showExplanation;
         return (
@@ -2979,7 +3033,9 @@ function App() {
                             {showContent && (
                                 <QuizDiscussionPanel
                                     currentQ={currentQ}
+                                    isCustomSubject={String(currentQ?.id || '').startsWith('custom_')}
                                     questionThread={questionThread}
+                                    customNotes={customNotes}
                                     renderUserExplanations={renderUserExplanations}
                                     showExplanationForm={showExplanationForm}
                                     setShowExplanationForm={setShowExplanationForm}
@@ -2990,6 +3046,7 @@ function App() {
                                     newComment={newComment}
                                     setNewComment={setNewComment}
                                     submitComment={submitComment}
+                                    submitLocalNote={submitLocalNote}
                                     currentUser={currentUser}
                                     editingCommentId={editingCommentId}
                                     editingCommentContent={editingCommentContent}
@@ -3143,7 +3200,8 @@ function App() {
         );
     };
     if (!currentUser && showLoginScreen) return renderLoginScreen();
-    if (!selectedSubject) return renderSubjectSelector();
+    const hasActiveQuizSession = ['quiz', 'memorize', 'mistakes'].includes(currentMode) && questions.length > 0;
+    if (!selectedSubject && !hasActiveQuizSession) return renderSubjectSelector();
     return (
         <div className="h-full font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
             {currentMode === 'dashboard' && renderDashboard()}

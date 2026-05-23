@@ -3,7 +3,9 @@ import { Markdown } from './Markdown';
 
 export function QuizDiscussionPanel({
   currentQ,
+  isCustomSubject,
   questionThread,
+  customNotes,
   renderUserExplanations,
   showExplanationForm,
   setShowExplanationForm,
@@ -14,6 +16,7 @@ export function QuizDiscussionPanel({
   newComment,
   setNewComment,
   submitComment,
+  submitLocalNote,
   currentUser,
   editingCommentId,
   editingCommentContent,
@@ -25,6 +28,54 @@ export function QuizDiscussionPanel({
   handleLikeComment,
   formatDate,
 }) {
+  if (isCustomSubject) {
+    const noteList = Array.isArray(customNotes?.[currentQ.id]) ? customNotes[currentQ.id] : [];
+    return (
+      <div className="grid grid-cols-1 gap-4 md:gap-6 items-stretch">
+        <div className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 scroll-mt-24 h-full flex flex-col dark:bg-slate-900 dark:border-slate-800" ref={commentSectionRef}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-slate-900 font-bold dark:text-slate-100">
+              <MessageSquare size={20} className="text-slate-500 dark:text-slate-400" />
+              备注 {noteList.length ? `(${noteList.length})` : ''}
+            </div>
+          </div>
+          <div className="space-y-4 pb-1 flex flex-col flex-1">
+            <div className="space-y-2">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="记录你的理解、易错点或记忆口诀（仅本地保存）..."
+                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200"
+                rows={3}
+              />
+              <button onClick={() => submitLocalNote(currentQ.id)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
+                <Send size={16} /> 保存备注
+              </button>
+            </div>
+
+            {noteList.length > 0 ? (
+              <div className="space-y-3 max-h-full overflow-y-auto flex-1">
+                {noteList.map((note) => (
+                  <div key={note.id} className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2 dark:bg-slate-950 dark:border-slate-850">
+                    <div className="text-slate-800 text-sm mb-1 break-words dark:text-slate-200">
+                      <Markdown content={note.content} size="sm" />
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                      <span>{note.author || '本地备注'}</span>
+                      <span>{formatDate(note.createdAt)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-400 text-sm text-center py-4 dark:text-slate-500">暂无备注，写下你的第一条笔记吧。</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid md:grid-cols-2 gap-4 md:gap-6 items-stretch">
       <div className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 h-full flex flex-col gap-4 dark:bg-slate-900 dark:border-slate-800">

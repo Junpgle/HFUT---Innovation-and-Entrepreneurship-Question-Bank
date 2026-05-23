@@ -1,5 +1,7 @@
-import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, GraduationCap, Info, Loader2, Trash2, UploadCloud } from 'lucide-react';
+import { useMemo } from 'react';
+import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, Github, GraduationCap, Info, Loader2, Trash2, UploadCloud } from 'lucide-react';
 import CustomUploadModal from './CustomUploadModal.jsx';
+import mottos from './data/mottos.json';
 
 export const SubjectSelector = ({ 
     allSubjects, 
@@ -25,6 +27,11 @@ export const SubjectSelector = ({
     onRequireLogin,
 }) => {
     const isGuest = !currentUser;
+    const motto = useMemo(() => {
+        const now = new Date();
+        const seed = now.getHours() + now.getDate() * 24 + (now.getMonth() * 744);
+        return mottos[seed % mottos.length];
+    }, []);
     const nextModeMap = {
         'system': 'light',
         'light': 'dark',
@@ -64,7 +71,7 @@ export const SubjectSelector = ({
                         <BookOpen size={24} className="sm:w-8 sm:h-8 md:w-10 md:h-10"/>
                     </div>
                     <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight dark:text-slate-100">HFUT 刷题系统</h1>
-                    <p className="text-slate-500 mt-2 font-semibold text-xs sm:text-sm md:text-base dark:text-slate-400">请选择要练习的学科</p>
+                    <p className="text-slate-500 mt-2 font-semibold text-xs sm:text-sm md:text-base dark:text-slate-400">{motto}</p>
                     
                     {/* 快捷直达操作菜单 */}
                     <div className="flex justify-center gap-2 sm:gap-3 mt-6 flex-wrap relative z-30">
@@ -97,14 +104,20 @@ export const SubjectSelector = ({
                         <button onClick={() => setThemeMode(nextModeMap[themeMode])} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {labelMap[themeMode] || '🌗 切换主题'}
                         </button>
-                        {/* 退出登录 */}
-                        <button onClick={() => {
-                            if (window.confirm('确定要退出当前账号登录吗？')) {
-                                onLogout();
-                            }
-                        }} className="px-3 sm:px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-red-950/20 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/40">
-                            🚪 退出登录
-                        </button>
+                        {/* 登录/退出 */}
+                        {currentUser ? (
+                            <button onClick={() => {
+                                if (window.confirm('确定要退出当前账号登录吗？')) {
+                                    onLogout();
+                                }
+                            }} className="px-3 sm:px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-red-950/20 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/40">
+                                🚪 退出登录
+                            </button>
+                        ) : (
+                            <button onClick={onRequireLogin} className="px-3 sm:px-4 py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100 hover:border-emerald-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-950/40">
+                                🔐 去登录
+                            </button>
+                        )}
                     </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
@@ -181,6 +194,17 @@ export const SubjectSelector = ({
                         <h2 className="text-sm sm:text-base md:text-lg font-bold text-slate-700 group-hover:text-slate-800 mb-1 dark:text-slate-300 dark:group-hover:text-slate-100">从本地上传自定义题库</h2>
                         <p className="text-xs text-slate-400 max-w-[180px] sm:max-w-[200px] leading-relaxed dark:text-slate-500">支持 JSON 或 Excel 格式，纯离线安全使用</p>
                     </button>
+                </div>
+                <div className="flex justify-center mt-10">
+                    <a
+                        href="https://github.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors text-xs"
+                    >
+                        <Github size={16} />
+                        <span>GitHub</span>
+                    </a>
                 </div>
             </div>
             <CustomUploadModal
