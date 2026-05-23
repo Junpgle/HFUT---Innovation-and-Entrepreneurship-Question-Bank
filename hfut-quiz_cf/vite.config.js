@@ -66,20 +66,6 @@ export default defineConfig({
             },
           },
           {
-            urlPattern: /^https:\/\/lc-.*\.cn-n1\.lcfile\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'leancloud-files-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 24 * 60 * 60, // 60 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          {
             urlPattern: /\/api\/.*/i,
             handler: 'NetworkFirst',
             options: {

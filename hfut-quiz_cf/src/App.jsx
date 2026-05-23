@@ -1,10 +1,10 @@
 /* eslint-disable no-unused-vars, no-undef, react-hooks/exhaustive-deps, no-empty */
 /*
 * version: 4.0.4 (Cloudflare Migration)
-* 1. 移除 LeanCloud SDK，完全迁移至 Cloudflare Workers + D1
+* 1. 迁移至 Cloudflare Workers + D1
 * 2. 优化 API 调用，适配 Hono 后端
 * 3. 数据结构适配 SQL 模式
-* 4. 题库源加回Leancloud File 直链
+* 4. 题库文件托管在 public 目录
 * 5. 新增数据导入和导出功能,可以无缝从原有网站迁移旧有刷题数据
 * 6. 优化api调用次数我真没招了
 * 7. 一直在优化api我真没招了
@@ -41,7 +41,6 @@ import {QuizDiscussionPanel} from './components/QuizDiscussionPanel';
 import {
     BANK_CACHE_VERSION,
     CURRENT_APP_VERSION,
-    FILE_ID_MAP,
     GITHUB_BASE,
     getBankCacheKey,
     getBankCacheVersionKey,
@@ -64,7 +63,6 @@ import {
 } from './utils/theme';
 
 function App() {
-    // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
     const initialUser = api.getCurrentUser();
     const [currentUser, setCurrentUser] = useState(initialUser);
     const [showLoginScreen, setShowLoginScreen] = useState(false);
@@ -479,22 +477,6 @@ function App() {
                 reject(error);
             }
         });
-    };
-    const fileUrlCache = {};
-    const resolveLectureUrl = async (lecture) => {
-        const mapId = lecture?.fileId || FILE_ID_MAP[lecture?.id];
-        if (mapId && fileUrlCache[mapId]) return fileUrlCache[mapId];
-        if (lecture?.url) return lecture.url;
-        if (!mapId) return null;
-        try {
-            const obj = await new AV.Query('_File').get(mapId);
-            const url = obj.get('url');
-            if (url) fileUrlCache[mapId] = url;
-            return url || null;
-        } catch (e) {
-            console.warn('resolveLectureUrl failed', lecture?.name, e);
-            return null;
-        }
     };
     const fetchLectureArrayBuffer = async (lecture) => {
         // 直接读取同源本地 public 目录，几十毫秒内极速完成，抛弃外部 GitHub 和云存储链接

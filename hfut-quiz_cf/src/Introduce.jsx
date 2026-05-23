@@ -20,10 +20,6 @@ const LandingPage = () => {
     // 🟢 修改点：适配新的 Auth 系统，从 user_info 读取用户信息
     useEffect(() => {
         try {
-            // 旧版 LeanCloud 逻辑已移除
-            // const raw = localStorage.getItem('AV/5wPsbnak.../currentUser');
-
-            // 新版 Cloudflare 逻辑
             const raw = localStorage.getItem('user_info');
             if (raw) {
                 const obj = JSON.parse(raw);
