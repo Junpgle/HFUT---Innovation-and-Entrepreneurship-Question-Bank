@@ -1,12 +1,18 @@
 import { useMemo } from 'react';
-import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, Github, GraduationCap, Info, Loader2, Trash2, UploadCloud } from 'lucide-react';
+import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, Github, GraduationCap, Info, Loader2, Settings, Trash2, UploadCloud, Wand2 } from 'lucide-react';
 import CustomUploadModal from './CustomUploadModal.jsx';
+import AIQuestionModal from './AIQuestionModal.jsx';
+import ApiSettingsModal from './ApiSettingsModal.jsx';
 import mottos from './data/mottos.json';
 
 export const SubjectSelector = ({ 
     allSubjects, 
     showUploadModal, 
     setShowUploadModal, 
+    showAiModal,
+    setShowAiModal,
+    showApiSettingsModal,
+    setShowApiSettingsModal,
     setSelectedSubject, 
     setBankStatus, 
     setAllQuestionBank, 
@@ -100,6 +106,9 @@ export const SubjectSelector = ({
                             <FileDown size={14} /> 导入
                             <input type="file" className="hidden" accept=".json" onChange={onImport} />
                         </label>
+                        <button onClick={() => setShowApiSettingsModal(true)} className="px-3 sm:px-4 py-2.5 bg-white text-violet-600 hover:text-violet-700 border border-violet-100 hover:border-violet-300 hover:bg-violet-50 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-violet-950/20 dark:border-violet-900/40 dark:text-violet-400 dark:hover:bg-violet-950/40">
+                            <Settings size={14} /> API 设置
+                        </button>
                         {/* 主题切换 */}
                         <button onClick={() => setThemeMode(nextModeMap[themeMode])} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {labelMap[themeMode] || '🌗 切换主题'}
@@ -194,6 +203,16 @@ export const SubjectSelector = ({
                         <h2 className="text-sm sm:text-base md:text-lg font-bold text-slate-700 group-hover:text-slate-800 mb-1 dark:text-slate-300 dark:group-hover:text-slate-100">从本地上传自定义题库</h2>
                         <p className="text-xs text-slate-400 max-w-[180px] sm:max-w-[200px] leading-relaxed dark:text-slate-500">支持 JSON 或 Excel 格式，纯离线安全使用</p>
                     </button>
+                    <button
+                        onClick={() => setShowAiModal(true)}
+                        className="group relative overflow-hidden bg-violet-50/60 border-2 border-dashed border-violet-300 rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 hover:bg-white hover:border-violet-500 hover:shadow-lg transition-all duration-300 text-center flex flex-col items-center justify-center min-h-[160px] sm:min-h-[200px] md:min-h-[220px] hover:-translate-y-1 dark:bg-violet-950/10 dark:border-violet-900/50 dark:hover:bg-slate-900/30"
+                    >
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-3 sm:mb-4 bg-violet-100 text-violet-600 group-hover:bg-violet-200 transition-colors dark:bg-violet-950/40 dark:text-violet-400">
+                            <Wand2 size={20} className="sm:w-6 sm:h-6 md:w-7 md:h-7" />
+                        </div>
+                        <h2 className="text-sm sm:text-base md:text-lg font-bold text-slate-700 group-hover:text-slate-800 mb-1 dark:text-slate-300 dark:group-hover:text-slate-100">AI 出题并导入题库</h2>
+                        <p className="text-xs text-slate-400 max-w-[180px] sm:max-w-[200px] leading-relaxed dark:text-slate-500">独立页面填写 API 与资料，支持提示词复制和直连生成</p>
+                    </button>
                 </div>
                 <div className="flex justify-center mt-10">
                     <a
@@ -220,6 +239,24 @@ export const SubjectSelector = ({
                     setBankStatus('idle');
                     setAllQuestionBank({});
                 }}
+            />
+            <AIQuestionModal
+                show={showAiModal}
+                onClose={() => setShowAiModal(false)}
+                onUploadComplete={(newSubject, bankData) => {
+                    const updated = [...customSubjects, newSubject];
+                    setCustomSubjects(updated);
+                    safeSet('custom_subjects_list', updated);
+                    safeSet(getBankCacheKey(newSubject.id), bankData);
+                    setShowAiModal(false);
+                    setSelectedSubject(newSubject.id);
+                    setBankStatus('idle');
+                    setAllQuestionBank({});
+                }}
+            />
+            <ApiSettingsModal
+                show={showApiSettingsModal}
+                onClose={() => setShowApiSettingsModal(false)}
             />
         </div>
     );

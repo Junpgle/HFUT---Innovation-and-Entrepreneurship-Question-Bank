@@ -99,7 +99,7 @@ const parseOldFormatData = (rows, subjectId) => {
     return parsedBank;
 };
 
-const parseCustomJson = (jsonData, subjectId) => {
+export const parseCustomJson = (jsonData, subjectId) => {
     let parsedBank = {};
     let questionIndex = 1;
 
@@ -490,6 +490,7 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
         }
     };
 
+
     if (!show) return null;
 
     return (
@@ -543,6 +544,7 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                                 ))}
                             </div>
                         </div>
+
                     </div>
 
                     {/* 右侧栏：文件与提交区 */}

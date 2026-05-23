@@ -84,6 +84,8 @@ function App() {
     const [customSubjects, setCustomSubjects] = useState([]);
     const allSubjects = useMemo(() => [...SUBJECTS, ...customSubjects], [customSubjects]);
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showAiModal, setShowAiModal] = useState(false);
+    const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
     const lastSelectedSubjectRef = useRef(null);
     const currentSubject = getSubjectById(allSubjects, selectedSubject);
@@ -2595,6 +2597,10 @@ function App() {
                 allSubjects={allSubjects}
                 showUploadModal={showUploadModal}
                 setShowUploadModal={setShowUploadModal}
+                showAiModal={showAiModal}
+                setShowAiModal={setShowAiModal}
+                showApiSettingsModal={showApiSettingsModal}
+                setShowApiSettingsModal={setShowApiSettingsModal}
                 setSelectedSubject={setSelectedSubject}
                 setBankStatus={setBankStatus}
                 setAllQuestionBank={setAllQuestionBank}
