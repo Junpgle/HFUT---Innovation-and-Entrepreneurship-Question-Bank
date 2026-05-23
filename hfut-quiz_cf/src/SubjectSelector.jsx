@@ -22,7 +22,9 @@ export const SubjectSelector = ({
     onExport,
     onImport,
     syncStatus,
+    onRequireLogin,
 }) => {
+    const isGuest = !currentUser;
     const nextModeMap = {
         'system': 'light',
         'light': 'dark',
@@ -47,6 +49,17 @@ export const SubjectSelector = ({
                             👋 欢迎回来，{currentUser.username}
                         </div>
                     )}
+                    {!currentUser && (
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-xs font-bold text-amber-700 mb-4 shadow-sm animate-fade-in shrink-0 dark:bg-amber-950/30 dark:border-amber-900/60 dark:text-amber-400">
+                            未登录：仅可使用自定义本地题库
+                            <button
+                                onClick={onRequireLogin}
+                                className="ml-1 px-2 py-0.5 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-300"
+                            >
+                                去登录
+                            </button>
+                        </div>
+                    )}
                     <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3 hover:rotate-12 transition-transform duration-300 dark:shadow-indigo-900/20">
                         <BookOpen size={24} className="sm:w-8 sm:h-8 md:w-10 md:h-10"/>
                     </div>
@@ -64,11 +77,11 @@ export const SubjectSelector = ({
                             <Info size={14} /> 产品介绍
                         </a>
                         {/* 备份 */}
-                        <button onClick={onManualSync} disabled={syncStatus === 'uploading'} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                        <button onClick={onManualSync} disabled={syncStatus === 'uploading' || isGuest} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {syncStatus === 'uploading' ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} 备份
                         </button>
                         {/* 恢复 */}
-                        <button onClick={onManualRestore} disabled={syncStatus === 'downloading'} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                        <button onClick={onManualRestore} disabled={syncStatus === 'downloading' || isGuest} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {syncStatus === 'downloading' ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />} 恢复
                         </button>
                         {/* 导出 */}
@@ -99,12 +112,17 @@ export const SubjectSelector = ({
                         const isCustom = subject.isCustom;
                         const isInnovation = subject.id === 'innovation';
                         const Icon = isCustom ? GraduationCap : (isInnovation ? Brain : BookOpen);
+                        const disabledForGuest = isGuest && !isCustom;
                         return (
                             <div
                                 key={subject.id}
                                 role="button"
                                 tabIndex={0}
                                 onClick={async () => {
+                                    if (disabledForGuest) {
+                                        alert("未登录状态仅支持自定义本地题库。请先登录后使用在线题库。");
+                                        return;
+                                    }
                                     setSelectedSubject(subject.id);
                                     setBankStatus('idle');
                                     setAllQuestionBank({});
@@ -112,12 +130,20 @@ export const SubjectSelector = ({
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                         e.preventDefault();
+                                        if (disabledForGuest) {
+                                            alert("未登录状态仅支持自定义本地题库。请先登录后使用在线题库。");
+                                            return;
+                                        }
                                         setSelectedSubject(subject.id);
                                         setBankStatus('idle');
                                         setAllQuestionBank({});
                                     }
                                 }}
-                                className="group relative overflow-hidden bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-slate-100 hover:border-blue-200 text-left hover:-translate-y-1 dark:bg-slate-900 dark:border-slate-800 dark:hover:border-blue-900/60 dark:shadow-none dark:hover:shadow-blue-900/5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`group relative overflow-hidden bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 border-2 text-left dark:bg-slate-900 dark:border-slate-800 dark:shadow-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    disabledForGuest
+                                        ? 'opacity-55 border-slate-200 dark:border-slate-800'
+                                        : 'hover:shadow-xl border-slate-100 hover:border-blue-200 hover:-translate-y-1 dark:hover:border-blue-900/60 dark:hover:shadow-blue-900/5'
+                                }`}
                             >
                                 {isCustom && (
                                     <button

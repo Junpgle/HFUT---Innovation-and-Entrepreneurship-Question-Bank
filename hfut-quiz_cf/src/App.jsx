@@ -65,7 +65,9 @@ import {
 
 function App() {
     // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
-    const [currentUser, setCurrentUser] = useState(api.getCurrentUser());
+    const initialUser = api.getCurrentUser();
+    const [currentUser, setCurrentUser] = useState(initialUser);
+    const [showLoginScreen, setShowLoginScreen] = useState(!initialUser);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
@@ -2576,9 +2578,11 @@ function App() {
                 onManualRestore={() => handleManualRestore()}
                 onExport={handleExportProgress}
                 onImport={handleImportProgress}
+                onRequireLogin={() => setShowLoginScreen(true)}
                 onLogout={() => {
                     api.logout();
                     setCurrentUser(null);
+                    setShowLoginScreen(false);
                 }}
             />
             {renderSubjectSelectionModal()}
@@ -3021,6 +3025,7 @@ function App() {
                 try {
                     const user = await api.login(username, password);
                     setCurrentUser(user);
+                    setShowLoginScreen(false);
                     setAuthLoading(false);
                 } catch (err) {
                     setAuthError(err.message || '登录失败');
@@ -3137,7 +3142,7 @@ function App() {
             </div>
         );
     };
-    if (!currentUser) return renderLoginScreen();
+    if (!currentUser && showLoginScreen) return renderLoginScreen();
     if (!selectedSubject) return renderSubjectSelector();
     return (
         <div className="h-full font-sans text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
