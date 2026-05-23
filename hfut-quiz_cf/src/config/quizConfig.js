@@ -2,7 +2,7 @@ export const CURRENT_APP_VERSION = '4.0.4';
 export const LEADERBOARD_LIMIT = 50;
 export const GITHUB_BASE = 'https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/';
 export const REPORT_URL = '/#/report';
-export const BANK_CACHE_VERSION = 3;
+export const BANK_CACHE_VERSION = 5;
 
 export const FILE_ID_MAP = {
   1: '69650188d606e2613f1b18e1',

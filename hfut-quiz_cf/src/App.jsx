@@ -360,8 +360,8 @@ function App() {
             if (!subQ && !bigQ) continue;
             let type = 'single';
             const typeCheck = (mainType + subType);
-            if (typeCheck.includes('多选')) type = 'multiple';
-            else if (typeCheck.includes('判断')) type = 'judgment';
+            if (/(多选|多项|多项选择)/.test(typeCheck)) type = 'multiple';
+            else if (/(判断|是非)/.test(typeCheck)) type = 'judgment';
             // 填空题和大题特殊处理
             const isFill = typeCheck.includes('填空');
             const isBig = typeCheck.includes('大题') || mainType.includes('大题') || typeCheck.includes('简答') || mainType.includes('简答');
@@ -414,6 +414,9 @@ function App() {
                     if (idx >= 0 && idx < options.length) rawAnswer.push(idx);
                 }
                 rawAnswer.sort((a, b) => a - b);
+                if (type === 'single' && rawAnswer.length > 1) {
+                    type = 'multiple';
+                }
             }
             // Category精简: "/创新创业/第3讲" -> "第3讲"
             let displayCat = categoryRaw;
@@ -450,8 +453,8 @@ function App() {
             const explanation = String(row[3] || "").trim();
             if (!content) continue;
             let type = 'single';
-            if (typeRaw.includes("多选")) type = 'multiple';
-            else if (typeRaw.includes("判断")) type = 'judgment';
+            if (/(多选|多项|多项选择)/.test(typeRaw)) type = 'multiple';
+            else if (/(判断|是非)/.test(typeRaw)) type = 'judgment';
             let options = [];
             let correctAnswers = [];
             if (type === 'judgment') {
@@ -464,10 +467,14 @@ function App() {
                 const optB = row[7];
                 const optC = row[8];
                 const optD = row[9];
+                options = [optA, optB, optC, optD].map(v => String(v || '').trim()).filter(Boolean);
                 const normalizedAns = answerRaw.toUpperCase().replace(/[^A-E]/g, '');
                 for (let char of normalizedAns) {
                     const idx = char.charCodeAt(0) - 65;
                     if (idx >= 0 && idx < options.length) correctAnswers.push(idx);
+                }
+                if (type === 'single' && correctAnswers.length > 1) {
+                    type = 'multiple';
                 }
             }
             if (options.length === 0) continue;
@@ -507,9 +514,9 @@ function App() {
             if (!chapters[chKey]) chapters[chKey] = [];
             let type = 'single';
             const rawTypeName = String(q['题型名称'] || q['题型'] || '');
-            if (rawTypeName.includes('多选') || rawTypeName === '2') {
+            if (/(多选|多项|多项选择)/.test(rawTypeName) || rawTypeName === '2') {
                 type = 'multiple';
-            } else if (rawTypeName.includes('判断') || rawTypeName === '4') {
+            } else if (/(判断|是非)/.test(rawTypeName) || rawTypeName === '4') {
                 type = 'judgment';
             } else if (rawTypeName.includes('填空') || rawTypeName === '7') {
                 type = 'fill';
@@ -521,7 +528,19 @@ function App() {
             let rawAnswer = [];
             if (type === 'judgment') {
                 options = ['正确', '错误'];
-                rawAnswer = q['正确答案'] === 'A' ? [0] : [1];
+                const ans = String(q['正确答案'] || '').trim().toUpperCase();
+                if (/^(对|√|TRUE|T)$/.test(ans)) {
+                    rawAnswer = [0];
+                } else if (/^(错|×|FALSE|F)$/.test(ans)) {
+                    rawAnswer = [1];
+                } else if (ans === 'A') {
+                    // 毛概题库中 A/B 与“正确/错误”语义相反：A=错误，B=正确
+                    rawAnswer = [1];
+                } else if (ans === 'B') {
+                    rawAnswer = [0];
+                } else {
+                    rawAnswer = [0];
+                }
             } else if (type === 'fill') {
                 options = [q['正确答案'] || ''];
                 rawAnswer = [0];
@@ -538,6 +557,9 @@ function App() {
                 }
                 if (rawAnswer.length === 0 && Array.isArray(q['原始answer'])) {
                     rawAnswer = q['原始answer'];
+                }
+                if (type === 'single' && rawAnswer.length > 1) {
+                    type = 'multiple';
                 }
             }
             // 2. 智能规范化处理题目唯一 ID，兼容新旧格式，避免 "MG-MG-1" 错误拼写
@@ -1783,21 +1805,42 @@ function App() {
             submitAnswer([idx]);
         }
     };
+    const normalizeAnswerIndices = (value) => {
+        if (Array.isArray(value)) {
+            return value.map(v => Number(v)).filter(v => Number.isInteger(v) && v >= 0);
+        }
+        if (value instanceof Set) {
+            return Array.from(value).map(v => Number(v)).filter(v => Number.isInteger(v) && v >= 0);
+        }
+        if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+            return [value];
+        }
+        if (typeof value === 'string') {
+            const letters = value.toUpperCase().match(/[A-E]/g);
+            if (letters?.length) {
+                return letters.map(ch => ch.charCodeAt(0) - 65);
+            }
+            const nums = value.split(/[^0-9]+/).map(v => Number(v)).filter(v => Number.isInteger(v) && v >= 0);
+            return nums;
+        }
+        return [];
+    };
     // ✅ 优化版：提交答案 (移除冗余加载逻辑)
     const submitAnswer = (finalSelection = selectedIndices) => {
-        if (finalSelection.length === 0) return;
+        const normalizedSelection = normalizeAnswerIndices(finalSelection);
+        if (normalizedSelection.length === 0) return;
         const currentQ = questions[currentIndex];
         // 1. 判定对错
-        const correctSet = new Set(currentQ.rawAnswer);
-        const userSet = new Set(finalSelection);
+        const correctSet = new Set(normalizeAnswerIndices(currentQ.rawAnswer));
+        const userSet = new Set(normalizedSelection);
         const isCorrect = correctSet.size === userSet.size && [...correctSet].every(x => userSet.has(x));
-        const answerText = [...finalSelection]
+        const answerText = [...normalizedSelection]
             .sort((a, b) => a - b)
             .map(i => ['A', 'B', 'C', 'D', 'E'][i])
             .join('');
         // 2. 更新基础交互状态
         setIsAnswered(true);
-        setSelectedIndices(finalSelection);
+        setSelectedIndices(normalizedSelection);
         setShowExplanation(true); // 💡 这一步会触发我们之前写的 useEffect，自动去加载互动数据
         // 3. 更新统计数据 (本地 Set 操作)
         setBrushedIds(prev => new Set(prev).add(currentQ.id));

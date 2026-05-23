@@ -62,7 +62,7 @@ export function QuizQuestionPanel({
       {isQuiz && !isAnswered && currentQ.type === 'multiple' && (
         <div className="flex justify-end animate-enter pt-4">
           <button
-            onClick={onSubmit}
+            onClick={() => onSubmit()}
             className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2
               ${selectedIndices.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
           >
