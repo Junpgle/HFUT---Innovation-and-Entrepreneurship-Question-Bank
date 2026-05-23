@@ -2,16 +2,16 @@ import { BookOpen, Brain, GraduationCap, Trash2, UploadCloud } from 'lucide-reac
 import CustomUploadModal from './CustomUploadModal.jsx';
 
 export const SubjectSelector = ({ allSubjects, showUploadModal, setShowUploadModal, setSelectedSubject, setBankStatus, setAllQuestionBank, handleDeleteCustomSubject, customSubjects, setCustomSubjects, safeSet, getBankCacheKey }) => (
-    <div className="h-full flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-slate-100 to-slate-200">
-        <div className="w-full max-w-2xl">
-            <div className="text-center mb-6 md:mb-10">
-                <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-3 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
+    <div className="min-h-screen flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
+        <div className="w-full max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl">
+            <div className="text-center mb-8 md:mb-14">
+                <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-3 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3 hover:rotate-12 transition-transform duration-300">
                     <BookOpen size={24} className="sm:w-8 sm:h-8 md:w-10 md:h-10"/>
                 </div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-slate-800">HFUT 刷题系统</h1>
-                <p className="text-slate-500 mt-2 font-medium text-xs sm:text-sm md:text-base">请选择要练习的学科</p>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">HFUT 刷题系统</h1>
+                <p className="text-slate-500 mt-2 font-semibold text-xs sm:text-sm md:text-base">请选择要练习的学科</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
                 {allSubjects.map(subject => {
                     const isCustom = subject.isCustom;
                     const isInnovation = subject.id === 'innovation';

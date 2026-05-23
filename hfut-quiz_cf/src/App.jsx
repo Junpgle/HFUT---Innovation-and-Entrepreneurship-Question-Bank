@@ -89,6 +89,33 @@ function App() {
     const [history, setHistory] = useState([]);
     const [lastSession, setLastSession] = useState(null);
     const [hydrated, setHydrated] = useState(false);
+
+    // 新增：根据当前选中学科加载的题库，实现对已掌握、已背诵、已刷过题目以及历史记录的 100% 精准学科隔离
+    const currentSubjectQids = useMemo(() => {
+        if (!allQuestionBank) return new Set();
+        const ids = Object.values(allQuestionBank).flat().map(q => q.id);
+        return new Set(ids);
+    }, [allQuestionBank]);
+
+    const currentMasteredIds = useMemo(() => {
+        const filtered = Array.from(masteredIds).filter(id => currentSubjectQids.has(id));
+        return new Set(filtered);
+    }, [masteredIds, currentSubjectQids]);
+
+    const currentMemorizedIds = useMemo(() => {
+        const filtered = Array.from(memorizedIds).filter(id => currentSubjectQids.has(id));
+        return new Set(filtered);
+    }, [memorizedIds, currentSubjectQids]);
+
+    const currentBrushedIds = useMemo(() => {
+        const filtered = Array.from(brushedIds).filter(id => currentSubjectQids.has(id));
+        return new Set(filtered);
+    }, [brushedIds, currentSubjectQids]);
+
+    const currentHistory = useMemo(() => {
+        return history.filter(h => h && h.questionId && currentSubjectQids.has(h.questionId));
+    }, [history, currentSubjectQids]);
+
     // 交互状态
     const [quizConfig, setQuizConfig] = useState({lectureId: 0, count: 20, type: 'all', filter: 'all'});
     const [questions, setQuestions] = useState([]);
@@ -2308,21 +2335,21 @@ function App() {
                                 },
                                 {
                                     label: '已掌握',
-                                    val: masteredIds.size,
+                                    val: currentMasteredIds.size,
                                     icon: CheckCircle,
                                     color: 'text-green-600',
                                     bg: 'bg-green-50'
                                 },
                                 {
                                     label: '已背诵',
-                                    val: memorizedIds.size,
+                                    val: currentMemorizedIds.size,
                                     icon: Eye,
                                     color: 'text-purple-600',
                                     bg: 'bg-purple-50'
                                 },
                                 {
                                     label: '正确率',
-                                    val: brushedIds.size ? Math.round(masteredIds.size / brushedIds.size * 100) + '%' : '-',
+                                    val: currentBrushedIds.size ? Math.round(currentMasteredIds.size / currentBrushedIds.size * 100) + '%' : '-',
                                     icon: BarChart3,
                                     color: 'text-orange-600',
                                     bg: 'bg-orange-50'
@@ -2422,14 +2449,14 @@ function App() {
                                     <div className="text-[10px] text-slate-400 mb-1 uppercase font-bold">累计已刷
                                     </div>
                                     <div
-                                        className="font-bold text-xl text-slate-700 leading-none">{brushedIds.size}</div>
+                                        className="font-bold text-xl text-slate-700 leading-none">{currentBrushedIds.size}</div>
                                 </div>
                                 <div
                                     className="flex-1 bg-green-50 rounded-xl p-3 text-center border border-green-100 flex flex-col justify-center">
                                     <div className="text-[10px] text-green-600/70 mb-1 uppercase font-bold">已掌握
                                     </div>
                                     <div
-                                        className="font-bold text-xl text-green-600 leading-none">{masteredIds.size}</div>
+                                        className="font-bold text-xl text-green-600 leading-none">{currentMasteredIds.size}</div>
                                 </div>
                             </div>
                             <div
@@ -2470,7 +2497,7 @@ function App() {
             d.setDate(today.getDate() - i);
             d.setHours(0, 0, 0, 0);
             const dateStr = d.toLocaleDateString('zh-CN', {month: 'numeric', day: 'numeric'});
-            const count = history.filter(h => {
+            const count = currentHistory.filter(h => {
                 const hDate = new Date(h.timestamp);
                 hDate.setHours(0, 0, 0, 0);
                 return hDate.getTime() === d.getTime();

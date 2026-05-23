@@ -4,90 +4,247 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+const parseOldFormatData = (rows, subjectId) => {
+    const cleanRows = rows.filter(r => r && r.length > 0);
+    if (cleanRows.length === 0) return {};
+    let startIndex = 0;
+    const h = cleanRows[0];
+    if (h && (String(h[0]).includes('目录') || String(h[1]).includes('题目类型'))) startIndex = 1;
+    
+    const parsedBank = {};
+    for (let i = startIndex; i < cleanRows.length; i++) {
+        const row = cleanRows[i];
+        if (!row || row.length < 2) continue;
+        const categoryRaw = String(row[0] || "").trim();
+        const mainType = String(row[1] || "").trim();
+        const bigQ = String(row[2] || "").trim();
+        const subType = String(row[3] || "").trim();
+        const subQ = String(row[4] || "").trim();
+        const ansRaw = String(row[5] || "").trim();
+        const exp = String(row[6] || "").trim();
+        if (!subQ && !bigQ) continue;
+        
+        let type = 'single';
+        const typeCheck = (mainType + subType);
+        if (/(多选|多项|多项选择)/.test(typeCheck)) type = 'multiple';
+        else if (/(判断|是非)/.test(typeCheck)) type = 'judgment';
+        const isFill = typeCheck.includes('填空');
+        const isBig = typeCheck.includes('大题') || mainType.includes('大题') || typeCheck.includes('简答') || mainType.includes('简答');
+        
+        let qText = subQ;
+        if (bigQ && bigQ !== subQ) {
+            if (!subQ) qText = bigQ;
+            else qText = `【背景】${bigQ}\n\n${subQ}`;
+        }
+        if (!qText && bigQ) qText = bigQ;
+        if (!qText) qText = "题目内容缺失";
+        
+        let options = [];
+        let rawAnswer = [];
+        if (isFill || isBig) {
+            const fillAns = String(row[11] || "").trim();
+            const explicitAns = fillAns || ansRaw;
+            options = [explicitAns || "（暂无标准答案，点击查看解析）"];
+            rawAnswer = [0];
+            if (isFill) type = 'fill';
+            else if (isBig) type = 'big';
+        } else if (type === 'judgment') {
+            const optA = String(row[11] || "").trim();
+            const optB = String(row[12] || "").trim();
+            if (optA || optB) {
+                if (optA) options.push(optA);
+                if (optB) options.push(optB);
+            } else {
+                options = ['正确', '错误'];
+            }
+            if (/^[对TtA√Yes]/.test(ansRaw) || ansRaw === '正确') rawAnswer = [0];
+            else if (/^[错FfB×No]/.test(ansRaw) || ansRaw === '错误') rawAnswer = [1];
+            else {
+                if (ansRaw.toUpperCase() === 'A') rawAnswer = [0];
+                else rawAnswer = [1];
+            }
+        } else {
+            const optIndices = [11, 12, 13, 14, 15, 16, 17, 18];
+            options = optIndices.map(idx => String(row[idx] || "").trim()).filter(Boolean);
+            if (options.length === 0) continue;
+            const normalized = ansRaw.toUpperCase().replace(/[^A-H]/g, '');
+            for (let char of normalized) {
+                const idx = char.charCodeAt(0) - 65;
+                if (idx >= 0 && idx < options.length) rawAnswer.push(idx);
+            }
+            rawAnswer.sort((a, b) => a - b);
+            if (type === 'single' && rawAnswer.length > 1) {
+                type = 'multiple';
+            }
+        }
+        
+        let displayCat = categoryRaw;
+        if (displayCat.includes('/')) {
+            const parts = displayCat.split('/');
+            if (parts.length > 0) displayCat = parts[parts.length - 1];
+        }
+        if (!displayCat) displayCat = "默认章节";
+        
+        if (!parsedBank[displayCat]) parsedBank[displayCat] = [];
+        parsedBank[displayCat].push({
+            id: `${subjectId}-Q${i}`,
+            type,
+            question: qText,
+            options,
+            rawAnswer,
+            explanation: exp || "暂无解析",
+            category: displayCat
+        });
+    }
+    return parsedBank;
+};
+
 const parseCustomJson = (jsonData, subjectId) => {
     let parsedBank = {};
     let questionIndex = 1;
 
     const processQuestion = (q, index) => {
-        const questionText = String(q.question || q.题干 || q.content || '').trim();
+        const questionText = String(
+            q.question || q.题干 || q.stem || q.content || q.title || q.text || q.题目 || ''
+        ).trim();
         if (!questionText) return null;
 
         let type = 'single';
-        const typeRaw = String(q.type || q.题型 || q.题型名称 || '').trim();
-        if (typeRaw.includes('多选') || typeRaw === 'multiple' || typeRaw === '2') {
+        const typeRaw = String(
+            q.type || q.题型 || q.题型名称 || q.questionType || q.category || ''
+        ).trim().toLowerCase();
+        
+        if (typeRaw.includes('多选') || typeRaw.includes('multiple') || typeRaw === '2') {
             type = 'multiple';
-        } else if (typeRaw.includes('判断') || typeRaw === 'judgment' || typeRaw === '4') {
+        } else if (typeRaw.includes('判断') || typeRaw.includes('judge') || typeRaw.includes('judgment') || typeRaw === '4') {
             type = 'judgment';
-        } else if (typeRaw.includes('填空') || typeRaw === 'fill' || typeRaw === '7') {
+        } else if (typeRaw.includes('填空') || typeRaw.includes('fill') || typeRaw === '7') {
             type = 'fill';
-        } else if (typeRaw.includes('大题') || typeRaw.includes('简答') || typeRaw === 'big' || typeRaw === 'essay') {
+        } else if (typeRaw.includes('大题') || typeRaw.includes('简答') || typeRaw.includes('essay') || typeRaw.includes('big')) {
             type = 'big';
         }
 
         let options = [];
         let rawAnswer = [];
 
-        if (type === 'judgment') {
-            options = ['正确', '错误'];
-            const ansRaw = String(q.answer || q.正确答案 || q.rawAnswer || q.答案 || '');
-            rawAnswer = /^[对TtA√正确]/.test(ansRaw) ? [0] : [1];
-        } else if (type === 'fill' || type === 'big') {
-            const ansRaw = String(q.answer || q.正确答案 || q.rawAnswer || q.答案 || '');
-            options = [ansRaw || '点击查看解析'];
-            rawAnswer = [0];
-        } else {
-            const rawOpts = q.options || q.选项 || [];
-            if (Array.isArray(rawOpts)) {
-                options = rawOpts.map(String);
-            } else if (typeof rawOpts === 'object' && rawOpts !== null) {
-                const keys = Object.keys(rawOpts).sort();
-                options = keys.map(k => rawOpts[k]);
-            }
-            if (options.length === 0) {
-                const optA = q.A || q.选项A || q.optA;
-                const optB = q.B || q.选项B || q.optB;
-                const optC = q.C || q.选项C || q.optC;
-                const optD = q.D || q.选项D || q.optD;
-                const optE = q.E || q.选项E || q.optE;
-                options = [optA, optB, optC, optD, optE].filter(v => v !== undefined && v !== null && String(v).trim() !== '').map(String);
-            }
-            const ansRaw = q.answer || q.正确答案 || q.rawAnswer || q.答案 || '';
-            if (Array.isArray(ansRaw)) {
-                rawAnswer = ansRaw.map(Number).filter(n => !isNaN(n));
-            } else {
-                const ansStr = String(ansRaw).toUpperCase().replace(/[^A-E]/g, '');
-                for (let i = 0; i < ansStr.length; i++) {
-                    const idx = ansStr.charCodeAt(i) - 65;
-                    if (idx >= 0 && idx < options.length) {
-                        rawAnswer.push(idx);
+        const rawOpts = q.options || q.选项 || q.choices || q.answers || null;
+        let optionsKeys = [];
+        if (Array.isArray(rawOpts)) {
+            options = rawOpts.map(String).map(s => s.trim());
+        } else if (typeof rawOpts === 'object' && rawOpts !== null) {
+            optionsKeys = Object.keys(rawOpts).sort();
+            options = optionsKeys.map(k => String(rawOpts[k] || '').trim());
+        }
+
+        if (options.length === 0) {
+            const tempOpts = [];
+            const possibleKeys = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            possibleKeys.forEach(k => {
+                const val = q[k] || q[`选项${k}`] || q[`opt${k}`] || q[`option${k}`];
+                if (val !== undefined && val !== null) {
+                    const strVal = String(val).trim();
+                    if (strVal !== '') {
+                        tempOpts.push({ key: k, value: strVal });
                     }
                 }
+            });
+            if (tempOpts.length > 0) {
+                optionsKeys = tempOpts.map(o => o.key);
+                options = tempOpts.map(o => o.value);
             }
         }
 
-        const category = String(q.category || q.章节 || q.章节名称 || '默认章节').trim();
-        const explanation = String(q.explanation || q.解析 || q.答案解析 || '暂无解析').trim();
+        const ansRaw = (q.answer !== undefined && q.answer !== null) ? q.answer :
+                       ((q.正确答案 !== undefined && q.正确答案 !== null) ? q.正确答案 :
+                       ((q.rawAnswer !== undefined && q.rawAnswer !== null) ? q.rawAnswer :
+                       ((q.答案 !== undefined && q.答案 !== null) ? q.答案 : '')));
+
+        if (type === 'judgment') {
+            options = ['正确', '错误'];
+            const ansStr = String(ansRaw).trim().toUpperCase();
+            if (ansStr === 'B' || /^(对|√|正确|TRUE|T)$/.test(ansStr) || ansRaw === true || ansRaw === 0) {
+                rawAnswer = [0];
+            } else if (ansStr === 'A' || /^(错|×|错误|FALSE|F)$/.test(ansStr) || ansRaw === false || ansRaw === 1) {
+                rawAnswer = [1];
+            } else {
+                rawAnswer = [0];
+            }
+        } else if (type === 'fill' || type === 'big') {
+            options = [String(ansRaw || q.解析 || q.explanation || '点击查看解析')];
+            rawAnswer = [0];
+        } else {
+            if (typeof ansRaw === 'number') {
+                rawAnswer = [ansRaw];
+            } else if (Array.isArray(ansRaw)) {
+                rawAnswer = ansRaw.map(Number).filter(n => !isNaN(n));
+            } else {
+                const ansStr = String(ansRaw).trim().toUpperCase();
+                if (optionsKeys.length > 0) {
+                    const parts = ansStr.split(/[^a-zA-Z0-9]+/).map(s => s.trim()).filter(Boolean);
+                    parts.forEach(part => {
+                        const idx = optionsKeys.indexOf(part);
+                        if (idx >= 0) rawAnswer.push(idx);
+                    });
+                    
+                    if (rawAnswer.length === 0) {
+                        for (let i = 0; i < ansStr.length; i++) {
+                            const char = ansStr[i];
+                            const idx = optionsKeys.indexOf(char);
+                            if (idx >= 0) rawAnswer.push(idx);
+                        }
+                    }
+                }
+                
+                if (rawAnswer.length === 0) {
+                    const parts = ansStr.split(/[^a-zA-Z0-9]+/).map(s => s.trim()).filter(Boolean);
+                    parts.forEach(part => {
+                        if (part.length === 1 && part >= 'A' && part <= 'H') {
+                            const idx = part.charCodeAt(0) - 65;
+                            if (idx >= 0 && idx < options.length) rawAnswer.push(idx);
+                        }
+                    });
+                    
+                    if (rawAnswer.length === 0) {
+                        const letters = ansStr.replace(/[^A-H]/g, '');
+                        for (let i = 0; i < letters.length; i++) {
+                            const idx = letters.charCodeAt(i) - 65;
+                            if (idx >= 0 && idx < options.length) rawAnswer.push(idx);
+                        }
+                    }
+                }
+                
+                if (rawAnswer.length === 0) {
+                    const numMatch = ansStr.match(/\d+/g);
+                    if (numMatch) {
+                        rawAnswer = numMatch.map(Number).filter(n => n >= 0 && n < options.length);
+                    }
+                }
+            }
+
+            if (type === 'single' && rawAnswer.length > 1) {
+                type = 'multiple';
+            }
+        }
+
+        const category = String(q.category || q.章节 || q.章节名称 || q.分类 || q.来源章节 || '默认章节').trim();
+        const explanation = String(q.explanation || q.解析 || q.答案解析 || q.analysis || q.详解 || '暂无解析').trim();
 
         return {
             id: `${subjectId}-Q${index}`,
             type,
             question: questionText,
             options,
-            rawAnswer: rawAnswer.sort((a, b) => a - b),
+            rawAnswer: Array.from(new Set(rawAnswer)).sort((a, b) => a - b),
             explanation,
             category
         };
     };
 
-    if (Array.isArray(jsonData)) {
-        jsonData.forEach(q => {
-            const parsedQ = processQuestion(q, questionIndex++);
-            if (parsedQ) {
-                const cat = parsedQ.category;
-                if (!parsedBank[cat]) parsedBank[cat] = [];
-                parsedBank[cat].push(parsedQ);
-            }
-        });
+    let questionsList = [];
+    if (jsonData && Array.isArray(jsonData.questions)) {
+        questionsList = jsonData.questions;
+    } else if (Array.isArray(jsonData)) {
+        questionsList = jsonData;
     } else if (typeof jsonData === 'object' && jsonData !== null) {
         Object.keys(jsonData).forEach(cat => {
             const qs = jsonData[cat];
@@ -95,14 +252,24 @@ const parseCustomJson = (jsonData, subjectId) => {
                 qs.forEach(q => {
                     const parsedQ = processQuestion(q, questionIndex++);
                     if (parsedQ) {
-                        const finalCat = String(q.category || q.章节 || q.章节名称 || cat).trim();
+                        const finalCat = String(q.category || q.章节 || q.章节名称 || q.分类 || cat).trim();
                         if (!parsedBank[finalCat]) parsedBank[finalCat] = [];
                         parsedBank[finalCat].push({ ...parsedQ, category: finalCat });
                     }
                 });
             }
         });
+        return parsedBank;
     }
+
+    questionsList.forEach(q => {
+        const parsedQ = processQuestion(q, questionIndex++);
+        if (parsedQ) {
+            const cat = parsedQ.category;
+            if (!parsedBank[cat]) parsedBank[cat] = [];
+            parsedBank[cat].push(parsedQ);
+        }
+    });
 
     return parsedBank;
 };
@@ -111,76 +278,120 @@ const parseCustomExcel = (rawData, subjectId) => {
     const cleanRows = rawData.filter(r => r && r.length > 0);
     if (cleanRows.length === 0) return {};
 
+    const firstRowStr = JSON.stringify(cleanRows[0]);
+    const isOldFormat = cleanRows[0] && (
+        String(cleanRows[0][0] || '').includes('目录') || 
+        String(cleanRows[0][1] || '').includes('题目类型') ||
+        firstRowStr.includes('题目小题')
+    );
+    if (isOldFormat) {
+        return parseOldFormatData(cleanRows, subjectId);
+    }
+
     let parsedBank = {};
     let startIndex = 0;
-    const firstRowStr = JSON.stringify(cleanRows[0]);
-    if (firstRowStr.includes("题型") || firstRowStr.includes("题干") || firstRowStr.includes("题目") || firstRowStr.includes("类型")) {
+    
+    if (firstRowStr.includes("题型") || firstRowStr.includes("题干") || firstRowStr.includes("题目") || firstRowStr.includes("类型") || firstRowStr.includes("答案")) {
         startIndex = 1;
     }
 
-    let typeCol = 0, questionCol = 1, answerCol = 2, explanationCol = 3, categoryCol = -1, optionStartCol = 6;
+    let typeCol = 0;
+    let questionCol = 1;
+    let answerCol = 2;
+    let explanationCol = 3;
+    let categoryCol = -1;
+    let optionCols = [];
 
     if (startIndex === 1) {
         const header = cleanRows[0].map(v => String(v || '').trim());
+        
         header.forEach((val, idx) => {
-            if (val.includes("题型") || val.includes("类型")) typeCol = idx;
-            else if (val.includes("题干") || val.includes("题目") || val.includes("内容") || val.includes("问题")) questionCol = idx;
-            else if (val.includes("答案") || val.includes("正确答案")) answerCol = idx;
-            else if (val.includes("解析") || val.includes("详解")) explanationCol = idx;
-            else if (val.includes("章节") || val.includes("分类") || val.includes("课时")) categoryCol = idx;
+            const vUpper = val.toUpperCase();
+            if ((val.includes("题型") || val.includes("类型") || vUpper.includes("TYPE")) && !val.includes("选项") && !val.includes("答案")) {
+                typeCol = idx;
+            } else if (val.includes("题干") || val.includes("题目") || val.includes("内容") || val.includes("问题") || vUpper.includes("STEM") || vUpper.includes("QUESTION")) {
+                questionCol = idx;
+            } else if ((val.includes("答案") || val.includes("正确答案") || vUpper.includes("ANSWER")) && !val.includes("选项")) {
+                answerCol = idx;
+            } else if (val.includes("解析") || val.includes("详解") || vUpper.includes("EXPLANATION") || vUpper.includes("ANALYSIS")) {
+                explanationCol = idx;
+            } else if (val.includes("章节") || val.includes("分类") || val.includes("课时") || vUpper.includes("CATEGORY")) {
+                categoryCol = idx;
+            }
         });
 
-        const opts = [];
         header.forEach((val, idx) => {
-            if (val.includes("选项") || /^[A-E]$/.test(val) || val.startsWith("opt")) opts.push(idx);
+            const vUpper = val.toUpperCase();
+            if (val.includes("选项") || /^[A-H]$/.test(vUpper) || vUpper.startsWith("OPT") || vUpper.startsWith("CHOICE")) {
+                optionCols.push(idx);
+            }
         });
-        if (opts.length > 0) optionStartCol = opts[0];
+        optionCols.sort((a, b) => a - b);
     }
 
     for (let i = startIndex; i < cleanRows.length; i++) {
         const row = cleanRows[i];
-        const typeRaw = String(row[typeCol] || "").trim();
-        const content = String(row[questionCol] || "").trim();
-        const answerRaw = String(row[answerCol] || "").trim();
-        const explanation = String(row[explanationCol] || "").trim();
-        const category = categoryCol !== -1 ? String(row[categoryCol] || "默认章节").trim() : "默认章节";
+        if (!row || row.length === 0) continue;
+
+        const typeRaw = typeCol < row.length ? String(row[typeCol] || "").trim() : "";
+        const content = questionCol < row.length ? String(row[questionCol] || "").trim() : "";
+        const answerRaw = answerCol < row.length ? String(row[answerCol] || "").trim() : "";
+        const explanation = explanationCol < row.length ? String(row[explanationCol] || "").trim() : "";
+        const category = (categoryCol !== -1 && categoryCol < row.length) ? String(row[categoryCol] || "默认章节").trim() : "默认章节";
 
         if (!content) continue;
 
         let type = 'single';
-        if (typeRaw.includes("多选")) type = 'multiple';
-        else if (typeRaw.includes("判断")) type = 'judgment';
-        else if (typeRaw.includes("填空")) type = 'fill';
-        else if (typeRaw.includes("简答") || typeRaw.includes("大题")) type = 'big';
+        if (typeRaw.includes("多选") || typeRaw.includes("multiple")) type = 'multiple';
+        else if (typeRaw.includes("判断") || typeRaw.includes("judgment") || typeRaw.includes("judge")) type = 'judgment';
+        else if (typeRaw.includes("填空") || typeRaw.includes("fill")) type = 'fill';
+        else if (typeRaw.includes("简答") || typeRaw.includes("大题") || typeRaw.includes("essay") || typeRaw.includes("big")) type = 'big';
 
         let options = [];
         let correctAnswers = [];
 
         if (type === 'judgment') {
             options = ['正确', '错误'];
-            if (/^[对TtA√正确]/.test(answerRaw)) correctAnswers = [0];
-            else if (/^[错FfB×错误]/.test(answerRaw)) correctAnswers = [1];
-            else correctAnswers = [0];
+            const ansStr = answerRaw.trim().toUpperCase();
+            if (/^[对Tt√正确]/.test(ansStr) || ansStr === 'B' || ansStr === '正确') {
+                correctAnswers = [0];
+            } else if (/^[错Ff×错误]/.test(ansStr) || ansStr === 'A' || ansStr === '错误') {
+                correctAnswers = [1];
+            } else {
+                correctAnswers = [0];
+            }
         } else if (type === 'fill' || type === 'big') {
-            options = [answerRaw || "点击查看解析"];
+            options = [answerRaw || "（暂无标准答案，点击查看解析）"];
             correctAnswers = [0];
         } else {
-            let col = optionStartCol;
-            while (col < row.length && row[col] !== undefined && row[col] !== null && String(row[col]).trim() !== '') {
-                options.push(String(row[col]).trim());
-                col++;
+            if (optionCols.length > 0) {
+                options = optionCols.map(idx => idx < row.length ? String(row[idx] || '').trim() : '').filter(Boolean);
+            } else {
+                let col = Math.max(typeCol, questionCol, answerCol, explanationCol) + 1;
+                if (col < row.length) {
+                    while (col < row.length && row[col] !== undefined && row[col] !== null && String(row[col]).trim() !== '') {
+                        options.push(String(row[col]).trim());
+                        col++;
+                    }
+                }
+                if (options.length === 0) {
+                    const defaultOptIndices = [6, 7, 8, 9, 10];
+                    options = defaultOptIndices.map(idx => idx < row.length ? String(row[idx] || '').trim() : '').filter(Boolean);
+                }
             }
-            if (options.length === 0) {
-                options = [row[6], row[7], row[8], row[9], row[10]].filter(v => v !== undefined && v !== null && String(v).trim() !== '').map(String);
-            }
-            const normalizedAns = answerRaw.toUpperCase().replace(/[^A-E]/g, '');
+
+            if (options.length === 0) continue;
+
+            const normalizedAns = answerRaw.toUpperCase().replace(/[^A-H]/g, '');
             for (let char of normalizedAns) {
                 const idx = char.charCodeAt(0) - 65;
                 if (idx >= 0 && idx < options.length) correctAnswers.push(idx);
             }
-        }
 
-        if (options.length === 0) continue;
+            if (type === 'single' && correctAnswers.length > 1) {
+                type = 'multiple';
+            }
+        }
 
         if (!parsedBank[category]) parsedBank[category] = [];
         parsedBank[category].push({
@@ -188,7 +399,7 @@ const parseCustomExcel = (rawData, subjectId) => {
             type,
             question: content,
             options,
-            rawAnswer: correctAnswers.sort((a, b) => a - b),
+            rawAnswer: Array.from(new Set(correctAnswers)).sort((a, b) => a - b),
             explanation: explanation || "暂无解析",
             category
         });
