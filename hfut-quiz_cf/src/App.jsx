@@ -25,10 +25,13 @@ import {Markdown} from './components/Markdown';
 import {
     BANK_CACHE_VERSION,
     CURRENT_APP_VERSION,
+    FILE_ID_MAP,
     GITHUB_BASE,
     getBankCacheKey,
     getBankCacheVersionKey,
+    LECTURES,
     LEADERBOARD_LIMIT,
+    MAOGAO_CHAPTERS,
     REPORT_URL,
     SUBJECTS
 } from './config/quizConfig';

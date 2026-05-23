@@ -4,7 +4,7 @@ export const GITHUB_BASE = 'https://raw.githubusercontent.com/Junpgle/HFUT---Inn
 export const REPORT_URL = '/#/report';
 export const BANK_CACHE_VERSION = 3;
 
-const FILE_ID_MAP = {
+export const FILE_ID_MAP = {
   1: '69650188d606e2613f1b18e1',
   2: '69650188d606e2613f1b18dc',
   3: '69650188d606e2613f1b18de',
@@ -25,7 +25,7 @@ export const LECTURES = [
   { id: 99, name: '经典旧题库 (综合)', file: 'questions_old.xls', fileId: null, url: 'https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/questions_old.xls' },
 ];
 
-const MAOGAO_CHAPTERS = [
+export const MAOGAO_CHAPTERS = [
   { id: 1, name: '导论' },
   { id: 2, name: '第一章' },
   { id: 3, name: '第二章' },
