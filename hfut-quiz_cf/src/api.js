@@ -1,61 +1,63 @@
 // 🔧 如果在本地调试，用 localhost；上线后改成您的 Workers 域名
-// 💡 调试提示：请确认您的后端 Hono 实例是否使用了 app.basePath('/api')
 const API_BASE = 'https://worker.junpgle.me/api';
 
-// 从本地存储获取 Token
 const getToken = () => localStorage.getItem('auth_token');
 
+// 请求去重：同一 URL+方法+body 的并发请求只发一次
+const inflightRequests = new Map();
+
+function getRequestKey(endpoint, method, body) {
+  return `${method}:${endpoint}:${body ? JSON.stringify(body) : ''}`;
+}
+
 export const api = {
-    /**
-     * 1. 通用请求函数
-     * 增加了 URL 规范化处理和更详细的调试日志
-     */
     async request(endpoint, method = 'GET', body = null) {
         const headers = { 'Content-Type': 'application/json' };
         const token = getToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        // 确保路径以 / 开头，避免拼接错误
         const safeEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
         const url = `${API_BASE}${safeEndpoint}`;
 
+        // GET 请求去重
+        const key = getRequestKey(endpoint, method, body);
+        if (method === 'GET' && inflightRequests.has(key)) {
+            return inflightRequests.get(key);
+        }
+
         try {
-            // 调试用：在控制台打印实际发送的请求
-            // console.log(`[API Request] ${method} ${url}`, body || '');
+            const promise = (async () => {
+                const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : null });
 
-            const res = await fetch(url, {
-                method,
-                headers,
-                body: body ? JSON.stringify(body) : null
-            });
-
-            if (res.status === 401 && endpoint !== '/login') {
-                this.logout();
-                return null;
-            }
-
-            // 💡 关键修复：先获取文本，防止非 JSON 响应（如 404 "Not Found"）导致 JSON.parse 崩溃
-            const responseText = await res.text();
-
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                // 如果后端返回的是 404 纯文本，此时会抛出包含状态码和文本的错误
-                if (!res.ok) {
-                    const errorMsg = `[${res.status}] ${responseText || '服务器路径不存在，请检查后端路由定义'}`;
-                    throw new Error(errorMsg);
+                if (res.status === 401 && endpoint !== '/login') {
+                    this.logout();
+                    return null;
                 }
-                return responseText;
+
+                const responseText = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    if (!res.ok) {
+                        throw new Error(`[${res.status}] ${responseText || '服务器路径不存在'}`);
+                    }
+                    return responseText;
+                }
+
+                if (!res.ok) {
+                    throw new Error(data.error || `请求失败 (状态码: ${res.status})`);
+                }
+                return data;
+            })();
+
+            if (method === 'GET') {
+                inflightRequests.set(key, promise);
+                promise.finally(() => inflightRequests.delete(key));
             }
 
-            if (!res.ok) {
-                throw new Error(data.error || `请求失败 (状态码: ${res.status})`);
-            }
-            return data;
+            return await promise;
         } catch (err) {
-            // 这里的日志能帮助你快速定位 404 到底请求的是哪个 URL
-            // console.error('[API Fetch Error]', err.message);
             throw err;
         }
     },
@@ -142,5 +144,68 @@ export const api = {
     // 解析点赞/投赞成票
     async voteExplanation(explanationId) {
         return await this.request(`/explanations/${explanationId}/vote`, 'POST');
+    },
+
+    // ============================
+    // ⬇️ 新增：批量接口
+    // ============================
+
+    // 批量获取互动数据（替代每题单独调 /thread/:id）
+    async batchGetThreads(questionIds) {
+        return await this.request('/batch-threads', 'POST', { questionIds });
+    },
+
+    // 聚合同步（心跳+进度）
+    async syncAll(payload) {
+        return await this.request('/sync-all', 'POST', payload);
+    },
+
+    // 获取用户进度
+    async getUserProgress() {
+        return await this.request('/userProgress');
+    },
+
+    // 安全同步（备份进度）
+    async secureSync(data) {
+        return await this.request('/secureSync', 'POST', data);
+    },
+
+    // 获取系统配置
+    async getSystemConfig(key) {
+        return await this.request(`/SystemConfig?key=${key}`);
+    },
+
+    // 恢复离线统计
+    async recoverOutageStats(history) {
+        return await this.request('/recoverOutageStats', 'POST', { history });
+    },
+
+    // 获取错题排行榜
+    async getWrongQuestionRanking(limit, subject) {
+        return await this.request(`/getWrongQuestionRanking?limit=${limit}&subject=${subject}`);
+    },
+
+    // 获取/更新/删除评论
+    async deleteComment(commentId) {
+        return await this.request(`/comments/${commentId}`, 'DELETE');
+    },
+    async updateComment(commentId, content) {
+        return await this.request(`/comments/${commentId}`, 'PUT', { content });
+    },
+
+    // 获取/更新/删除解析
+    async deleteExplanation(explanationId) {
+        return await this.request(`/explanations/${explanationId}`, 'DELETE');
+    },
+    async updateExplanation(explanationId, content) {
+        return await this.request(`/explanations/${explanationId}`, 'PUT', { content });
+    },
+
+    // 用户中心
+    async getMyComments() {
+        return await this.request('/user/comments');
+    },
+    async getMyExplanations() {
+        return await this.request('/user/explanations');
     }
 };

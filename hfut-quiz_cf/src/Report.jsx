@@ -35,19 +35,33 @@ const MAOGAI_CHAPTERS = [
 
 const SUBJECTS = [
   { id: 'innovation', name: '创新创业', icon: '🚀' },
-  { id: 'maogai', name: '毛概', icon: '📖' }
+  { id: 'maogai', name: '毛概', icon: '📖' },
+  { id: 'hgdmy-maogai', name: '马院毛概', icon: '📖' }
 ];
 
 const safeText = (v) => typeof v === 'string' ? v : (v ? String(v) : '');
 
 // 新旧题目 ID 偏移投影转换器，将历史老ID MG-188440+ 智能向后投射为 MG-1+ 新ID，彻底激活数据报表
 const normalizeQuestionId = (id) => {
-  if (!id || typeof id !== 'string') return id;
-  if (id.startsWith('MG-')) {
-    const numStr = id.substring(3);
+  if (!id) return id;
+  const s = String(id).trim();
+  if (s.startsWith('MG-') || s.startsWith('MG')) {
+    const numStr = s.startsWith('MG-') ? s.substring(3) : s.substring(2);
     const num = parseInt(numStr);
-    if (!isNaN(num) && num > 188439) {
+    if (!isNaN(num)) {
+      if (num > 188439) {
+        return `MG-${num - 188439}`;
+      } else {
+        return `MG-${num}`;
+      }
+    }
+  }
+  const num = parseInt(s);
+  if (!isNaN(num) && /^\d+$/.test(s)) {
+    if (num > 188439) {
       return `MG-${num - 188439}`;
+    } else {
+      return `MG-${num}`;
     }
   }
   return id;
@@ -211,6 +225,52 @@ const parseMaogaiJson = (data) => {
   return chapters;
 };
 
+const parseHgdmyMaogaiJson = (data) => {
+    const questions = data?.questions || data || [];
+    if (!Array.isArray(questions)) return { '1': [] };
+
+    const chapterId = '1';
+    const list = [];
+
+    for (let i = 0; i < questions.length; i++) {
+        const q = questions[i];
+        if (!q || !q.stem) continue;
+
+        let type = 'single';
+        if (q.type === 'multiple') type = 'multiple';
+        else if (q.type === 'judge') type = 'judgment';
+
+        let options = [];
+        let rawAnswer = [];
+
+        if (type === 'judgment') {
+            options = ['正确', '错误'];
+            rawAnswer = q.answer === true ? [0] : [1];
+        } else {
+            options = Array.isArray(q.options) ? q.options : [];
+            const ans = q.answer;
+            if (typeof ans === 'number') {
+                rawAnswer = [ans];
+            } else if (Array.isArray(ans)) {
+                rawAnswer = ans.filter(a => typeof a === 'number').sort((a, b) => a - b);
+            }
+        }
+
+        list.push({
+            id: `HGD-MG-${i + 1}`,
+            type,
+            question: q.stem || '',
+            options,
+            rawAnswer,
+            explanation: q.analysis || '暂无解析',
+            category: '全部题目',
+            lectureId: 1,
+        });
+    }
+
+    return { '1': list };
+};
+
 function Report() {
   const [ready, setReady] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState(() => {
@@ -220,7 +280,7 @@ function Report() {
     if (queryIndex !== -1) {
       const searchParams = new URLSearchParams(hash.substring(queryIndex));
       const sub = searchParams.get('subject');
-      if (sub === 'maogai' || sub === 'innovation') return sub;
+      if (sub === 'maogai' || sub === 'innovation' || sub === 'hgdmy-maogai') return sub;
     }
     return 'innovation';
   });
@@ -229,6 +289,7 @@ function Report() {
   // 两个学科独立的题库状态，实现全局题库秒加载与高速查询
   const [innovationBank, setInnovationBank] = useState({});
   const [maogaiBank, setMaogaiBank] = useState({});
+  const [hgdmyMaogaiBank, setHgdmyMaogaiBank] = useState({});
   
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewingQuestion, setViewingQuestion] = useState(null);
@@ -268,11 +329,9 @@ function Report() {
       } catch (e) { console.error('Data fetch error', e); }
 
       // 2. 加载创新创业题库 (带 localforage 缓存 + 同源 public 并行极速抓取)
-      let currentInnovation = {};
       try {
         const cached = await localforage.getItem('hf_bank_v2');
         if (cached && Object.keys(cached).length > 0) {
-          currentInnovation = cached;
           setInnovationBank(cached);
         } else {
           const newBank = {};
@@ -284,7 +343,6 @@ function Report() {
               newBank[lecture.id] = parseExcelData(raw, lecture.id);
             } catch (e) { console.warn('Innovation bank load error', lecture.file, e); }
           }));
-          currentInnovation = newBank;
           setInnovationBank(newBank);
           await localforage.setItem('hf_bank_v2', newBank);
         }
@@ -305,6 +363,22 @@ function Report() {
           }
         }
       } catch (e) { console.warn('Maogai bank load error', e); }
+
+      // 3.5 加载马院毛概题库
+      try {
+        const cachedH = await localforage.getItem('hf_bank_hgdmy_maogai');
+        if (cachedH && Object.keys(cachedH).length > 0) {
+          setHgdmyMaogaiBank(cachedH);
+        } else {
+          const res = await fetch('/hgdmy-maogai.json');
+          if (res.ok) {
+            const rawJson = await res.json();
+            const parsed = parseHgdmyMaogaiJson(rawJson);
+            setHgdmyMaogaiBank(parsed);
+            await localforage.setItem('hf_bank_hgdmy_maogai', parsed);
+          }
+        }
+      } catch (e) { console.warn('Hgdmy maogai bank load error', e); }
 
       // 4. 加载本地进度
       try {
@@ -363,34 +437,29 @@ function Report() {
     return new Set([...remote, ...local].map(normalizeQuestionId));
   }, [data, localProgress]);
 
-  const normalizedMastered = useMemo(() => {
-    const remote = data?.masteredIds ? (typeof data.masteredIds === 'string' ? JSON.parse(data.masteredIds) : data.masteredIds) : [];
-    const local = localProgress.masteredIds || [];
-    return new Set([...remote, ...local].map(normalizeQuestionId));
-  }, [data, localProgress]);
+
 
   // ✅ 核心：按学科分类隔离计算
   const activeHistory = useMemo(() => {
     return mergedHistory.filter(h => {
       const qid = h.questionId || '';
       const isMaogai = qid.startsWith('MG-');
-      return selectedSubject === 'maogai' ? isMaogai : !isMaogai;
+      const isHgdmy = qid.startsWith('HGD-MG-') || qid.startsWith('HGD-MG');
+      if (selectedSubject === 'maogai') return isMaogai && !isHgdmy;
+      if (selectedSubject === 'hgdmy-maogai') return isHgdmy;
+      return !isMaogai && !isHgdmy;
     });
   }, [mergedHistory, selectedSubject]);
 
   const activeBrushed = useMemo(() => {
     return new Set([...normalizedBrushed].filter(id => {
       const isMaogai = id.startsWith('MG-');
-      return selectedSubject === 'maogai' ? isMaogai : !isMaogai;
+      const isHgdmy = id.startsWith('HGD-MG-') || id.startsWith('HGD-MG');
+      if (selectedSubject === 'maogai') return isMaogai && !isHgdmy;
+      if (selectedSubject === 'hgdmy-maogai') return isHgdmy;
+      return !isMaogai && !isHgdmy;
     }));
   }, [normalizedBrushed, selectedSubject]);
-
-  const activeMastered = useMemo(() => {
-    return new Set([...normalizedMastered].filter(id => {
-      const isMaogai = id.startsWith('MG-');
-      return selectedSubject === 'maogai' ? isMaogai : !isMaogai;
-    }));
-  }, [normalizedMastered, selectedSubject]);
 
   // 日期提取
   const dates = useMemo(() => {
@@ -409,7 +478,10 @@ function Report() {
   useEffect(() => {
     if (dates.length > 0) {
       if (!selectedDate || !dates.includes(selectedDate)) {
-        setSelectedDate(dates[0]);
+        const timer = setTimeout(() => {
+          setSelectedDate(dates[0]);
+        }, 0);
+        return () => clearTimeout(timer);
       }
     }
   }, [dates, selectedDate]);
@@ -433,7 +505,12 @@ function Report() {
   const getQuestionDetails = (qid) => {
     if (!qid) return null;
     const normalizedQid = normalizeQuestionId(qid);
-    if (normalizedQid.startsWith('MG-')) {
+    if (normalizedQid.startsWith('HGD-MG-') || normalizedQid.startsWith('HGD-MG')) {
+      for (const chId in hgdmyMaogaiBank) {
+        const q = hgdmyMaogaiBank[chId]?.find(i => i.id === normalizedQid);
+        if (q) return q;
+      }
+    } else if (normalizedQid.startsWith('MG-')) {
       for (const chId in maogaiBank) {
         const q = maogaiBank[chId]?.find(i => i.id === normalizedQid);
         if (q) return q;
@@ -505,7 +582,14 @@ function Report() {
     loadQuestionExplanations(formatted.id);
   };
 
-  useEffect(() => { if (viewingQuestion) loadQuestionExplanations(viewingQuestion.id); }, [viewingQuestion]);
+  useEffect(() => {
+    if (viewingQuestion) {
+      const timer = setTimeout(() => {
+        loadQuestionExplanations(viewingQuestion.id);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [viewingQuestion]);
 
   const renderUserExps = (questionId) => {
     const list = userExplanations[questionId];
@@ -703,8 +787,8 @@ function Report() {
     </div>
   );
 
-  const activeBank = selectedSubject === 'maogai' ? maogaiBank : innovationBank;
-  const activeChapters = selectedSubject === 'maogai' ? MAOGAI_CHAPTERS : LECTURES;
+  const activeBank = selectedSubject === 'maogai' ? maogaiBank : selectedSubject === 'hgdmy-maogai' ? hgdmyMaogaiBank : innovationBank;
+  const activeChapters = selectedSubject === 'maogai' ? MAOGAI_CHAPTERS : selectedSubject === 'hgdmy-maogai' ? [{ id: 1, name: '全部题目' }] : LECTURES;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -760,7 +844,7 @@ function Report() {
         {/* 核心统计卡片 */}
         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-[2rem] p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-6 opacity-90">
-            <Calendar size={18} /> <span className="font-bold">{selectedDate} · {selectedSubject === 'maogai' ? '毛概' : '创新创业'} 概览</span>
+            <Calendar size={18} /> <span className="font-bold">{selectedDate} · {selectedSubject === 'maogai' ? '毛概' : selectedSubject === 'hgdmy-maogai' ? '马院毛概' : '创新创业'} 概览</span>
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div><div className="text-blue-100 text-xs mb-1">刷题量</div><div className="text-3xl font-bold">{dailyStats.total}</div></div>
@@ -771,7 +855,7 @@ function Report() {
 
         {/* 章节进度 */}
         <div>
-          <h3 className="text-slate-500 font-bold text-sm mb-3 ml-1">{selectedSubject === 'maogai' ? '毛概' : '创新创业'} 章节统计</h3>
+          <h3 className="text-slate-500 font-bold text-sm mb-3 ml-1">{selectedSubject === 'maogai' ? '毛概' : selectedSubject === 'hgdmy-maogai' ? '马院毛概' : '创新创业'} 章节统计</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {activeChapters.map(l => {
               const total = activeBank[l.id]?.length || 0;
@@ -779,6 +863,8 @@ function Report() {
                 if (selectedSubject === 'maogai') {
                   const qDetails = getQuestionDetails(id);
                   return qDetails && qDetails.category === l.name;
+                } else if (selectedSubject === 'hgdmy-maogai') {
+                  return id.startsWith('HGD-MG-') || id.startsWith('HGD-MG');
                 } else {
                   return id.startsWith(`L${l.id}-`);
                 }

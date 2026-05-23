@@ -8642,17 +8642,11 @@ function App() {
 
 
 
-                        <button onClick={switchSubject}
+<button onClick={switchSubject}
 
+                                className="ml-2 px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors">
 
-
-                                className="ml-2 px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors">
-
-
-
-                            切换学科
-
-
+                            切换
 
                         </button>
 
@@ -10654,11 +10648,9 @@ function App() {
 
 
 
-                            <div onClick={resumeLastSession}
+<div onClick={resumeLastSession}
 
-
-
-                                 className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-[2rem] p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
+                                 className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl sm:rounded-[2rem] p-4 sm:p-5 md:p-6 text-white shadow-lg cursor-pointer hover:scale-[1.01] transition-transform flex justify-between items-center animate-enter">
 
 
 
@@ -10718,11 +10710,9 @@ function App() {
 
 
 
-                            <div onClick={startMistakeNotebook}
+<div onClick={startMistakeNotebook}
 
-
-
-                                 className="bg-gradient-to-br from-red-500 to-rose-600 p-5 rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
+                                 className="bg-gradient-to-br from-red-500 to-rose-600 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
 
 
 
@@ -10790,19 +10780,14 @@ function App() {
 
 
 
-                                setCurrentMode('ranking');
-
-
-
-                                loadWrongQuestionRanking();
+                                    setCurrentMode('ranking');
+                                    loadWrongQuestionRanking();
 
 
 
                             }}
 
-
-
-                                 className="bg-gradient-to-br from-orange-500 to-amber-600 p-5 rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
+                                 className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
 
 
 
@@ -11382,7 +11367,7 @@ function App() {
 
 
 
-                        className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-12 mobile-safe-bottom">
+                        className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-20 mobile-safe-bottom">
 
 
 
@@ -11390,11 +11375,11 @@ function App() {
 
 
 
-                            {/* Mobile bottom nav pill */}
+                             {/* Mobile bottom nav bar */}
 
 
 
-                            <div className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40">
+                            <div className="md:hidden fixed bottom-0 left-0 right-0 z-40">
 
 
 
@@ -11402,7 +11387,7 @@ function App() {
 
 
 
-                                    className="flex items-center justify-center gap-3 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 px-4 py-2.5 h-[58px] min-w-[320px]">
+                                    className="flex items-center justify-center gap-2 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-3 w-full">
 
 
 
@@ -11418,15 +11403,11 @@ function App() {
 
 
 
-                                        className="flex-1 min-w-[110px] px-4 py-2 rounded-full text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                                        className="flex-1 max-w-[120px] px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap border border-slate-200">
 
 
 
-                                    >
-
-
-
-                                        <ChevronLeft size={12}/> 上一题
+                                        <ChevronLeft size={14}/> 上一题
 
 
 
@@ -11438,7 +11419,7 @@ function App() {
 
 
 
-                                        className="text-[11px] text-slate-500 font-semibold border-y border-slate-100 py-1 w-full text-center">{currentIndex + 1}/{questions.length}
+                                        className="text-xs text-slate-500 font-semibold w-16 text-center shrink-0">{currentIndex + 1}/{questions.length}
 
 
 
@@ -11454,19 +11435,15 @@ function App() {
 
 
 
-                                        className="flex-1 min-w-[130px] px-4 py-2 rounded-full text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                                        className="flex-1 max-w-[140px] px-3 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap">
 
 
 
-                                    >
+                                        {isQuiz ? (currentIndex === questions.length - 1 ? '完成' : '下一题') : '记住了'}
 
 
 
-                                        {isQuiz ? (currentIndex === questions.length - 1 ? '完成' : '下一题') : '记住了，下一题'}
-
-
-
-                                        <ChevronRight size={12}/>
+                                        <ChevronRight size={14}/>
 
 
 
@@ -11650,7 +11627,7 @@ function App() {
 
 
 
-                                                        className={`w-full p-4 md:p-5 rounded-xl text-left border-2 transition-all flex items-start gap-3 md:gap-4 group relative
+                                                        className={`w-full p-3.5 sm:p-4 md:p-5 rounded-xl text-left border-2 transition-all flex items-start gap-3 md:gap-4 group relative
 
 
 
@@ -11682,7 +11659,7 @@ function App() {
 
 
 
-                                                    <div className={`mt-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0
+                                                    <div className={`mt-0.5 w-7 h-7 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold border transition-colors shrink-0
 
 
 
@@ -11718,7 +11695,7 @@ function App() {
 
 
 
-                                                        className="flex-1 text-base md:text-lg leading-snug">{opt}</span>
+                                                        className="flex-1 text-sm sm:text-base md:text-lg leading-snug">{opt}</span>
 
 
 
