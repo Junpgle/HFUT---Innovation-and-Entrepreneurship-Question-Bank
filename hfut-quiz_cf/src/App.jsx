@@ -28,6 +28,15 @@ import {QuestionDetailModal} from './components/QuestionDetailModal';
 import {SubjectSelector} from './components/SubjectSelector';
 import {ResetConfirmModal} from './components/ResetConfirmModal';
 import {UpdateNoticeModal} from './components/UpdateNoticeModal';
+import {DashboardHeader} from './components/DashboardHeader';
+import {DashboardSearchPanel} from './components/DashboardSearchPanel';
+import {DashboardPage} from './components/DashboardPage';
+import {DashboardMainContentShell} from './components/DashboardMainContentShell';
+import {QuizSidebar} from './components/QuizSidebar';
+import {QuizMobileTopBar} from './components/QuizMobileTopBar';
+import {QuizNavControls} from './components/QuizNavControls';
+import {QuizQuestionPanel} from './components/QuizQuestionPanel';
+import {QuizDiscussionPanel} from './components/QuizDiscussionPanel';
 import {
     BANK_CACHE_VERSION,
     CURRENT_APP_VERSION,
@@ -45,7 +54,6 @@ import {formatDate} from './utils/date';
 import {safeGet, safeSet} from './utils/storage';
 import {normalizeQuestionId, normalizeSet} from './utils/questionId';
 import {getSubjectById, getSubjectChapterOptions} from './utils/subjectAdapter';
-import {getQuestionTypeBadgeClass, getQuestionTypeLabel} from './utils/questionType';
 function App() {
     // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
     const [currentUser, setCurrentUser] = useState(api.getCurrentUser());
@@ -1879,303 +1887,76 @@ function App() {
         <SubjectSelector subjects={SUBJECTS} onSelectSubject={setSelectedSubject}/>
     );
     const renderDashboard = () => (
-        <div className="h-screen flex flex-col max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-6 overflow-hidden">
-            <header className="flex justify-between items-center mb-6 md:mb-8 shrink-0">
-                <div>
-                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
-                        <GraduationCap className="text-blue-600 w-6 h-6 md:w-8 md:h-8"/>
-                        <span>{currentSubject?.shortName || currentSubject?.name || '刷题系统'}</span>
-                        <button onClick={switchSubject}
-                                className="ml-2 px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors">
-                            切换
-                        </button>
-                    </h1>
-                    {/* ✅ 改动：Cloudflare 模式下直接访问 username 属性 */}
-                    <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.username}</p>
-                </div>
-                <div className="flex gap-2 md:gap-3 items-center">
-                    {onlineCount !== null && (
-                        <div
-                            className="px-3 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-200 text-xs md:text-sm font-medium flex items-center gap-2">
-                            <User size={16}/> 在线：{onlineCount}
-                        </div>
-                    )}
-                    {syncMsg && (
-                        <div
-                            className="px-3 py-2 rounded-xl border text-xs md:text-sm font-semibold flex items-center gap-2 bg-white shadow-sm"
-                            aria-live="polite">
-                            {syncStatus === 'success' && <CheckCircle size={14} className="text-green-600"/>}
-                            {syncStatus === 'error' && <AlertCircle size={14} className="text-red-500"/>}
-                            {syncStatus === 'uploading' &&
-                                <Loader2 size={14} className="animate-spin text-blue-500"/>}
-                            {syncStatus === 'downloading' && <DownloadCloud size={14} className="text-blue-500"/>}
-                            <span className="text-slate-600">{syncMsg}</span>
-                        </div>
-                    )}
-                    <button
-                        onClick={() => {
-                            window.location.hash = '#/introduce';
-                        }}
-                        className="p-2 md:px-3 md:py-2 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-indigo-600 transition-all border border-slate-100"
-                        title="产品介绍"
-                    >
-                        <GraduationCap size={18} className="md:w-5 md:h-5"/>
-                    </button>
-                    <button
-                        onClick={() => setIsSearchOpen(!isSearchOpen)}
-                        className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-blue-600 transition-all border border-slate-100"
-                        title="搜索题目"
-                    >
-                        <Search size={18} className="md:w-5 md:h-5"/>
-                    </button>
-                    <button onClick={toggleFullscreen}
-                            className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100">
-                        {isFullscreen ? <Minimize size={18}/> : <Maximize size={18}/>}
-                    </button>
-                    {/* 【修改】个人中心按钮及提示气泡 */}
-                    <div className="relative inline-block"> {/* 1. 加一个 relative 容器 */}
-                        <button onClick={() => location.href = 'profile.html'}
-                                className={`p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-100 relative ${showEmailHint ? 'ring-2 ring-red-400 animate-pulse' : ''}`}
-                                title="个人中心">
-                            <User size={18} className={`md:w-5 md:h-5 ${showEmailHint ? 'text-red-500' : ''}`}/>
-                            {/* 如果有提示，给按钮加个小红点 */}
-                            {showEmailHint && (
-                                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                            )}
-                        </button>
-                        {/* 2. 悬浮提示气泡 */}
-                        {showEmailHint && (
-                            <div className="absolute top-12 right-0 w-32 z-50 animate-bounce">
-                                <div
-                                    className="bg-red-500 text-white text-xs font-bold py-2 px-3 rounded-xl shadow-lg relative text-center">
-                                    <div className="absolute -top-1 right-4 w-3 h-3 bg-red-500 rotate-45"></div>
-                                    {/* 小箭头 */}
-                                    点我验证邮箱
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="hidden md:flex gap-3">
-                        {bankStatus === 'ready' && (
-                            <div
-                                className="px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-sm font-medium flex items-center gap-2">
-                                <Database size={16}/> 题库已就绪
-                            </div>
-                        )}
-                        <button onClick={() => handleManualSync()} disabled={syncStatus === 'uploading'}
-                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            {syncStatus === 'uploading' ? <Loader2 className="animate-spin" size={16}/> :
-                                <UploadCloud size={18}/>} 备份
-                        </button>
-                        <button onClick={() => handleManualRestore()} disabled={syncStatus === 'downloading'}
-                                className="px-4 py-2 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-sm font-medium transition-all">
-                            {syncStatus === 'downloading' ? <Loader2 className="animate-spin" size={16}/> :
-                                <DownloadCloud size={18}/>} 恢复
-                        </button>
-                        {/* 【新增】本地备份与恢复按钮 */}
-                        <div className="flex gap-2">
-                            <button onClick={handleExportProgress}
-                                    className="px-4 py-2 bg-slate-50 text-blue-600 rounded-xl shadow-sm border border-blue-100 hover:bg-blue-100 flex items-center gap-2 text-sm font-bold transition-all"
-                                    title="将本地进度导出为文件">
-                                <FileUp size={18}/> 导出
-                            </button>
-                            <label
-                                className="px-4 py-2 bg-slate-50 text-indigo-600 rounded-xl shadow-sm border border-indigo-100 hover:bg-indigo-100 flex items-center gap-2 text-sm font-bold transition-all cursor-pointer"
-                                title="从文件恢复本地进度">
-                                <FileDown size={18}/> 导入
-                                <input type="file" className="hidden" accept=".json" onChange={handleImportProgress}/>
-                            </label>
-                        </div>
-                        <button onClick={() => setShowResetModal(true)}
-                                className="px-4 py-2 bg-white text-red-600 rounded-xl shadow-sm border border-slate-200 hover:bg-red-50 flex items-center gap-2 text-sm font-medium transition-all"
-                                title="重置进度">
-                            <Trash2 size={18}/>
-                        </button>
-                    </div>
-                    {/* ✅ 改动：使用 api.logout */}
-                    <button onClick={() => {
-                        api.logout();
-                        setCurrentUser(null)
+        <DashboardPage
+            header={
+                <DashboardHeader
+                    currentSubject={currentSubject}
+                    currentUser={currentUser}
+                    onlineCount={onlineCount}
+                    syncMsg={syncMsg}
+                    syncStatus={syncStatus}
+                    isFullscreen={isFullscreen}
+                    showEmailHint={showEmailHint}
+                    bankStatus={bankStatus}
+                    onSwitchSubject={switchSubject}
+                    onToggleSearch={() => setIsSearchOpen(!isSearchOpen)}
+                    onToggleFullscreen={toggleFullscreen}
+                    onGoProfile={() => {
+                        location.href = 'profile.html';
                     }}
-                            className="p-2 md:p-3 bg-white text-slate-600 rounded-xl shadow-sm hover:shadow-md hover:text-red-600 transition-all border border-slate-100">
-                        <LogOut size={18} className="md:w-5 md:h-5"/>
-                    </button>
-                </div>
-            </header>
-            {isSearchOpen && (
-                <section
-                    id="search-panel"
-                    ref={searchSectionRef}
-                    className="mb-6 md:mb-8 rounded-2xl border border-blue-100 bg-white shadow-sm p-4 md:p-6 animate-enter"
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2 text-slate-800 font-bold">
-                            <Search size={18} className="text-blue-600"/>
-                            <span>题目搜索</span>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={() => setIsSearchOpen(false)}
-                            className="px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 rounded-lg bg-slate-50 border border-slate-200"
-                        >
-                            收起
-                        </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
-                        <div className="md:col-span-2">
-                            <label
-                                className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">关键词</label>
-                            <input
-                                value={searchKeyword}
-                                onChange={(e) => setSearchKeyword(e.target.value)}
-                                placeholder="题干 / 选项 / 解析"
-                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label
-                                className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">章节</label>
-                            <select
-                                value={searchFilters.lectureId}
-                                onChange={(e) => setSearchFilters({
-                                    ...searchFilters,
-                                    lectureId: Number(e.target.value)
-                                })}
-                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value={0}>全部章节</option>
-                                {getSubjectChapterOptions(currentSubject).map(l => (
-                                    <option key={l.id} value={l.id}>{l.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label
-                                className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block ml-1">题型</label>
-                            <select
-                                value={searchFilters.type}
-                                onChange={(e) => setSearchFilters({...searchFilters, type: e.target.value})}
-                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="all">全部</option>
-                                <option value="single">单选</option>
-                                <option value="multiple">多选</option>
-                                <option value="judgment">判断</option>
-                                <option value="fill">填空</option>
-                                <option value="big">简答</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div className="flex flex-wrap gap-3 items-center mt-3 md:mt-4">
-                        <label className="flex items-center gap-2 text-sm text-slate-600">
-                            <input
-                                type="checkbox"
-                                checked={searchFilters.includeAnswered}
-                                onChange={(e) => setSearchFilters({
-                                    ...searchFilters,
-                                    includeAnswered: e.target.checked
-                                })}
-                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            已作答
-                        </label>
-                        <label className="flex items-center gap-2 text-sm text-slate-600">
-                            <input
-                                type="checkbox"
-                                checked={searchFilters.includeUnanswered}
-                                onChange={(e) => setSearchFilters({
-                                    ...searchFilters,
-                                    includeUnanswered: e.target.checked
-                                })}
-                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            未作答
-                        </label>
-                        <div className="ml-auto flex gap-2">
-                            <button
-                                onClick={() => performSearch()}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2"
-                            >
-                                <Search size={16}/> 搜索
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setSearchResults([]);
-                                    setShowSearchResults(false);
-                                    setSearchKeyword('');
-                                }}
-                                className="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-semibold border border-slate-200"
-                            >
-                                清空
-                            </button>
-                        </div>
-                    </div>
-                    {showSearchResults && (
-                        <div className="mt-4 space-y-2 max-h-80 overflow-y-auto">
-                            {searchResults.length === 0 ? (
-                                <p className="text-sm text-slate-500">暂无结果</p>
-                            ) : (
-                                searchResults.map((res, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => openSearchQuestion(idx)}
-                                        className="w-full text-left p-3 rounded-xl border border-slate-100 bg-slate-50 hover:border-blue-300 hover:bg-blue-50 transition flex flex-col gap-1 group"
-                                    >
-                                        <div
-                                            className="text-slate-800 font-semibold group-hover:text-blue-600 transition">{res.question}</div>
-                                        <div className="flex items-center justify-between">
-                                                <span
-                                                    className="text-[12px] text-slate-500">{res.category} · {getQuestionTypeLabel(res.type)}</span>
-                                            <span
-                                                className="text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition">查看详情 →</span>
-                                        </div>
-                                    </button>
-                                ))
-                            )}
-                        </div>
-                    )}
-                </section>
-            )}
-            {bankStatus === 'ready' && (
-                <div className="md:hidden mb-4 flex gap-2">
-                    <div
-                        className="flex-1 px-3 py-2 bg-green-50 text-green-700 rounded-xl border border-green-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <Database size={14}/> 题库就绪
-                    </div>
-                    <button onClick={() => handleManualSync()}
-                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <UploadCloud size={14}/> 备份
-                    </button>
-                    <button onClick={() => handleManualRestore()}
-                            className="flex-1 px-3 py-2 bg-white text-slate-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center gap-2">
-                        <DownloadCloud size={14}/> 恢复
-                    </button>
-                    <button onClick={handleExportProgress}
-                            className="p-2 bg-white text-blue-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center">
-                        <FileUp size={16}/>
-                    </button>
-                    <label
-                        className="p-2 bg-white text-indigo-600 rounded-xl border border-slate-200 text-xs font-medium flex items-center justify-center cursor-pointer">
-                        <FileDown size={16}/>
-                        <input type="file" className="hidden" accept=".json" onChange={handleImportProgress}/>
-                    </label>
-                </div>
-            )}
-            <ResetConfirmModal
-                open={showResetModal}
-                currentUser={currentUser}
-                onCancel={() => setShowResetModal(false)}
-                onConfirm={performReset}
-            />
-            <UpdateNoticeModal
-                open={showUpdateModal}
-                currentVersion={CURRENT_APP_VERSION}
-                remoteVersionInfo={remoteVersionInfo}
-                onReload={() => window.location.reload()}
-                onClose={() => setShowUpdateModal(false)}
-            />
-            <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
+                    onManualSync={() => handleManualSync()}
+                    onManualRestore={() => handleManualRestore()}
+                    onExport={handleExportProgress}
+                    onImport={handleImportProgress}
+                    onShowReset={() => setShowResetModal(true)}
+                    onLogout={() => {
+                        api.logout();
+                        setCurrentUser(null);
+                    }}
+                />
+            }
+            searchPanel={
+                <DashboardSearchPanel
+                    open={isSearchOpen}
+                    searchSectionRef={searchSectionRef}
+                    searchKeyword={searchKeyword}
+                    setSearchKeyword={setSearchKeyword}
+                    searchFilters={searchFilters}
+                    setSearchFilters={setSearchFilters}
+                    chapterOptions={getSubjectChapterOptions(currentSubject)}
+                    performSearch={performSearch}
+                    searchResults={searchResults}
+                    showSearchResults={showSearchResults}
+                    setSearchResults={setSearchResults}
+                    setShowSearchResults={setShowSearchResults}
+                    openSearchQuestion={openSearchQuestion}
+                    setIsSearchOpen={setIsSearchOpen}
+                />
+            }
+            bankStatus={bankStatus}
+            onManualSync={() => handleManualSync()}
+            onManualRestore={() => handleManualRestore()}
+            onExport={handleExportProgress}
+            onImport={handleImportProgress}
+            resetModal={
+                <ResetConfirmModal
+                    open={showResetModal}
+                    currentUser={currentUser}
+                    onCancel={() => setShowResetModal(false)}
+                    onConfirm={performReset}
+                />
+            }
+            updateModal={
+                <UpdateNoticeModal
+                    open={showUpdateModal}
+                    currentVersion={CURRENT_APP_VERSION}
+                    remoteVersionInfo={remoteVersionInfo}
+                    onReload={() => window.location.reload()}
+                    onClose={() => setShowUpdateModal(false)}
+                />
+            }
+        >
+            <DashboardMainContentShell>
                     {/* 左侧主内容 */}
                     <div className="lg:col-span-8 space-y-6">
                         <div
@@ -2436,12 +2217,8 @@ function App() {
                             </div>
                         </a>
                     </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {/* 已移除重复统计卡片 */}
-                </div>
-            </div>
-        </div>)
+            </DashboardMainContentShell>
+        </DashboardPage>)
     // --- 修复版：计算最近7天刷题数据 ---
     const weeklyStats = (() => {
         const stats = [];
@@ -2470,356 +2247,71 @@ function App() {
         const showContent = !isQuiz || showExplanation;
         return (
             <div className="h-screen flex flex-col md:flex-row bg-slate-100">
-                <div className="hidden md:flex w-72 bg-white border-r border-slate-200 flex-col">
-                    <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                        <button onClick={exitToDashboard}
-                                className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors font-medium">
-                            <RotateCcw size={18}/> 退出练习
-                        </button>
-                        <button onClick={toggleFullscreen}
-                                className="p-2 text-slate-400 hover:text-slate-600">{isFullscreen ?
-                            <Minimize size={18}/> : <Maximize size={18}/>}</button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4">
-                        <div className="grid grid-cols-5 gap-2">
-                            {questions.map((_, i) => {
-                                let statusColor = 'bg-slate-50 text-slate-400 hover:bg-slate-100';
-                                const qid = questions[i].id;
-                                if (i === currentIndex) statusColor = 'bg-blue-600 text-white shadow-md ring-2 ring-blue-200';
-                                else if (answerResults[qid] === 'correct') statusColor = 'bg-green-50 text-green-700 border border-green-200';
-                                else if (answerResults[qid] === 'wrong') statusColor = 'bg-red-50 text-red-700 border border-red-200';
-                                return (
-                                    <button key={i} onClick={() => changeQuestion(i)}
-                                            className={`aspect-square rounded-lg text-sm font-bold flex items-center justify-center transition-all ${statusColor}`}>
-                                        {i + 1}
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
-                    <div className="p-4 border-t border-slate-100 text-xs text-center text-slate-400">
-                        {currentMode === 'mistakes' ? '错题复习模式' : (isQuiz ? '刷题模式' : '背题模式')}
-                    </div>
-                </div>
+                <QuizSidebar
+                    questions={questions}
+                    currentIndex={currentIndex}
+                    answerResults={answerResults}
+                    currentMode={currentMode}
+                    isQuiz={isQuiz}
+                    isFullscreen={isFullscreen}
+                    onExit={exitToDashboard}
+                    onToggleFullscreen={toggleFullscreen}
+                    onChangeQuestion={changeQuestion}
+                />
                 <div className="flex-1 flex flex-col h-screen relative">
-                    <div
-                        className="md:hidden p-4 bg-white border-b flex justify-between items-center shadow-sm z-10">
-                        <button onClick={exitToDashboard} className="p-2 -ml-2 text-slate-600"><RotateCcw size={20}
-                        /></button>
-                        <span className="font-bold text-slate-700">{currentIndex + 1}/{questions.length}</span>
-                        <button onClick={toggleFullscreen} className="p-2 -mr-2 text-slate-600">{isFullscreen ?
-                            <Minimize size={20}/> : <Maximize size={20}/>}</button>
-                    </div>
+                    <QuizMobileTopBar
+                        currentIndex={currentIndex}
+                        total={questions.length}
+                        isFullscreen={isFullscreen}
+                        onExit={exitToDashboard}
+                        onToggleFullscreen={toggleFullscreen}
+                    />
                     <div
                         className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 flex justify-center pb-20 mobile-safe-bottom">
                         <div className="w-full max-w-5xl space-y-6 md:space-y-8">
-                            {/* Mobile bottom nav bar */}
-                            <div className="md:hidden fixed bottom-0 left-0 right-0 z-40">
-                                <div
-                                    className="flex items-center justify-center gap-2 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-3 w-full">
-                                    <button
-                                        onClick={prevQuestion}
-                                        disabled={currentIndex === 0}
-                                        className="flex-1 max-w-[120px] px-3 py-2.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 shadow-sm text-center inline-flex items-center justify-center gap-1 whitespace-nowrap border border-slate-200">
-                                        <ChevronLeft size={14}/> 上一题
-                                    </button>
-                                    <div
-                                        className="text-xs text-slate-500 font-semibold w-16 text-center shrink-0">{currentIndex + 1}/{questions.length}
-                                    </div>
-                                    <button
-                                        onClick={isQuiz ? nextQuestion : handleMemorizeCheck}
-                                        className="flex-1 max-w-[140px] px-3 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 shadow-md text-center inline-flex items-center justify-center gap-1 whitespace-nowrap">
-                                        {isQuiz ? (currentIndex === questions.length - 1 ? '完成' : '下一题') : '记住了'}
-                                        <ChevronRight size={14}/>
-                                    </button>
-                                </div>
-                            </div>
                             <div className="grid md:grid-cols-3 gap-4 md:gap-6 items-start">
-                                <div
-                                    className="md:col-span-2 bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter h-full flex flex-col">
-                                    <div className="flex items-center gap-3 mb-4 md:mb-6">
-                                        <span
-                                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${getQuestionTypeBadgeClass(currentQ.type)}`}>
-                                            {`${getQuestionTypeLabel(currentQ.type)}题`}
-                                        </span>
-                                        <span
-                                            className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers
-                                            size={14}/> {currentQ.category}</span>
-                                    </div>
-                                    <h2 className="text-lg md:text-2xl font-bold text-slate-900 leading-relaxed mb-4">
-                                        {currentQ.question}
-                                    </h2>
-                                    <div className="grid gap-3">
-                                        {currentQ.options.map((opt, idx) => {
-                                            let status = 'default';
-                                            if (isQuiz) {
-                                                if (isAnswered) {
-                                                    if (currentQ.rawAnswer?.includes(idx)) status = 'correct';
-                                                    else if (selectedIndices.includes(idx)) status = 'wrong';
-                                                    else status = 'dimmed';
-                                                } else if (selectedIndices.includes(idx)) {
-                                                    status = 'selected';
-                                                }
-                                            } else if (currentQ.rawAnswer?.includes(idx)) {
-                                                status = 'correct';
-                                            }
-                                            return (
-                                                <button key={idx}
-                                                        onClick={() => handleOptionClick(idx)}
-                                                        className={`w-full p-3.5 sm:p-4 md:p-5 rounded-xl text-left border-2 transition-all flex items-start gap-3 md:gap-4 group relative
-                                                                        ${status === 'default' ? 'border-slate-100 bg-white hover:border-blue-200 hover:bg-slate-50' : ''}
-                                                                        ${status === 'selected' ? 'border-blue-500 bg-blue-50 text-blue-900' : ''}
-                                                                        ${status === 'correct' ? 'border-green-500 bg-green-50 text-green-900' : ''}
-                                                                        ${status === 'wrong' ? 'border-red-500 bg-red-50 text-red-900' : ''}
-                                                                        ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
-                                                                    `}
-                                                >
-                                                    <div className={`mt-0.5 w-7 h-7 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold border transition-colors shrink-0
-                                                                        ${status === 'selected' ? 'bg-blue-500 border-blue-500 text-white' : ''}
-                                                                        ${status === 'correct' ? 'bg-green-500 border-green-500 text-white' : ''}
-                                                                        ${status === 'wrong' ? 'bg-red-500 border-red-500 text-white' : ''}
-                                                                        ${status === 'default' || status === 'dimmed' ? 'bg-white border-slate-300 text-slate-500' : ''}
-                                                                    `}>
-                                                        {['A', 'B', 'C', 'D', 'E'][idx]}
-                                                    </div>
-                                                    <span
-                                                        className="flex-1 text-sm sm:text-base md:text-lg leading-snug">{opt}</span>
-                                                    {status === 'correct' && <CheckCircle
-                                                        className="text-green-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
-                                                    {status === 'wrong' && <XCircle
-                                                        className="text-red-500 shrink-0 w-5 h-5 md:w-6 md:h-6"/>}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                    {isQuiz && !isAnswered && currentQ.type === 'multiple' && (
-                                        <div className="flex justify-end animate-enter pt-4">
-                                            <button onClick={() => submitAnswer()}
-                                                    className={`w-full md:w-auto px-8 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2
-                                                                    ${selectedIndices.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-700 hover:-translate-y-1' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                                            >
-                                                确认提交 <CheckSquare size={18}/>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="hidden md:block sticky md:top-24 self-start">
-                                    <div
-                                        className="flex flex-col items-center gap-3 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 px-3 py-5 w-fit min-w-[64px]">
-                                        <button
-                                            onClick={prevQuestion}
-                                            disabled={currentIndex === 0}
-                                            className="w-full min-w-[64px] min-h-[110px] rounded-full font-bold text-slate-700 bg-white hover:bg-slate-100 disabled:opacity-40 transition flex items-center justify-center text-[12px] shadow-sm px-2"
-                                            style={{writingMode: 'vertical-rl', textOrientation: 'upright'}}
-                                        >
-                                            <ChevronLeft size={12}/> 上一题
-                                        </button>
-                                        <div
-                                            className="text-[11px] text-slate-500 font-semibold border-y border-slate-100 py-1 w-full text-center">{currentIndex + 1}/{questions.length}
-                                        </div>
-                                        {isQuiz ? (
-                                            <button
-                                                onClick={nextQuestion}
-                                                className="w-full min-w-[64px] min-h-[110px] rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md px-2"
-                                                style={{writingMode: 'vertical-rl', textOrientation: 'upright'}}
-                                            >
-                                                {currentIndex === questions.length - 1 ? '完成' : '下一题'}
-                                                <ChevronRight size={12}/>
-                                            </button>
-                                        ) : (
-                                            <button
-                                                onClick={handleMemorizeCheck}
-                                                className="w-full min-w-[64px] min-h-[110px] rounded-full font-bold text-white bg-gradient-to-b from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 transition flex items-center justify-center text-[12px] shadow-md px-2"
-                                                style={{writingMode: 'vertical-rl', textOrientation: 'upright'}}
-                                            >
-                                                记住了，下一题 <ChevronRight size={12}/>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                <QuizQuestionPanel
+                                    currentQ={currentQ}
+                                    isQuiz={isQuiz}
+                                    isAnswered={isAnswered}
+                                    selectedIndices={selectedIndices}
+                                    onOptionClick={handleOptionClick}
+                                    onSubmit={submitAnswer}
+                                />
+                                <QuizNavControls
+                                    currentIndex={currentIndex}
+                                    total={questions.length}
+                                    isQuiz={isQuiz}
+                                    onPrev={prevQuestion}
+                                    onNext={nextQuestion}
+                                    onMemorizeNext={handleMemorizeCheck}
+                                />
                             </div>
                             {showContent && (
-                                <div className="grid md:grid-cols-2 gap-4 md:gap-6 items-stretch">
-                                    <div
-                                        className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 h-full flex flex-col gap-4">
-                                        {/* 使用 Optional Chaining 安全访问 */}
-                                        {questionThread[currentQ.id]?.explanations?.length > 0 && (
-                                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                                                <div
-                                                    className="flex items-center gap-2 mb-3 text-purple-900 font-bold">
-                                                    <Award size={20} className="text-purple-500"/> 用户贡献的解析
-                                                </div>
-                                                {renderUserExplanations(currentQ.id)}
-                                            </div>
-                                        )}
-                                        <div
-                                            className="animate-enter bg-indigo-50 p-5 md:p-6 rounded-[1.5rem] border border-indigo-100">
-                                            <div
-                                                className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm">
-                                                <Zap size={18} className="text-indigo-600"/> <span>答案解析</span>
-                                            </div>
-                                            <Markdown content={currentQ.explanation} size="sm"
-                                                      className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base flex-1"/>
-                                            {(!currentQ.explanation || currentQ.explanation === '暂无解析') && (
-                                                <div className="mt-4">
-                                                    {!showExplanationForm ? (
-                                                        <button
-                                                            onClick={() => setShowExplanationForm(true)}
-                                                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
-                                                            <Edit3 size={16}/> 贡献解析
-                                                        </button>
-                                                    ) : (
-                                                        <div className="space-y-3">
-                                                            <textarea
-                                                                value={newExplanation}
-                                                                onChange={(e) => setNewExplanation(e.target.value)}
-                                                                placeholder="分享你对这道题的理解（支持Markdown格式）..."
-                                                                className="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                                                rows={4}
-                                                            />
-                                                            <div className="flex gap-2">
-                                                                <button
-                                                                    onClick={() => submitUserExplanation(currentQ.id)}
-                                                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
-                                                                    <Send size={16}/> 提交解析
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setShowExplanationForm(false);
-                                                                        setNewExplanation('');
-                                                                    }}
-                                                                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium">
-                                                                    取消
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div
-                                        className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 scroll-mt-24 h-full flex flex-col"
-                                        ref={commentSectionRef}>
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="flex items-center gap-2 text-slate-900 font-bold">
-                                                <MessageSquare size={20} className="text-slate-500"/>
-                                                {/* 使用 Optional Chaining 安全访问 */}
-                                                评论区 {questionThread[currentQ.id]?.comments?.length ? `(${questionThread[currentQ.id].comments.length})` : ''}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-4 pb-1 flex flex-col flex-1">
-                                            <div className="space-y-2">
-                                            <textarea
-                                                value={newComment}
-                                                onChange={(e) => setNewComment(e.target.value)}
-                                                placeholder="分享你的想法..."
-                                                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                                rows={3}
-                                            />
-                                                <button
-                                                    onClick={() => submitComment(currentQ.id)}
-                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
-                                                    <Send size={16}/> 发表评论
-                                                </button>
-                                            </div>
-                                            {/* 使用 Optional Chaining 安全访问 */}
-                                            {questionThread[currentQ.id]?.comments?.length > 0 ? (
-                                                <div className="space-y-3 max-h-full overflow-y-auto flex-1">
-                                                    {questionThread[currentQ.id].comments.map((comment) => {
-                                                        const isOwner = comment.authorId === currentUser?.id;
-                                                        const isEditing = editingCommentId === comment.id;
-                                                        return (
-                                                            <div key={comment.id}
-                                                                 className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-2">
-                                                                {isEditing ? (
-                                                                    <div className="space-y-2">
-                                                                        <textarea
-                                                                            value={editingCommentContent}
-                                                                            onChange={(e) => setEditingCommentContent(e.target.value)}
-                                                                            className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                                                                            rows={3}
-                                                                        />
-                                                                        <div
-                                                                            className="flex gap-2 justify-end text-xs">
-                                                                            <button
-                                                                                onClick={() => handleUpdateComment(currentQ.id)}
-                                                                                className="px-3 py-1 bg-blue-600 text-white rounded-lg">保存
-                                                                            </button>
-                                                                            <button onClick={() => {
-                                                                                setEditingCommentId(null);
-                                                                                setEditingCommentContent('');
-                                                                            }}
-                                                                                    className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg">取消
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : (
-                                                                    <>
-                                                                        <div
-                                                                            className="text-slate-800 text-sm mb-1 break-words">
-                                                                            <Markdown content={comment.content}
-                                                                                      size="sm"/>
-                                                                        </div>
-                                                                        <div
-                                                                            className="flex items-center justify-between text-xs text-slate-500">
-                                                                            <span>{comment.author}</span>
-                                                                            <span>{formatDate(comment.createdAt)}</span>
-                                                                        </div>
-                                                                        <div
-                                                                            className="flex items-center gap-3 text-xs">
-                                                                            {isOwner ? (
-                                                                                <>
-                                                                                    {/* --- 作者视角：只显示数量，不可点击 --- */}
-                                                                                    <div
-                                                                                        className={`flex items-center gap-1 cursor-default ${comment.likes > 0 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}
-                                                                                        title="收获的点赞数"
-                                                                                    >
-                                                                                        {/* 如果有赞，图标设为实心/高亮，看着更舒服 */}
-                                                                                        <ThumbsUp size={12}
-                                                                                                  fill={comment.likes > 0 ? "currentColor" : "none"}/>
-                                                                                        {comment.likes || 0}
-                                                                                    </div>
-                                                                                    {/* 增加一个小竖线分隔符，视觉更清晰 */}
-                                                                                    <div
-                                                                                        className="w-[1px] h-3 bg-slate-200"></div>
-                                                                                    <button
-                                                                                        onClick={() => handleStartEditComment(comment)}
-                                                                                        className="text-blue-600 hover:text-blue-700 transition-colors">编辑
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => handleDeleteComment(currentQ.id, comment)}
-                                                                                        className="text-red-600 hover:text-red-700 transition-colors">删除
-                                                                                    </button>
-                                                                                </>
-                                                                            ) : (
-                                                                                // --- 他人视角：可点击的 Toggle 按钮 ---
-                                                                                <button
-                                                                                    onClick={() => handleLikeComment(currentQ.id, comment)}
-                                                                                    className={`flex items-center gap-1 transition-colors ${
-                                                                                        comment.liked
-                                                                                            ? 'text-amber-600 font-bold'
-                                                                                            : 'text-slate-400 hover:text-amber-600'
-                                                                                    }`}
-                                                                                >
-                                                                                    <ThumbsUp size={12}
-                                                                                              fill={comment.liked ? "currentColor" : "none"}/>
-                                                                                    {comment.likes || 0}
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <p className="text-slate-400 text-sm text-center py-4">暂无评论，来抢沙发吧！</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
+                                <QuizDiscussionPanel
+                                    currentQ={currentQ}
+                                    questionThread={questionThread}
+                                    renderUserExplanations={renderUserExplanations}
+                                    showExplanationForm={showExplanationForm}
+                                    setShowExplanationForm={setShowExplanationForm}
+                                    newExplanation={newExplanation}
+                                    setNewExplanation={setNewExplanation}
+                                    submitUserExplanation={submitUserExplanation}
+                                    commentSectionRef={commentSectionRef}
+                                    newComment={newComment}
+                                    setNewComment={setNewComment}
+                                    submitComment={submitComment}
+                                    currentUser={currentUser}
+                                    editingCommentId={editingCommentId}
+                                    editingCommentContent={editingCommentContent}
+                                    setEditingCommentId={setEditingCommentId}
+                                    setEditingCommentContent={setEditingCommentContent}
+                                    handleUpdateComment={handleUpdateComment}
+                                    handleStartEditComment={handleStartEditComment}
+                                    handleDeleteComment={handleDeleteComment}
+                                    handleLikeComment={handleLikeComment}
+                                    formatDate={formatDate}
+                                />
                             )}
                         </div>
                     </div>
