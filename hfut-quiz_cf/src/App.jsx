@@ -1103,7 +1103,7 @@ function App() {
                 const lectures = subject.lectures || LECTURES;
                 const total = lectures.length;
                 const newBank = {};
-                // 使用 Promise.all 并行并发加载并解析所有 Excel 题库，加载速度飙升！
+                let loaded = 0;
                 const loadPromises = lectures.map(async (lecture) => {
                     try {
                         const data = await fetchLectureArrayBuffer(lecture);
@@ -1121,9 +1121,13 @@ function App() {
                         }
                     } catch (error) {
                         console.warn(`Load failed: ${lecture.file}`, error);
+                    } finally {
+                        loaded++;
+                        setBankPercent(Math.round((loaded / total) * 100));
+                        setBankProgress(`正在加载题库 (${loaded}/${total})...`);
                     }
                 });
-                setBankProgress("正在极速装载本地题库...");
+                setBankProgress(`正在加载题库 (0/${total})...`);
                 await Promise.all(loadPromises);
                 if (Object.keys(newBank).length > 0) {
                     setAllQuestionBank(newBank);
@@ -1216,7 +1220,7 @@ function App() {
         const lectures = subject.lectures || LECTURES;
         const total = lectures.length;
         const newBank = {};
-        // 使用 Promise.all 并行并发加载并解析所有 Excel 题库，加载速度飙升！
+        let loaded = 0;
         const loadPromises = lectures.map(async (lecture) => {
             try {
                 const data = await fetchLectureArrayBuffer(lecture);
@@ -1234,9 +1238,13 @@ function App() {
                 }
             } catch (error) {
                 console.warn(`Load failed: ${lecture.file}`, error);
+            } finally {
+                loaded++;
+                setBankPercent(Math.round((loaded / total) * 100));
+                setBankProgress(`正在更新题库 (${loaded}/${total})...`);
             }
         });
-        setBankProgress("正在极速装载本地题库...");
+        setBankProgress(`正在更新题库 (0/${total})...`);
         await Promise.all(loadPromises);
         if (Object.keys(newBank).length > 0) {
             setAllQuestionBank(newBank);
@@ -2774,6 +2782,20 @@ function App() {
                                         <BookOpen size={20}/> 背题模式
                                     </button>
                                 </div>
+                                {bankStatus === 'loading' && (
+                                    <div className="mt-3">
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">{bankProgress}</span>
+                                            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{bankPercent}%</span>
+                                        </div>
+                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden dark:bg-slate-800">
+                                            <div
+                                                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300 ease-out"
+                                                style={{ width: `${bankPercent}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                                 {bankStatus === 'ready' && (
                                     <div className="text-center">
                                         <button onClick={forceUpdateBank}
