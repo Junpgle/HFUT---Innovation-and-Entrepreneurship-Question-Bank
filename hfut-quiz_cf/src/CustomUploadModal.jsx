@@ -285,92 +285,100 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
     if (!show) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={handleClose}>
-            <div className="bg-white w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
-                <div className="sticky top-0 bg-white border-b border-slate-100 p-6 flex justify-between items-start z-10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={handleClose}>
+            <div className="bg-white w-full max-w-lg md:max-w-4xl max-h-[95vh] md:max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl transition-all duration-300" onClick={e => e.stopPropagation()}>
+                <div className="sticky top-0 bg-white border-b border-slate-100 p-5 sm:p-6 flex justify-between items-start z-10">
                     <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center">
-                            <UploadCloud size={24} />
+                        <div className="w-11 h-11 sm:w-12 sm:h-12 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center shrink-0">
+                            <UploadCloud size={22} className="sm:w-6 sm:h-6" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800">上传自定义题库</h2>
-                            <p className="text-sm text-slate-400">纯离线解析，数据仅保存在本地</p>
+                            <h2 className="text-lg sm:text-xl font-bold text-slate-800">上传自定义题库</h2>
+                            <p className="text-xs sm:text-sm text-slate-400">纯离线解析，数据安全地保存在本地</p>
                         </div>
                     </div>
-                    <button onClick={handleClose} disabled={uploading} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                        <X size={20} className="text-slate-400" />
+                    <button onClick={handleClose} disabled={uploading} className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-full transition-colors shrink-0">
+                        <X size={18} className="text-slate-400 sm:w-5 sm:h-5" />
                     </button>
                 </div>
 
-                <div className="p-6 space-y-5">
+                <div className="p-5 sm:p-6 flex flex-col md:grid md:grid-cols-2 md:gap-8 md:items-start space-y-5 md:space-y-0">
                     {error && (
-                        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center gap-3">
+                        <div className="md:col-span-2 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center gap-3">
                             <AlertCircle size={18} className="shrink-0" />
                             <span>{error}</span>
                         </div>
                     )}
 
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">学科名称 *</label>
-                        <input type="text" placeholder="例如：高等数学、大学物理" value={subjectName} onChange={e => setSubjectName(e.target.value)} disabled={uploading}
-                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
-                    </div>
+                    {/* 左侧栏：学科配置栏 */}
+                    <div className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">学科名称 *</label>
+                            <input type="text" placeholder="例如：高等数学、大学物理" value={subjectName} onChange={e => setSubjectName(e.target.value)} disabled={uploading}
+                                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                        </div>
 
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">简称（可选）</label>
-                        <input type="text" placeholder="例如：高数、大物" value={shortName} onChange={e => setShortName(e.target.value)} disabled={uploading}
-                               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
-                    </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">简称（可选）</label>
+                            <input type="text" placeholder="例如：高数、大物" value={shortName} onChange={e => setShortName(e.target.value)} disabled={uploading}
+                                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" />
+                        </div>
 
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">图标（可选）</label>
-                        <div className="flex gap-2 flex-wrap">
-                            {['📚', '📖', '📝', '✏️', '🔬', '🧮', '💻', '⚛️', '🎨', '🌍', '📐', '🔭', '🧬', '🏛️', '📊'].map(emoji => (
-                                <button key={emoji} type="button" onClick={() => setIcon(emoji)} disabled={uploading}
-                                        className={'w-10 h-10 rounded-xl text-lg flex items-center justify-center transition-all ' + (icon === emoji ? 'bg-blue-100 border-2 border-blue-500 scale-110 shadow-sm' : 'bg-slate-50 border border-slate-200 hover:bg-slate-100')}>
-                                    {emoji}
-                                </button>
-                            ))}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">图标选择（可选）</label>
+                            <div className="flex gap-2 flex-wrap max-h-[120px] overflow-y-auto p-1.5 bg-slate-50 border border-slate-200 rounded-xl no-scrollbar">
+                                {['📚', '📖', '📝', '✏️', '🔬', '🧮', '💻', '⚛️', '🎨', '🌍', '📐', '🔭', '🧬', '🏛️', '📊'].map(emoji => (
+                                    <button key={emoji} type="button" onClick={() => setIcon(emoji)} disabled={uploading}
+                                            className={'w-9 h-9 rounded-xl text-base flex items-center justify-center transition-all ' + (icon === emoji ? 'bg-blue-100 border-2 border-blue-500 scale-105 shadow-sm' : 'hover:bg-slate-200/60')}>
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">题库文件 *</label>
-                        <label className={'block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ' + (file ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50')}>
-                            <input ref={fileInputRef} type="file" accept=".json,.xlsx,.xls" onChange={e => setFile(e.target.files[0])} disabled={uploading} className="hidden" />
-                            {file ? (
-                                <div className="space-y-2">
-                                    <FileUp size={28} className="mx-auto text-blue-500" />
-                                    <p className="text-sm font-bold text-slate-700">{file.name}</p>
-                                    <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <UploadCloud size={28} className="mx-auto text-slate-400" />
-                                    <p className="text-sm font-bold text-slate-600">点击选择文件</p>
-                                    <p className="text-xs text-slate-400">支持 JSON、Excel (.xlsx / .xls) 格式</p>
-                                </div>
-                            )}
-                        </label>
-                    </div>
+                    {/* 右侧栏：文件与提交区 */}
+                    <div className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">题库文件 *</label>
+                            <label className={'block border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ' + (file ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:border-blue-400 hover:bg-slate-50')}>
+                                <input ref={fileInputRef} type="file" accept=".json,.xlsx,.xls" onChange={e => setFile(e.target.files[0])} disabled={uploading} className="hidden" />
+                                {file ? (
+                                    <div className="space-y-1">
+                                        <FileUp size={24} className="mx-auto text-blue-500 animate-bounce" />
+                                        <p className="text-sm font-bold text-slate-700 truncate max-w-[220px] mx-auto">{file.name}</p>
+                                        <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        <UploadCloud size={24} className="mx-auto text-slate-400" />
+                                        <p className="text-sm font-bold text-slate-600">点击选择文件</p>
+                                        <p className="text-xs text-slate-400">支持 JSON、Excel (.xlsx / .xls)</p>
+                                    </div>
+                                )}
+                            </label>
+                        </div>
 
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-1">
-                        <p className="text-xs font-bold text-amber-800">格式说明</p>
-                        <p className="text-xs text-amber-700 leading-relaxed">
-                            JSON 格式：{'{'}"章节名": [ {'{'} "question": "题干", "options": [...], "answer": "A" {'}'} ]{'}'}，
-                            自动识别单选/多选/判断/填空/简答。Excel 表头需包含"题型"、"题干"、"答案"等列名。
-                        </p>
-                    </div>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 space-y-0.5">
+                            <p className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                                <AlertCircle size={12} />
+                                <span>导入指南</span>
+                            </p>
+                            <p className="text-[11px] text-amber-700 leading-relaxed">
+                                Excel 须含“题型”、“题干”、“答案”等列名。JSON 支持以章节名为键的键值数组或直接以题目为元素的平面数组，系统将智能提取。
+                            </p>
+                        </div>
 
-                    <div className="flex gap-3 pt-2">
-                        <button onClick={handleClose} disabled={uploading}
-                                className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm">
-                            取消
-                        </button>
-                        <button onClick={handleUpload} disabled={uploading || !file || !subjectName.trim()}
-                                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2">
-                            {uploading ? <><Loader2 size={16} className="animate-spin" /> 正在解析...</> : <><UploadCloud size={16} /> 上传并解析</>}
-                        </button>
+                        <div className="flex gap-3 pt-1">
+                            <button onClick={handleClose} disabled={uploading}
+                                    className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-all text-sm">
+                                取消
+                            </button>
+                            <button onClick={handleUpload} disabled={uploading || !file || !subjectName.trim()}
+                                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-blue-500/20">
+                                {uploading ? <><Loader2 size={16} className="animate-spin" /> 正在解析...</> : <><UploadCloud size={16} /> 上传并解析</>}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

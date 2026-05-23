@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars, no-empty */
 import React, { useEffect, useMemo, useState } from 'react';
 import { api } from './api'; // ✅ 引入 API 适配器
 import * as XLSX from 'xlsx';
@@ -273,6 +274,10 @@ const parseHgdmyMaogaiJson = (data) => {
 
 function Report() {
   const [ready, setReady] = useState(false);
+  const [customSubjects, setCustomSubjects] = useState([]);
+  const allSubjects = useMemo(() => [...SUBJECTS, ...customSubjects], [customSubjects]);
+  const [customBanks, setCustomBanks] = useState({}); // { [subjectId]: bankData }
+  
   const [selectedSubject, setSelectedSubject] = useState(() => {
     // 从 URL hash 参数读取来源学科，实现从哪个学科进入就默认展示哪个学科的报表
     const hash = window.location.hash;
@@ -280,7 +285,7 @@ function Report() {
     if (queryIndex !== -1) {
       const searchParams = new URLSearchParams(hash.substring(queryIndex));
       const sub = searchParams.get('subject');
-      if (sub === 'maogai' || sub === 'innovation' || sub === 'hgdmy-maogai') return sub;
+      if (sub) return sub;
     }
     return 'innovation';
   });
@@ -380,6 +385,24 @@ function Report() {
         }
       } catch (e) { console.warn('Hgdmy maogai bank load error', e); }
 
+      // 3.8 加载自定义学科列表与本地自定义题库
+      try {
+        const cSubs = await localforage.getItem('custom_subjects_list') || [];
+        setCustomSubjects(cSubs);
+        const cBanks = {};
+        if (Array.isArray(cSubs)) {
+          await Promise.all(cSubs.map(async (sub) => {
+            try {
+              const cachedBank = await localforage.getItem(`hf_question_bank_${sub.id}`);
+              if (cachedBank && Object.keys(cachedBank).length > 0) {
+                cBanks[sub.id] = cachedBank;
+              }
+            } catch (e) { console.warn('Load custom bank fail', sub.id, e); }
+          }));
+        }
+        setCustomBanks(cBanks);
+      } catch (e) { console.warn('Load custom subjects fail', e); }
+
       // 4. 加载本地进度
       try {
         const [localHist, localBrushed, localMastered] = await Promise.all([
@@ -445,9 +468,13 @@ function Report() {
       const qid = h.questionId || '';
       const isMaogai = qid.startsWith('MG-');
       const isHgdmy = qid.startsWith('HGD-MG-') || qid.startsWith('HGD-MG');
+      const isCustom = qid.startsWith('custom_');
+      if (selectedSubject && selectedSubject.startsWith('custom_')) {
+        return qid.startsWith(selectedSubject);
+      }
       if (selectedSubject === 'maogai') return isMaogai && !isHgdmy;
       if (selectedSubject === 'hgdmy-maogai') return isHgdmy;
-      return !isMaogai && !isHgdmy;
+      return !isMaogai && !isHgdmy && !isCustom;
     });
   }, [mergedHistory, selectedSubject]);
 
@@ -455,9 +482,13 @@ function Report() {
     return new Set([...normalizedBrushed].filter(id => {
       const isMaogai = id.startsWith('MG-');
       const isHgdmy = id.startsWith('HGD-MG-') || id.startsWith('HGD-MG');
+      const isCustom = id.startsWith('custom_');
+      if (selectedSubject && selectedSubject.startsWith('custom_')) {
+        return id.startsWith(selectedSubject);
+      }
       if (selectedSubject === 'maogai') return isMaogai && !isHgdmy;
       if (selectedSubject === 'hgdmy-maogai') return isHgdmy;
-      return !isMaogai && !isHgdmy;
+      return !isMaogai && !isHgdmy && !isCustom;
     }));
   }, [normalizedBrushed, selectedSubject]);
 
@@ -505,7 +536,17 @@ function Report() {
   const getQuestionDetails = (qid) => {
     if (!qid) return null;
     const normalizedQid = normalizeQuestionId(qid);
-    if (normalizedQid.startsWith('HGD-MG-') || normalizedQid.startsWith('HGD-MG')) {
+    if (normalizedQid.startsWith('custom_')) {
+      for (const subId in customBanks) {
+        if (normalizedQid.startsWith(subId)) {
+          const bank = customBanks[subId];
+          for (const chId in bank) {
+            const q = bank[chId]?.find(i => i.id === normalizedQid);
+            if (q) return q;
+          }
+        }
+      }
+    } else if (normalizedQid.startsWith('HGD-MG-') || normalizedQid.startsWith('HGD-MG')) {
       for (const chId in hgdmyMaogaiBank) {
         const q = hgdmyMaogaiBank[chId]?.find(i => i.id === normalizedQid);
         if (q) return q;
@@ -787,8 +828,15 @@ function Report() {
     </div>
   );
 
-  const activeBank = selectedSubject === 'maogai' ? maogaiBank : selectedSubject === 'hgdmy-maogai' ? hgdmyMaogaiBank : innovationBank;
-  const activeChapters = selectedSubject === 'maogai' ? MAOGAI_CHAPTERS : selectedSubject === 'hgdmy-maogai' ? [{ id: 1, name: '全部题目' }] : LECTURES;
+  const currentSubjectObj = allSubjects.find(sub => sub.id === selectedSubject);
+
+  const activeBank = selectedSubject && selectedSubject.startsWith('custom_')
+    ? (customBanks[selectedSubject] || {})
+    : (selectedSubject === 'maogai' ? maogaiBank : selectedSubject === 'hgdmy-maogai' ? hgdmyMaogaiBank : innovationBank);
+
+  const activeChapters = selectedSubject && selectedSubject.startsWith('custom_')
+    ? (currentSubjectObj?.lectures || [])
+    : (selectedSubject === 'maogai' ? MAOGAI_CHAPTERS : selectedSubject === 'hgdmy-maogai' ? [{ id: 1, name: '全部题目' }] : LECTURES);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -803,19 +851,19 @@ function Report() {
       <div className="flex-1 max-w-3xl mx-auto w-full p-4 space-y-6">
         
         {/* ✅ 学科切换选项卡 (WOW 高级设计) */}
-        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-          {SUBJECTS.map(sub => (
+        <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto no-scrollbar">
+          {allSubjects.map(sub => (
             <button
               key={sub.id}
               onClick={() => { setSelectedSubject(sub.id); setSelectedDate(null); }}
-              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+              className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 min-w-[100px] ${
                 selectedSubject === sub.id
                   ? 'bg-white shadow text-blue-600'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               <span>{sub.icon}</span>
-              <span>{sub.name}</span>
+              <span>{sub.shortName || sub.name}</span>
             </button>
           ))}
         </div>
@@ -844,7 +892,7 @@ function Report() {
         {/* 核心统计卡片 */}
         <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-[2rem] p-6 text-white shadow-lg">
           <div className="flex items-center gap-2 mb-6 opacity-90">
-            <Calendar size={18} /> <span className="font-bold">{selectedDate} · {selectedSubject === 'maogai' ? '毛概' : selectedSubject === 'hgdmy-maogai' ? '马院毛概' : '创新创业'} 概览</span>
+            <Calendar size={18} /> <span className="font-bold">{selectedDate} · {currentSubjectObj?.shortName || currentSubjectObj?.name || '未知学科'} 概览</span>
           </div>
           <div className="grid grid-cols-3 gap-4 text-center">
             <div><div className="text-blue-100 text-xs mb-1">刷题量</div><div className="text-3xl font-bold">{dailyStats.total}</div></div>
@@ -855,11 +903,15 @@ function Report() {
 
         {/* 章节进度 */}
         <div>
-          <h3 className="text-slate-500 font-bold text-sm mb-3 ml-1">{selectedSubject === 'maogai' ? '毛概' : selectedSubject === 'hgdmy-maogai' ? '马院毛概' : '创新创业'} 章节统计</h3>
+          <h3 className="text-slate-500 font-bold text-sm mb-3 ml-1">{currentSubjectObj?.shortName || currentSubjectObj?.name || '未知学科'} 章节统计</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {activeChapters.map(l => {
               const total = activeBank[l.id]?.length || 0;
               const done = [...activeBrushed].filter(id => {
+                if (selectedSubject && selectedSubject.startsWith('custom_')) {
+                  const qDetails = getQuestionDetails(id);
+                  return qDetails && qDetails.category === l.name;
+                }
                 if (selectedSubject === 'maogai') {
                   const qDetails = getQuestionDetails(id);
                   return qDetails && qDetails.category === l.name;

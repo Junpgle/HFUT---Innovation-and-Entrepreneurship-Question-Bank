@@ -56,6 +56,16 @@ export const SUBJECTS = [
     getChapters: (bank) => MAOGAO_CHAPTERS.filter((ch) => bank[ch.id]?.length),
     getChapterName: (id) => MAOGAO_CHAPTERS.find((ch) => ch.id === id)?.name || `章节${id}`,
   },
+  {
+    id: 'hgdmy-maogai',
+    name: '合工大智慧马院-毛概',
+    shortName: '马院毛概',
+    icon: '🏛️',
+    file: 'hgdmy-maogai.json',
+    lectures: [{ id: 1, name: '全部题目' }],
+    getChapters: (bank) => [{ id: 1, name: '全部题目' }].filter((ch) => bank[ch.id]?.length),
+    getChapterName: (id) => '全部题目',
+  },
 ];
 
 export const getBankCacheKey = (subjectId) => `hf_question_bank_${subjectId}`;

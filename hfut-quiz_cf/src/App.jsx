@@ -1,4 +1,5 @@
-﻿/*
+/* eslint-disable no-unused-vars, no-undef, react-hooks/exhaustive-deps, no-empty */
+/*
 * version: 4.0.4 (Cloudflare Migration)
 * 1. 移除 LeanCloud SDK，完全迁移至 Cloudflare Workers + D1
 * 2. 优化 API 调用，适配 Hono 后端
@@ -23,9 +24,9 @@ import {
 import {validateContent} from './contentFilter.js';
 import {Markdown} from './components/Markdown';
 import {LoginScreen} from './components/LoginScreen';
-import {RankingPage} from './components/RankingPage';
 import {QuestionDetailModal} from './components/QuestionDetailModal';
-import {SubjectSelector} from './components/SubjectSelector';
+import {RankingPage} from './components/RankingPage';
+import {SubjectSelector} from './SubjectSelector';
 import {ResetConfirmModal} from './components/ResetConfirmModal';
 import {UpdateNoticeModal} from './components/UpdateNoticeModal';
 import {DashboardHeader} from './components/DashboardHeader';
@@ -52,7 +53,7 @@ import {
 } from './config/quizConfig';
 import {formatDate} from './utils/date';
 import {safeGet, safeSet} from './utils/storage';
-import {normalizeQuestionId, normalizeSet} from './utils/questionId';
+import {normalizeSet} from './utils/questionId';
 import {getSubjectById, getSubjectChapterOptions} from './utils/subjectAdapter';
 function App() {
     // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
@@ -63,8 +64,11 @@ function App() {
     const [authError, setAuthError] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
     // 学科选择
+    const [customSubjects, setCustomSubjects] = useState([]);
+    const allSubjects = useMemo(() => [...SUBJECTS, ...customSubjects], [customSubjects]);
+    const [showUploadModal, setShowUploadModal] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
-    const currentSubject = getSubjectById(SUBJECTS, selectedSubject);
+    const currentSubject = getSubjectById(allSubjects, selectedSubject);
     // 题库状态
     const [allQuestionBank, setAllQuestionBank] = useState({});
     const [bankStatus, setBankStatus] = useState('idle');
@@ -167,11 +171,11 @@ function App() {
         const payload = {
             heartbeat: true,
             progress: includeProgress ? {
-                brushedIds: Array.from(brushedIds),
-                memorizedIds: Array.from(memorizedIds),
-                masteredIds: Array.from(masteredIds),
-                wrongIds: Array.from(wrongIds),
-                history: history.slice(0, 500)
+                brushedIds: Array.from(brushedIds).filter(id => id && !id.startsWith('custom_')),
+                memorizedIds: Array.from(memorizedIds).filter(id => id && !id.startsWith('custom_')),
+                masteredIds: Array.from(masteredIds).filter(id => id && !id.startsWith('custom_')),
+                wrongIds: Array.from(wrongIds).filter(id => id && !id.startsWith('custom_')),
+                history: history.filter(h => h && h.questionId && !h.questionId.startsWith('custom_')).slice(0, 500)
             } : null
         };
         try {
@@ -586,6 +590,49 @@ function App() {
         }
         return chapters;
     };
+    const parseHgdmyMaogaiJson = (data) => {
+        const questions = data?.questions || data || [];
+        if (!Array.isArray(questions)) return { '1': [] };
+
+        const list = [];
+        for (let i = 0; i < questions.length; i++) {
+            const q = questions[i];
+            if (!q || !q.stem) continue;
+
+            let type = 'single';
+            if (q.type === 'multiple') type = 'multiple';
+            else if (q.type === 'judge') type = 'judgment';
+
+            let options = [];
+            let rawAnswer = [];
+
+            if (type === 'judgment') {
+                options = ['正确', '错误'];
+                rawAnswer = q.answer === true ? [0] : [1];
+            } else {
+                options = Array.isArray(q.options) ? q.options : [];
+                const ans = q.answer;
+                if (typeof ans === 'number') {
+                    rawAnswer = [ans];
+                } else if (Array.isArray(ans)) {
+                    rawAnswer = ans.filter(a => typeof a === 'number').sort((a, b) => a - b);
+                }
+            }
+
+            list.push({
+                id: `HGD-MG-${i + 1}`,
+                type,
+                question: q.stem || '',
+                options,
+                rawAnswer,
+                explanation: q.analysis || '暂无解析',
+                category: '全部题目',
+                lectureId: 1,
+            });
+        }
+
+        return { '1': list };
+    };
     useEffect(() => {
         const checkVersion = async () => {
             if (!currentUser || apiLimitReached) return;
@@ -630,6 +677,8 @@ function App() {
                 if (hist) setHistory(hist);
                 const sess = await safeGet('app_lastSession');
                 if (sess) setLastSession(sess);
+                const customSubs = await safeGet('custom_subjects_list', []);
+                setCustomSubjects(customSubs);
                 setHydrated(true);
             } catch (e) {
                 console.error(e);
@@ -638,6 +687,35 @@ function App() {
         };
         loadLocal();
     }, []);
+
+    const handleDeleteCustomSubject = async (e, subjectId) => {
+        e.stopPropagation();
+        if (!confirm("确定要删除该自定义学科吗？此操作不可恢复，且该学科的本地刷题进度也会被清除。")) return;
+        const updated = customSubjects.filter(s => s.id !== subjectId);
+        setCustomSubjects(updated);
+        await safeSet('custom_subjects_list', updated);
+        await localforage.removeItem(getBankCacheKey(subjectId)).catch(console.warn);
+        await localforage.removeItem(getBankCacheVersionKey(subjectId)).catch(console.warn);
+        try { localStorage.removeItem(getBankCacheKey(subjectId)); localStorage.removeItem(getBankCacheVersionKey(subjectId)); } catch {}
+        
+        // 物理清理本地进度中该学科的题目
+        const updatedBrushed = new Set(Array.from(brushedIds).filter(id => id && !id.startsWith(subjectId)));
+        const updatedMemorized = new Set(Array.from(memorizedIds).filter(id => id && !id.startsWith(subjectId)));
+        const updatedMastered = new Set(Array.from(masteredIds).filter(id => id && !id.startsWith(subjectId)));
+        const updatedWrong = new Set(Array.from(wrongIds).filter(id => id && !id.startsWith(subjectId)));
+        const updatedHistory = history.filter(h => h && h.questionId && !h.questionId.startsWith(subjectId));
+        setBrushedIds(updatedBrushed);
+        setMemorizedIds(updatedMemorized);
+        setMasteredIds(updatedMastered);
+        setWrongIds(updatedWrong);
+        setHistory(updatedHistory);
+        
+        if (selectedSubject === subjectId) {
+            setSelectedSubject(null);
+            setAllQuestionBank({});
+            setBankStatus('idle');
+        }
+    };
     // 保存本地数据 (Hooks)
     useEffect(() => {
         if (hydrated) safeSet('app_brushedIds', Array.from(brushedIds));
@@ -727,7 +805,7 @@ function App() {
         if (!selectedSubject) return;
         const cacheKey = getBankCacheKey(selectedSubject);
         const cacheVerKey = getBankCacheVersionKey(selectedSubject);
-        const subject = getSubjectById(SUBJECTS, selectedSubject);
+        const subject = getSubjectById(allSubjects, selectedSubject);
         if (!subject) return;
         const isValidBank = (bank) => {
             if (!bank || typeof bank !== 'object') return false;
@@ -767,6 +845,26 @@ function App() {
                 setBankProgress("检查本地缓存...");
                 const cachedBank = await safeGet(cacheKey);
                 const cachedVer = await safeGet(cacheVerKey);
+                
+                if (subject.isCustom) {
+                    if (cachedBank && isValidBank(cachedBank)) {
+                        setAllQuestionBank(cachedBank);
+                        setBankStatus('ready');
+                        setBankProgress('题库已就绪');
+                        setBankPercent(100);
+                        return;
+                    }
+                    if (subject.questionBank && isValidBank(subject.questionBank)) {
+                        setAllQuestionBank(subject.questionBank);
+                        setBankStatus('ready');
+                        await safeSet(cacheKey, subject.questionBank);
+                        setBankProgress('题库已就绪');
+                        setBankPercent(100);
+                        return;
+                    }
+                    throw new Error("自定义题库本地缓存为空或已损坏，请重新上传。");
+                }
+                
                 if (cachedBank && Number(cachedVer) === BANK_CACHE_VERSION) {
                     if (isValidBank(cachedBank)) {
                         setAllQuestionBank(cachedBank);
@@ -809,6 +907,32 @@ function App() {
                         console.warn('毛概题库加载失败', error);
                         setBankStatus('error');
                         setErrorMsg("毛概题库加载失败: " + error.message);
+                        setBankPercent(0);
+                    }
+                    return;
+                }
+                if (subject.id === 'hgdmy-maogai') {
+                    setBankProgress('正在加载马院毛概题库...');
+                    try {
+                        const url = '/hgdmy-maogai.json';
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const rawJson = await res.json();
+                        const parsed = parseHgdmyMaogaiJson(rawJson);
+                        if (Object.keys(parsed).length > 0) {
+                            setAllQuestionBank(parsed);
+                            setBankStatus('ready');
+                            await safeSet(cacheKey, parsed);
+                            await safeSet(cacheVerKey, BANK_CACHE_VERSION);
+                            setBankProgress('题库已就绪');
+                            setBankPercent(100);
+                        } else {
+                            throw new Error('解析结果为空');
+                        }
+                    } catch (error) {
+                        console.warn('马院毛概题库加载失败', error);
+                        setBankStatus('error');
+                        setErrorMsg("马院毛概题库加载失败: " + error.message);
                         setBankPercent(0);
                     }
                     return;
@@ -872,8 +996,9 @@ function App() {
         if (!selectedSubject) return;
         const cacheKey = getBankCacheKey(selectedSubject);
         const cacheVerKey = getBankCacheVersionKey(selectedSubject);
-        const subject = getSubjectById(SUBJECTS, selectedSubject);
+        const subject = getSubjectById(allSubjects, selectedSubject);
         if (!subject) return;
+        if (subject.isCustom) return; // 自定义学科纯离线，不需要强制从网络更新
         setBankStatus('loading');
         setBankProgress('正在强制更新题库... (0%)');
         setBankPercent(0);
@@ -897,6 +1022,30 @@ function App() {
                 console.warn('毛概题库强制更新失败', error);
                 setBankStatus('error');
                 setErrorMsg("毛概题库强制更新失败: " + error.message);
+                setBankPercent(0);
+                return;
+            }
+        }
+        if (subject.id === 'hgdmy-maogai') {
+            try {
+                const url = '/hgdmy-maogai.json';
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const rawJson = await res.json();
+                const parsed = parseHgdmyMaogaiJson(rawJson);
+                if (Object.keys(parsed).length > 0) {
+                    setAllQuestionBank(parsed);
+                    setBankStatus('ready');
+                    await safeSet(cacheKey, parsed);
+                    await safeSet(cacheVerKey, BANK_CACHE_VERSION);
+                    setBankProgress('题库已更新');
+                    setBankPercent(100);
+                    return;
+                }
+            } catch (error) {
+                console.warn('马院毛概题库强制更新失败', error);
+                setBankStatus('error');
+                setErrorMsg("马院毛概题库强制更新失败: " + error.message);
                 setBankPercent(0);
                 return;
             }
@@ -971,11 +1120,11 @@ function App() {
             }
             // 调用后端
             const response = await api.request('/secureSync', 'POST', {
-                brushedIds: Array.from(brushedIds),
-                memorizedIds: Array.from(memorizedIds),
-                masteredIds: Array.from(masteredIds),
-                wrongIds: Array.from(wrongIds),
-                history: history.slice(0, 500) // 限制长度
+                brushedIds: Array.from(brushedIds).filter(id => id && !id.startsWith('custom_')),
+                memorizedIds: Array.from(memorizedIds).filter(id => id && !id.startsWith('custom_')),
+                masteredIds: Array.from(masteredIds).filter(id => id && !id.startsWith('custom_')),
+                wrongIds: Array.from(wrongIds).filter(id => id && !id.startsWith('custom_')),
+                history: history.filter(h => h && h.questionId && !h.questionId.startsWith('custom_')).slice(0, 500) // 限制长度
             });
             if (response && response.success) {
                 if (!silent) {
@@ -1301,6 +1450,7 @@ function App() {
     };
     // ✅ 改动：提交问题结果 (推入缓冲池)
     const submitQuestionResult = async (questionId, isCorrect, questionTitle, category, userAnswer = '') => {
+        if (questionId && questionId.startsWith('custom_')) return; // 自定义离线题库不提交结果
         if (!currentUser) return;
         statsBuffer.current.push({
             questionId,
@@ -1313,21 +1463,6 @@ function App() {
             await flushStats();
         }
     };
-    // ✅ 改动：加载排行榜 (api.request)
-    const loadWrongQuestionRanking = async (subjectId = selectedSubject) => {
-        try {
-            const result = await api.request(`/getWrongQuestionRanking?limit=${LEADERBOARD_LIMIT}&subject=${subjectId}`);
-            if (result && Array.isArray(result.ranking)) {
-                const parsedRanking = result.ranking.map(item => ({
-                    ...item,
-                    questionId: normalizeQuestionId(item.questionId)
-                }));
-                setWrongQuestionRanking(parsedRanking);
-            }
-        } catch (e) {
-            console.error('加载错题排行榜失败:', e);
-        }
-    };
     const getQuestionDetails = (questionId) => {
         for (const lectureId in allQuestionBank) {
             const questions = allQuestionBank[lectureId];
@@ -1336,11 +1471,29 @@ function App() {
         }
         return null;
     };
+    // ✅ 改动：加载排行榜 (仅官方题库可用)
+    const loadWrongQuestionRanking = async (subjectId = selectedSubject) => {
+        if (!subjectId || subjectId.startsWith('custom_')) {
+            setWrongQuestionRanking([]);
+            return;
+        }
+        try {
+            const result = await api.request(`/getWrongQuestionRanking?limit=${LEADERBOARD_LIMIT}&subject=${subjectId}`);
+            if (result && Array.isArray(result.ranking)) {
+                const parsedRanking = result.ranking.map(item => ({
+                    ...item,
+                    questionId: item.questionId
+                }));
+                setWrongQuestionRanking(parsedRanking);
+            }
+        } catch (e) {
+            console.error('加载错题排行榜失败:', e);
+        }
+    };
     const openRankingQuestion = (rankItem) => {
         const questionDetail = getQuestionDetails(rankItem.questionId);
         if (questionDetail) {
             setViewingRankQuestion({...questionDetail, rankInfo: rankItem});
-            // 💡 修改这里：使用新的加载函数
             loadQuestionThread(questionDetail.id);
         } else {
             alert('题库中未找到该题');
@@ -1956,7 +2109,19 @@ function App() {
         setLastSession(null);
     };
     const renderSubjectSelector = () => (
-        <SubjectSelector subjects={SUBJECTS} onSelectSubject={setSelectedSubject}/>
+        <SubjectSelector 
+            allSubjects={allSubjects} 
+            showUploadModal={showUploadModal} 
+            setShowUploadModal={setShowUploadModal} 
+            setSelectedSubject={setSelectedSubject} 
+            setBankStatus={setBankStatus} 
+            setAllQuestionBank={setAllQuestionBank} 
+            handleDeleteCustomSubject={handleDeleteCustomSubject} 
+            customSubjects={customSubjects} 
+            setCustomSubjects={setCustomSubjects} 
+            safeSet={safeSet} 
+            getBankCacheKey={getBankCacheKey}
+        />
     );
     const renderDashboard = () => (
         <DashboardPage
@@ -2197,7 +2362,7 @@ function App() {
                                     <ChevronRight size={24}/></div>
                             </div>
                         )}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className={`grid ${currentSubject?.isCustom ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
                             <div onClick={startMistakeNotebook}
                                  className="bg-gradient-to-br from-red-500 to-rose-600 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-red-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
                                 <div
@@ -2215,25 +2380,29 @@ function App() {
                                     </div>
                                 </div>
                             </div>
-                            <div onClick={() => {
-                                setCurrentMode('ranking');
-                                loadWrongQuestionRanking();
-                            }}
-                                 className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
-                                <div
-                                    className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
-                                <div className="relative z-10 flex flex-col h-full justify-between gap-4">
-                                    <div className="flex justify-between items-start">
-                                        <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm"><TrendingUp
-                                            size={20}/></div>
-                                        <span className="font-mono text-3xl font-bold opacity-90">📊</span>
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold mb-0.5">易错题排行</h3>
-                                        <p className="text-orange-100 text-xs opacity-90">查看全站最易错的题目</p>
+                            
+                            {!currentSubject?.isCustom && (
+                                <div onClick={() => {
+                                    setCurrentMode('ranking');
+                                    loadWrongQuestionRanking();
+                                }}
+                                     className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
+                                    <div
+                                        className="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-8 -mt-8"></div>
+                                    <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+                                        <div className="flex justify-between items-start">
+                                            <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm">
+                                                <TrendingUp size={20}/>
+                                            </div>
+                                            <span className="font-mono text-3xl font-bold opacity-90">📊</span>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold mb-0.5">易错题排行</h3>
+                                            <p className="text-orange-100 text-xs opacity-90">查看全站最易错的题目</p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                         <a href={`/#/report?subject=${selectedSubject}`}
                            className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200 cursor-pointer hover:border-blue-300 transition-transform duration-300 ease-in-out will-change-transform flex flex-col no-underline group flex-1 min-h-0">
@@ -2447,6 +2616,13 @@ function App() {
             if (statsBuffer.current.length > 0) flushStats();
         };
     }, []);
+    const renderQuestionDetailModal = () => (
+        <QuestionDetailModal
+            viewingRankQuestion={viewingRankQuestion}
+            onClose={() => setViewingRankQuestion(null)}
+            renderUserExplanations={renderUserExplanations}
+        />
+    );
     // --- 排行榜页面 ---
     const renderRankingPage = () => (
         <RankingPage
@@ -2457,13 +2633,6 @@ function App() {
                 loadWrongQuestionRanking();
             }}
             onOpenQuestion={openRankingQuestion}
-        />
-    );
-    const renderQuestionDetailModal = () => (
-        <QuestionDetailModal
-            viewingRankQuestion={viewingRankQuestion}
-            onClose={() => setViewingRankQuestion(null)}
-            renderUserExplanations={renderUserExplanations}
         />
     );
     if (!currentUser) return renderLoginScreen();
