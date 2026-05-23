@@ -2623,6 +2623,9 @@ function App() {
                     setCurrentUser(null);
                     setShowLoginScreen(false);
                 }}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={toggleFullscreen}
+                onlineCount={onlineCount}
             />
             {renderSubjectSelectionModal()}
         </>
@@ -2633,15 +2636,12 @@ function App() {
                 <DashboardHeader
                     currentSubject={currentSubject}
                     currentUser={currentUser}
-                    onlineCount={onlineCount}
                     syncMsg={syncMsg}
                     syncStatus={syncStatus}
-                    isFullscreen={isFullscreen}
                     themeMode={themeMode}
                     setThemeMode={setThemeMode}
                     onSwitchSubject={switchSubject}
                     onToggleSearch={() => setIsSearchOpen(!isSearchOpen)}
-                    onToggleFullscreen={toggleFullscreen}
                 />
             }
             searchPanel={

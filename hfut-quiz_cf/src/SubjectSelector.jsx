@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, Github, GraduationCap, Info, Loader2, Settings, Trash2, UploadCloud, Wand2 } from 'lucide-react';
+import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, Github, GraduationCap, Info, Loader2, Maximize, Minimize, Settings, Trash2, UploadCloud, User, Wand2 } from 'lucide-react';
 import CustomUploadModal from './CustomUploadModal.jsx';
 import AIQuestionModal from './AIQuestionModal.jsx';
 import ApiSettingsModal from './ApiSettingsModal.jsx';
@@ -31,6 +31,9 @@ export const SubjectSelector = ({
     onImport,
     syncStatus,
     onRequireLogin,
+    isFullscreen,
+    onToggleFullscreen,
+    onlineCount,
 }) => {
     const isGuest = !currentUser;
     const motto = useMemo(() => {
@@ -46,14 +49,18 @@ export const SubjectSelector = ({
     };
     
     const labelMap = {
-        'system': '🌗 主题: 跟随系统',
-        'light': '☀️ 主题: 极简日间',
-        'dark': '🌙 主题: 护眼夜间',
-        'auto': '⏰ 主题: 自动切换'
+        'system': '🌗 跟随系统',
+        'light': '☀️ 极简日间',
+        'dark': '🌙 护眼夜间',
+        'auto': '⏰ 自动切换'
     };
 
     return (
         <div className="min-h-screen w-full overflow-x-hidden flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-transparent">
+            {/* 手机端右上角全屏按钮 */}
+            <button onClick={onToggleFullscreen} className="fixed top-3 right-3 z-50 p-2.5 bg-white/80 backdrop-blur text-slate-600 rounded-full shadow-md border border-slate-200 sm:hidden dark:bg-slate-900/80 dark:border-slate-700 dark:text-slate-300">
+                {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+            </button>
             <div className="w-full max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl">
                 <div className="text-center mb-8 md:mb-14 flex flex-col items-center">
                     {currentUser && (
@@ -73,6 +80,11 @@ export const SubjectSelector = ({
                             </button>
                         </div>
                     )}
+                    {onlineCount !== null && (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full text-xs font-bold text-blue-700 mb-4 shadow-sm animate-fade-in dark:bg-blue-950/40 dark:border-blue-900/60 dark:text-blue-400">
+                            <User size={12} /> 在线：{onlineCount}
+                        </div>
+                    )}
                     <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3 hover:rotate-12 transition-transform duration-300 dark:shadow-indigo-900/20">
                         <BookOpen size={24} className="sm:w-8 sm:h-8 md:w-10 md:h-10"/>
                     </div>
@@ -81,14 +93,6 @@ export const SubjectSelector = ({
                     
                     {/* 快捷直达操作菜单 */}
                     <div className="flex justify-center gap-2 sm:gap-3 mt-6 flex-wrap relative z-30">
-                        {/* 学习报表 */}
-                        <a href="/#/report" className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
-                            📈 数据报表
-                        </a>
-                        {/* 产品介绍 */}
-                        <a href="/#/introduce" className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-indigo-400 dark:hover:border-indigo-900/50">
-                            <Info size={14} /> 产品介绍
-                        </a>
                         {/* 备份 */}
                         <button onClick={onManualSync} disabled={syncStatus === 'uploading' || isGuest} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {syncStatus === 'uploading' ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} 备份
@@ -112,6 +116,10 @@ export const SubjectSelector = ({
                         {/* 主题切换 */}
                         <button onClick={() => setThemeMode(nextModeMap[themeMode])} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {labelMap[themeMode] || '🌗 切换主题'}
+                        </button>
+                        {/* 全屏 */}
+                        <button onClick={onToggleFullscreen} className="hidden sm:flex px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                            {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />} {isFullscreen ? '退出全屏' : '全屏'}
                         </button>
                         {/* 登录/退出 */}
                         {currentUser ? (
@@ -214,15 +222,22 @@ export const SubjectSelector = ({
                         <p className="text-xs text-slate-400 max-w-[180px] sm:max-w-[200px] leading-relaxed dark:text-slate-500">独立页面填写 API 与资料，支持提示词复制和直连生成</p>
                     </button>
                 </div>
-                <div className="flex justify-center mt-10">
+                <div className="flex justify-center items-center gap-4 sm:gap-6 mt-10 text-xs text-slate-400 dark:text-slate-500">
+                    <a href="/#/report" className="inline-flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-400 transition-colors no-underline">
+                        📈 数据报表
+                    </a>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <a href="/#/introduce" className="inline-flex items-center gap-1.5 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors no-underline">
+                        <Info size={13} /> 产品介绍
+                    </a>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
                     <a
                         href="https://github.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors text-xs"
+                        className="inline-flex items-center gap-1.5 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                     >
-                        <Github size={16} />
-                        <span>GitHub</span>
+                        <Github size={13} /> GitHub
                     </a>
                 </div>
             </div>
