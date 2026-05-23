@@ -132,6 +132,47 @@ function App() {
     const currentHistory = useMemo(() => {
         return history.filter(h => h && h.questionId && currentSubjectQids.has(h.questionId));
     }, [history, currentSubjectQids]);
+    const getQuestionSubjectId = (questionId) => {
+        const qid = String(questionId || '');
+        if (!qid) return null;
+        if (qid.startsWith('custom_')) {
+            const idx = qid.lastIndexOf('-Q');
+            return idx > 0 ? qid.slice(0, idx) : null;
+        }
+        if (qid.startsWith('HGD-MG-')) return 'hgdmy-maogai';
+        if (qid.startsWith('MG-')) return 'maogai';
+        if (/^(OLD-|L\d+-)/.test(qid)) return 'innovation';
+        return 'innovation';
+    };
+    const filterProgressBySubject = (items = [], subjectId = 'all') => {
+        if (subjectId === 'all') return items;
+        return items.filter(item => getQuestionSubjectId(item) === subjectId);
+    };
+    const filterHistoryBySubject = (items = [], subjectId = 'all') => {
+        if (subjectId === 'all') return items;
+        return items.filter(h => h && h.questionId && getQuestionSubjectId(h.questionId) === subjectId);
+    };
+    const sanitizeCloudIds = (ids = []) => itemsWithoutCustom(filterProgressBySubject(ids, 'all'));
+    const sanitizeCloudHistory = (items = []) => filterHistoryBySubject(items, 'all').filter(h => h && h.questionId && !String(h.questionId).startsWith('custom_'));
+    const itemsWithoutCustom = (items = []) => items.filter(id => id && !String(id).startsWith('custom_'));
+    const getProgressSnapshot = (subjectId = 'all') => {
+        const brushed = filterProgressBySubject(Array.from(brushedIds), subjectId);
+        const memorized = filterProgressBySubject(Array.from(memorizedIds), subjectId);
+        const mastered = filterProgressBySubject(Array.from(masteredIds), subjectId);
+        const wrong = filterProgressBySubject(Array.from(wrongIds), subjectId);
+        const hist = filterHistoryBySubject(history, subjectId);
+        return { brushed, memorized, mastered, wrong, history: hist };
+    };
+    const dedupeAndSortHistory = (items = []) => {
+        const seen = new Set();
+        return (items || []).filter(h => {
+            if (!h) return false;
+            const key = h.id || `${h.timestamp}-${h.questionId}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    };
 
     // 交互状态
     const [quizConfig, setQuizConfig] = useState({lectureId: 0, count: 20, type: 'all', filter: 'all'});
@@ -169,6 +210,15 @@ function App() {
     const [remoteVersionInfo, setRemoteVersionInfo] = useState({version: '', log: ''});
     // API 额度受限状态
     const [apiLimitReached, setApiLimitReached] = useState(false);
+    const [selectorModal, setSelectorModal] = useState({
+        open: false,
+        title: '',
+        description: '',
+        allowMulti: false,
+        options: [],
+        selectedValues: []
+    });
+    const selectorResolveRef = useRef(null);
     // 批量发送题目状态策略
     const statsBuffer = useRef([]);
     const BATCH_THRESHOLD = 30; // 攒够 30 题发一次
@@ -180,6 +230,26 @@ function App() {
         if (error.status === 429 || (error.message && error.message.toLowerCase().includes('limit'))) {
             setApiLimitReached(true);
             console.error("API Daily Limit Exceeded");
+        }
+    };
+    const openSubjectSelectorModal = ({title, description, options, allowMulti = false, defaultValues = []}) => {
+        return new Promise((resolve) => {
+            selectorResolveRef.current = resolve;
+            setSelectorModal({
+                open: true,
+                title: title || '选择题库',
+                description: description || '',
+                allowMulti,
+                options: options || [],
+                selectedValues: Array.isArray(defaultValues) ? defaultValues : []
+            });
+        });
+    };
+    const closeSubjectSelectorModal = (result = null) => {
+        setSelectorModal(prev => ({...prev, open: false}));
+        if (selectorResolveRef.current) {
+            selectorResolveRef.current(result);
+            selectorResolveRef.current = null;
         }
     };
     // ==========================================
@@ -1166,6 +1236,12 @@ function App() {
     const handleManualSync = async (silent = false) => {
         if (!currentUser) return;
         if (!silent) {
+            const ok = window.confirm(
+                "将备份到云端的内容：\n- 创新创业/毛概/马院毛概的答题状态（已刷/已背/已掌握/错题）\n- 历史记录（最多500条）\n\n不会备份：\n- 自定义题库及其进度（仅保留本地）\n\n是否继续备份？"
+            );
+            if (!ok) return;
+        }
+        if (!silent) {
             setSyncStatus('uploading');
             setSyncMsg("备份中...");
         }
@@ -1181,17 +1257,19 @@ function App() {
                 return;
             }
             // 调用后端
+            const snapshot = getProgressSnapshot('all');
             const response = await api.request('/secureSync', 'POST', {
-                brushedIds: Array.from(brushedIds).filter(id => id && !id.startsWith('custom_')),
-                memorizedIds: Array.from(memorizedIds).filter(id => id && !id.startsWith('custom_')),
-                masteredIds: Array.from(masteredIds).filter(id => id && !id.startsWith('custom_')),
-                wrongIds: Array.from(wrongIds).filter(id => id && !id.startsWith('custom_')),
-                history: history.filter(h => h && h.questionId && !h.questionId.startsWith('custom_')).slice(0, 500) // 限制长度
+                brushedIds: sanitizeCloudIds(snapshot.brushed),
+                memorizedIds: sanitizeCloudIds(snapshot.memorized),
+                masteredIds: sanitizeCloudIds(snapshot.mastered),
+                wrongIds: sanitizeCloudIds(snapshot.wrong),
+                history: sanitizeCloudHistory(snapshot.history).slice(0, 500) // 限制长度
             });
             if (response && response.success) {
                 if (!silent) {
                     setSyncStatus('success');
                     setSyncMsg("备份成功");
+                    alert("备份完成：已将三套内置题库的答题状态与历史记录同步到云端；自定义题库未上传。");
                 }
             } else {
                 return Promise.reject(new Error(response ? response.message : "云端未返回成功状态"));
@@ -1222,6 +1300,12 @@ function App() {
     const handleManualRestore = async (silent = false) => {
         if (!currentUser) return;
         if (!silent) {
+            const ok = window.confirm(
+                "将从云端恢复的内容：\n- 创新创业/毛概/马院毛概的答题状态（已刷/已背/已掌握/错题）\n- 历史记录\n\n恢复方式：与本地合并去重，不会覆盖自定义题库。\n\n是否继续恢复？"
+            );
+            if (!ok) return;
+        }
+        if (!silent) {
             setSyncStatus('downloading');
             setSyncMsg("恢复中...");
         }
@@ -1250,11 +1334,11 @@ function App() {
                     }
                     return [];
                 };
-                const cloudBrushed = getArr(data.brushedIds);
-                const cloudMemorized = getArr(data.memorizedIds);
-                const cloudMastered = getArr(data.masteredIds);
-                const cloudWrong = getArr(data.wrongIds);
-                const cloudHistory = getArr(data.history);
+                const cloudBrushed = itemsWithoutCustom(getArr(data.brushedIds));
+                const cloudMemorized = itemsWithoutCustom(getArr(data.memorizedIds));
+                const cloudMastered = itemsWithoutCustom(getArr(data.masteredIds));
+                const cloudWrong = itemsWithoutCustom(getArr(data.wrongIds));
+                const cloudHistory = getArr(data.history).filter(h => h && h.questionId && !String(h.questionId).startsWith('custom_'));
                 if (cloudBrushed.length) newBrushed = new Set([...newBrushed, ...cloudBrushed]);
                 if (cloudMemorized.length) newMemorized = new Set([...newMemorized, ...cloudMemorized]);
                 if (cloudMastered.length) newMastered = new Set([...newMastered, ...cloudMastered]);
@@ -1280,6 +1364,7 @@ function App() {
                 if (!silent) {
                     setSyncStatus('success');
                     setSyncMsg("同步完成");
+                    alert("恢复完成：已从云端合并恢复三套内置题库的答题状态与历史记录；自定义题库未受影响。");
                 }
             } else {
                 if (!silent) {
@@ -1298,34 +1383,166 @@ function App() {
     /**
      * 【新增】本地刷题记录导出为 JSON 文件
      */
-    const handleExportProgress = () => {
+    const handleExportProgress = async () => {
         try {
-            const data = {
+            const action = await openSubjectSelectorModal({
+                title: '导出类型',
+                description: '请选择要导出的内容',
+                allowMulti: false,
+                options: [
+                    {value: 'progress', label: '答题状态'},
+                    {value: 'raw_bank', label: '原始题库'},
+                    {value: 'bundle', label: '题库+答题状态（一体包）'}
+                ],
+                defaultValues: ['progress']
+            });
+            if (!action || !action.length) return;
+            const exportType = action[0];
+            const chosenSubjects = await openSubjectSelectorModal({
+                title: '选择题库',
+                description: '支持单选/多选；手机端可滚动勾选',
+                allowMulti: true,
+                options: allSubjects.map(s => ({value: s.id, label: s.name})),
+                defaultValues: selectedSubject ? [selectedSubject] : allSubjects.map(s => s.id)
+            });
+            if (!chosenSubjects || !chosenSubjects.length) {
+                alert("请至少选择一个题库。");
+                return;
+            }
+            const isAll = chosenSubjects.length === allSubjects.length;
+            const scopeSnapshot = {
+                brushed: [],
+                memorized: [],
+                mastered: [],
+                wrong: [],
+                history: []
+            };
+            chosenSubjects.forEach(subId => {
+                const one = getProgressSnapshot(subId);
+                scopeSnapshot.brushed.push(...one.brushed);
+                scopeSnapshot.memorized.push(...one.memorized);
+                scopeSnapshot.mastered.push(...one.mastered);
+                scopeSnapshot.wrong.push(...one.wrong);
+                scopeSnapshot.history.push(...one.history);
+            });
+            if (exportType === 'progress') {
+                const data = {
+                    header: {
+                        appName: "HFUT Innovation & Entrepreneurship Question Bank (CF)",
+                        version: CURRENT_APP_VERSION,
+                        exportDate: new Date().toISOString(),
+                        userId: currentUser?.id || 'guest',
+                        exportType: 'progress',
+                        scopeSubjectIds: chosenSubjects,
+                        scopeMode: isAll ? 'all' : 'partial'
+                    },
+                    payload: {
+                        brushedIds: Array.from(new Set(scopeSnapshot.brushed)),
+                        memorizedIds: Array.from(new Set(scopeSnapshot.memorized)),
+                        masteredIds: Array.from(new Set(scopeSnapshot.mastered)),
+                        wrongIds: Array.from(new Set(scopeSnapshot.wrong)),
+                        history: dedupeAndSortHistory(scopeSnapshot.history)
+                    }
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `HFUT_Quiz_CF_Progress_${isAll ? 'all' : chosenSubjects.join('_')}_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setSyncStatus('success');
+                setSyncMsg("导出成功");
+                return;
+            }
+            const subjectList = allSubjects.filter(s => chosenSubjects.includes(s.id));
+            const banks = {};
+            for (const sub of subjectList) {
+                const key = getBankCacheKey(sub.id);
+                const cached = await safeGet(key, null);
+                if (cached && Object.keys(cached).length > 0) {
+                    banks[sub.id] = cached;
+                } else if (sub.id === selectedSubject && allQuestionBank && Object.keys(allQuestionBank).length > 0) {
+                    banks[sub.id] = allQuestionBank;
+                }
+            }
+            if (!Object.keys(banks).length) {
+                throw new Error("未找到可导出的题库缓存，请先进入对应题库页面完成加载。");
+            }
+            if (exportType === 'bundle') {
+                const bundleData = {
+                    header: {
+                        appName: "HFUT Innovation & Entrepreneurship Question Bank (CF)",
+                        version: CURRENT_APP_VERSION,
+                        exportDate: new Date().toISOString(),
+                        userId: currentUser?.id || 'guest',
+                        exportType: 'bundle',
+                        scopeSubjectIds: chosenSubjects,
+                        scopeMode: isAll ? 'all' : 'partial'
+                    },
+                    subjects: subjectList.map(s => ({
+                        id: s.id,
+                        name: s.name,
+                        isCustom: !!s.isCustom,
+                        shortName: s.shortName || '',
+                        icon: s.icon || '',
+                        lectures: s.lectures || []
+                    })),
+                    banks,
+                    payload: {
+                        brushedIds: Array.from(new Set(scopeSnapshot.brushed)),
+                        memorizedIds: Array.from(new Set(scopeSnapshot.memorized)),
+                        masteredIds: Array.from(new Set(scopeSnapshot.mastered)),
+                        wrongIds: Array.from(new Set(scopeSnapshot.wrong)),
+                        history: dedupeAndSortHistory(scopeSnapshot.history)
+                    }
+                };
+                const blob = new Blob([JSON.stringify(bundleData, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `HFUT_Quiz_CF_Bundle_${isAll ? 'all' : chosenSubjects.join('_')}_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                setSyncStatus('success');
+                setSyncMsg("导出成功");
+                return;
+            }
+            const rawData = {
                 header: {
                     appName: "HFUT Innovation & Entrepreneurship Question Bank (CF)",
                     version: CURRENT_APP_VERSION,
                     exportDate: new Date().toISOString(),
-                    userId: currentUser?.id || 'guest'
+                    userId: currentUser?.id || 'guest',
+                    exportType: 'raw_bank',
+                    scopeSubjectIds: chosenSubjects,
+                    scopeMode: isAll ? 'all' : 'partial'
                 },
-                payload: {
-                    brushedIds: Array.from(brushedIds),
-                    memorizedIds: Array.from(memorizedIds),
-                    masteredIds: Array.from(masteredIds),
-                    wrongIds: Array.from(wrongIds),
-                    history: history
-                }
+                subjects: subjectList.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    isCustom: !!s.isCustom,
+                    shortName: s.shortName || '',
+                    icon: s.icon || ''
+                })),
+                banks
             };
-            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const blob = new Blob([JSON.stringify(rawData, null, 2)], {type: 'application/json'});
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `HFUT_Quiz_CF_Sync_${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `HFUT_Quiz_CF_RawBank_${isAll ? 'all' : chosenSubjects.join('_')}_${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             setSyncStatus('success');
             setSyncMsg("导出成功");
+            return;
         } catch (err) {
             console.error('Export failed', err);
             setSyncStatus('error');
@@ -1342,34 +1559,123 @@ function App() {
         reader.onload = async (e) => {
             try {
                 const data = JSON.parse(e.target.result);
+                const exportType = data?.header?.exportType || (data?.banks ? 'raw_bank' : 'progress');
+                const fileScopeIds = Array.isArray(data?.header?.scopeSubjectIds)
+                    ? data.header.scopeSubjectIds
+                    : (data?.header?.scopeSubjectId ? [data.header.scopeSubjectId] : []);
+                const chosenSubjects = await openSubjectSelectorModal({
+                    title: '导入目标题库',
+                    description: '支持单选/多选，只导入到你选中的题库范围',
+                    allowMulti: true,
+                    options: allSubjects.map(s => ({value: s.id, label: s.name})),
+                    defaultValues: fileScopeIds.length ? fileScopeIds : (selectedSubject ? [selectedSubject] : [])
+                });
+                if (!chosenSubjects || !chosenSubjects.length) {
+                    event.target.value = '';
+                    return;
+                }
+                const importBanks = exportType === 'raw_bank' || exportType === 'bundle' || !!data?.banks;
+                if (importBanks && data?.banks && typeof data.banks === 'object') {
+                    const importedSubjects = Array.isArray(data.subjects) ? data.subjects : [];
+                    const importedCustomSubs = importedSubjects
+                        .filter(s => s && s.isCustom && chosenSubjects.includes(s.id))
+                        .map(s => ({
+                            id: s.id,
+                            name: s.name,
+                            shortName: s.shortName || s.name,
+                            icon: s.icon || '📚',
+                            isCustom: true,
+                            lectures: Array.isArray(s.lectures) ? s.lectures : [],
+                            getChapters: (bank) => (Array.isArray(s.lectures) ? s.lectures : []).filter(l => bank[l.id]?.length),
+                            getChapterName: (id) => (Array.isArray(s.lectures) ? s.lectures : []).find(l => l.id === id)?.name || ('章节' + id)
+                        }));
+                    if (importedCustomSubs.length) {
+                        const mergedCustom = [...customSubjects];
+                        importedCustomSubs.forEach(sub => {
+                            const idx = mergedCustom.findIndex(x => x.id === sub.id);
+                            if (idx >= 0) mergedCustom[idx] = sub;
+                            else mergedCustom.push(sub);
+                        });
+                        setCustomSubjects(mergedCustom);
+                        await safeSet('custom_subjects_list', mergedCustom);
+                    }
+                    for (const subId of chosenSubjects) {
+                        if (data.banks[subId]) {
+                            await safeSet(getBankCacheKey(subId), data.banks[subId]);
+                            if (subId === selectedSubject) {
+                                setAllQuestionBank(data.banks[subId]);
+                                setBankStatus('ready');
+                            }
+                        }
+                    }
+                }
+                const hasProgress = exportType === 'progress' || exportType === 'bundle' || !!data?.payload || !!data?.progress;
+                if (!hasProgress) {
+                    setSyncStatus('success');
+                    setSyncMsg("题库导入完成");
+                    alert("题库导入完成，可直接开始刷题。");
+                    event.target.value = '';
+                    return;
+                }
                 // 允许一些宽松的格式检查
                 const p = data.payload || data.progress || data;
                 if (!p.brushedIds && !p.history) {
-                    throw new Error("文件格式不正确，未发现有效的刷题进度数据");
+                    setSyncStatus('success');
+                    setSyncMsg("题库导入完成");
+                    alert("题库导入完成（该文件不包含答题状态）。");
+                    event.target.value = '';
+                    return;
                 }
+                const importedBrushed = filterProgressBySubject(Array.from(normalizeSet(p.brushedIds)), 'all')
+                    .filter(id => chosenSubjects.includes(getQuestionSubjectId(id)));
+                const importedMemorized = filterProgressBySubject(Array.from(normalizeSet(p.memorizedIds)), 'all')
+                    .filter(id => chosenSubjects.includes(getQuestionSubjectId(id)));
+                const importedMastered = filterProgressBySubject(Array.from(normalizeSet(p.masteredIds)), 'all')
+                    .filter(id => chosenSubjects.includes(getQuestionSubjectId(id)));
+                const importedWrong = filterProgressBySubject(Array.from(normalizeSet(p.wrongIds)), 'all')
+                    .filter(id => chosenSubjects.includes(getQuestionSubjectId(id)));
+                const importedHistory = dedupeAndSortHistory(filterHistoryBySubject(p.history || [], 'all')
+                    .filter(h => chosenSubjects.includes(getQuestionSubjectId(h.questionId))));
                 const confirmMerge = window.confirm("发现有效数据。点击'确定'将新数据与当前进度【合并】，点击'取消'则【覆盖】当前进度。");
                 if (confirmMerge) {
-                    setBrushedIds(prev => new Set([...prev, ...Array.from(normalizeSet(p.brushedIds))]));
-                    setMemorizedIds(prev => new Set([...prev, ...Array.from(normalizeSet(p.memorizedIds))]));
-                    setMasteredIds(prev => new Set([...prev, ...Array.from(normalizeSet(p.masteredIds))]));
-                    setWrongIds(prev => new Set([...prev, ...Array.from(normalizeSet(p.wrongIds))]));
+                    setBrushedIds(prev => new Set([...prev, ...importedBrushed]));
+                    setMemorizedIds(prev => new Set([...prev, ...importedMemorized]));
+                    setMasteredIds(prev => new Set([...prev, ...importedMastered]));
+                    setWrongIds(prev => new Set([...prev, ...importedWrong]));
                     setHistory(prev => {
-                        const combined = [...(p.history || []), ...prev];
-                        const seen = new Set();
-                        return combined.filter(h => {
-                            const key = h.id || `${h.timestamp}-${h.questionId}`;
-                            if (seen.has(key)) return false;
-                            seen.add(key);
-                            return true;
-                        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        const combined = [...importedHistory, ...prev];
+                        return dedupeAndSortHistory(combined);
                     });
                 } else {
                     if (window.confirm("❗ 警告：完全覆盖将清空当前所有本地进度及历史，确定继续吗？")) {
-                        setBrushedIds(normalizeSet(p.brushedIds));
-                        setMemorizedIds(normalizeSet(p.memorizedIds));
-                        setMasteredIds(normalizeSet(p.masteredIds));
-                        setWrongIds(normalizeSet(p.wrongIds));
-                        setHistory((p.history || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+                        if (chosenSubjects.length === allSubjects.length) {
+                            setBrushedIds(new Set(importedBrushed));
+                            setMemorizedIds(new Set(importedMemorized));
+                            setMasteredIds(new Set(importedMastered));
+                            setWrongIds(new Set(importedWrong));
+                            setHistory(dedupeAndSortHistory(importedHistory));
+                        } else {
+                            setBrushedIds(prev => new Set([
+                                ...filterProgressBySubject(Array.from(prev), 'all').filter(id => !chosenSubjects.includes(getQuestionSubjectId(id))),
+                                ...importedBrushed
+                            ]));
+                            setMemorizedIds(prev => new Set([
+                                ...filterProgressBySubject(Array.from(prev), 'all').filter(id => !chosenSubjects.includes(getQuestionSubjectId(id))),
+                                ...importedMemorized
+                            ]));
+                            setMasteredIds(prev => new Set([
+                                ...filterProgressBySubject(Array.from(prev), 'all').filter(id => !chosenSubjects.includes(getQuestionSubjectId(id))),
+                                ...importedMastered
+                            ]));
+                            setWrongIds(prev => new Set([
+                                ...filterProgressBySubject(Array.from(prev), 'all').filter(id => !chosenSubjects.includes(getQuestionSubjectId(id))),
+                                ...importedWrong
+                            ]));
+                            setHistory(prev => {
+                                const remained = prev.filter(h => !h?.questionId || !chosenSubjects.includes(getQuestionSubjectId(h.questionId)));
+                                return dedupeAndSortHistory([...remained, ...importedHistory]);
+                            });
+                        }
                     } else {
                         event.target.value = '';
                         return;
@@ -1377,6 +1683,9 @@ function App() {
                 }
                 setSyncStatus('success');
                 setSyncMsg("导入完成");
+                if (importBanks) {
+                    alert("导入完成：题库与答题状态均已处理，可直接使用。");
+                }
             } catch (err) {
                 console.error('Import failed', err);
                 alert("导入失败: " + err.message);
@@ -2180,31 +2489,34 @@ function App() {
         setLastSession(null);
     };
     const renderSubjectSelector = () => (
-        <SubjectSelector 
-            allSubjects={allSubjects} 
-            showUploadModal={showUploadModal} 
-            setShowUploadModal={setShowUploadModal} 
-            setSelectedSubject={setSelectedSubject} 
-            setBankStatus={setBankStatus} 
-            setAllQuestionBank={setAllQuestionBank} 
-            handleDeleteCustomSubject={handleDeleteCustomSubject} 
-            customSubjects={customSubjects} 
-            setCustomSubjects={setCustomSubjects} 
-            safeSet={safeSet} 
-            getBankCacheKey={getBankCacheKey}
-            currentUser={currentUser}
-            themeMode={themeMode}
-            setThemeMode={setThemeMode}
-            syncStatus={syncStatus}
-            onManualSync={() => handleManualSync()}
-            onManualRestore={() => handleManualRestore()}
-            onExport={handleExportProgress}
-            onImport={handleImportProgress}
-            onLogout={() => {
-                api.logout();
-                setCurrentUser(null);
-            }}
-        />
+        <>
+            <SubjectSelector
+                allSubjects={allSubjects}
+                showUploadModal={showUploadModal}
+                setShowUploadModal={setShowUploadModal}
+                setSelectedSubject={setSelectedSubject}
+                setBankStatus={setBankStatus}
+                setAllQuestionBank={setAllQuestionBank}
+                handleDeleteCustomSubject={handleDeleteCustomSubject}
+                customSubjects={customSubjects}
+                setCustomSubjects={setCustomSubjects}
+                safeSet={safeSet}
+                getBankCacheKey={getBankCacheKey}
+                currentUser={currentUser}
+                themeMode={themeMode}
+                setThemeMode={setThemeMode}
+                syncStatus={syncStatus}
+                onManualSync={() => handleManualSync()}
+                onManualRestore={() => handleManualRestore()}
+                onExport={handleExportProgress}
+                onImport={handleImportProgress}
+                onLogout={() => {
+                    api.logout();
+                    setCurrentUser(null);
+                }}
+            />
+            {renderSubjectSelectionModal()}
+        </>
     );
     const renderDashboard = () => (
         <DashboardPage
@@ -2701,6 +3013,64 @@ function App() {
             onOpenQuestion={openRankingQuestion}
         />
     );
+    const renderSubjectSelectionModal = () => {
+        if (!selectorModal.open) return null;
+        const selectedSet = new Set(selectorModal.selectedValues || []);
+        const toggleValue = (value) => {
+            setSelectorModal(prev => {
+                const current = new Set(prev.selectedValues || []);
+                if (prev.allowMulti) {
+                    if (current.has(value)) current.delete(value);
+                    else current.add(value);
+                    return {...prev, selectedValues: Array.from(current)};
+                }
+                return {...prev, selectedValues: [value]};
+            });
+        };
+        const selectAll = () => {
+            setSelectorModal(prev => ({...prev, selectedValues: prev.options.map(o => o.value)}));
+        };
+        const clearAll = () => setSelectorModal(prev => ({...prev, selectedValues: []}));
+        return (
+            <div className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+                <div className="w-full sm:max-w-lg bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[82vh] flex flex-col">
+                    <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">{selectorModal.title}</h3>
+                        {selectorModal.description && (
+                            <p className="text-xs sm:text-sm mt-1 text-slate-500 dark:text-slate-400">{selectorModal.description}</p>
+                        )}
+                    </div>
+                    <div className="px-4 sm:px-5 pt-3 flex items-center justify-between">
+                        {selectorModal.allowMulti ? (
+                            <div className="flex gap-2">
+                                <button onClick={selectAll} className="px-2.5 py-1 text-xs rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">全选</button>
+                                <button onClick={clearAll} className="px-2.5 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">清空</button>
+                            </div>
+                        ) : <div />}
+                        <div className="text-xs text-slate-400 dark:text-slate-500">已选 {selectedSet.size}</div>
+                    </div>
+                    <div className="p-4 sm:p-5 overflow-y-auto space-y-2">
+                        {selectorModal.options.map(opt => {
+                            const active = selectedSet.has(opt.value);
+                            return (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => toggleValue(opt.value)}
+                                    className={`w-full text-left px-3.5 py-3 rounded-xl border text-sm font-medium transition ${active ? 'border-blue-400 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'}`}
+                                >
+                                    {opt.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-3">
+                        <button onClick={() => closeSubjectSelectorModal(null)} className="py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold dark:bg-slate-800 dark:text-slate-200">取消</button>
+                        <button onClick={() => closeSubjectSelectorModal(Array.from(selectedSet))} className="py-2.5 rounded-xl bg-blue-600 text-white font-semibold disabled:opacity-60" disabled={selectedSet.size === 0}>确定</button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
     if (!currentUser) return renderLoginScreen();
     if (!selectedSubject) return renderSubjectSelector();
     return (
@@ -2709,6 +3079,7 @@ function App() {
             {['quiz', 'memorize', 'mistakes'].includes(currentMode) && renderCard()}
             {currentMode === 'ranking' && renderRankingPage()}
             {viewingRankQuestion && renderQuestionDetailModal()}
+            {renderSubjectSelectionModal()}
             {/* API 受限提示 */}
             {apiLimitReached && (
                 <div className="fixed bottom-0 left-0 right-0 z-[100] animate-enter">

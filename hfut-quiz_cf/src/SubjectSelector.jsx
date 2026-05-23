@@ -38,7 +38,7 @@ export const SubjectSelector = ({
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-transparent">
+        <div className="min-h-screen w-full overflow-x-hidden flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-transparent">
             <div className="w-full max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl">
                 <div className="text-center mb-8 md:mb-14 flex flex-col items-center">
                     {currentUser && (
@@ -107,7 +107,7 @@ export const SubjectSelector = ({
                                     setBankStatus('idle');
                                     setAllQuestionBank({});
                                 }}
-                                className="group relative bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-slate-100 hover:border-blue-200 text-left hover:-translate-y-1 dark:bg-slate-900 dark:border-slate-800 dark:hover:border-blue-900/60 dark:shadow-none dark:hover:shadow-blue-900/5"
+                                className="group relative overflow-hidden bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-slate-100 hover:border-blue-200 text-left hover:-translate-y-1 dark:bg-slate-900 dark:border-slate-800 dark:hover:border-blue-900/60 dark:shadow-none dark:hover:shadow-blue-900/5"
                             >
                                 {isCustom && (
                                     <button
@@ -137,7 +137,7 @@ export const SubjectSelector = ({
                     })}
                     <button
                         onClick={() => setShowUploadModal(true)}
-                        className="group relative bg-slate-50/50 border-2 border-dashed border-slate-300 rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 hover:bg-white hover:border-blue-400 hover:shadow-lg transition-all duration-300 text-center flex flex-col items-center justify-center min-h-[160px] sm:min-h-[200px] md:min-h-[220px] hover:-translate-y-1 dark:bg-slate-950/20 dark:border-slate-800 dark:hover:bg-slate-900/30 dark:hover:border-blue-900"
+                        className="group relative overflow-hidden bg-slate-50/50 border-2 border-dashed border-slate-300 rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 hover:bg-white hover:border-blue-400 hover:shadow-lg transition-all duration-300 text-center flex flex-col items-center justify-center min-h-[160px] sm:min-h-[200px] md:min-h-[220px] hover:-translate-y-1 dark:bg-slate-950/20 dark:border-slate-800 dark:hover:bg-slate-900/30 dark:hover:border-blue-900"
                     >
                         <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-3 sm:mb-4 bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-400">
                             <UploadCloud size={20} className="sm:w-6 sm:h-6 md:w-7 md:h-7" />
