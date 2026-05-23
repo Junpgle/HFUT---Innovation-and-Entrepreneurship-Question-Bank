@@ -1353,7 +1353,6 @@ function App() {
         // 清空 input 确保同一个文件能多次触发
         event.target.value = '';
     };
-    // 迁移至新结构
     const performReset = () => {
         setBrushedIds(new Set());
         setMemorizedIds(new Set());
@@ -1361,12 +1360,22 @@ function App() {
         setWrongIds(new Set());
         setHistory([]);
         setLastSession(null);
+        
+        // 同时物理清理 IndexedDB (localforage) 与 localStorage 的进度缓存，确保重置彻底干净
+        localforage.removeItem('app_brushedIds').catch(console.warn);
+        localforage.removeItem('app_memorizedIds').catch(console.warn);
+        localforage.removeItem('app_masteredIds').catch(console.warn);
+        localforage.removeItem('app_wrongIds').catch(console.warn);
+        localforage.removeItem('app_history').catch(console.warn);
+        localforage.removeItem('app_lastSession').catch(console.warn);
+
         localStorage.removeItem('app_brushedIds');
         localStorage.removeItem('app_memorizedIds');
         localStorage.removeItem('app_masteredIds');
         localStorage.removeItem('app_wrongIds');
         localStorage.removeItem('app_history');
         localStorage.removeItem('app_lastSession');
+        
         setShowResetModal(false);
         setSyncMsg("进度已重置");
         setSyncStatus("success");
