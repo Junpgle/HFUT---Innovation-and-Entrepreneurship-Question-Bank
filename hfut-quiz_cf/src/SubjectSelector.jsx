@@ -1,4 +1,4 @@
-import { BookOpen, Brain, GraduationCap, Trash2, UploadCloud } from 'lucide-react';
+import { BookOpen, Brain, DownloadCloud, FileDown, FileUp, GraduationCap, Info, Loader2, Trash2, UploadCloud } from 'lucide-react';
 import CustomUploadModal from './CustomUploadModal.jsx';
 
 export const SubjectSelector = ({ 
@@ -16,7 +16,12 @@ export const SubjectSelector = ({
     currentUser,
     onLogout,
     themeMode,
-    setThemeMode
+    setThemeMode,
+    onManualSync,
+    onManualRestore,
+    onExport,
+    onImport,
+    syncStatus,
 }) => {
     const nextModeMap = {
         'system': 'light',
@@ -49,21 +54,42 @@ export const SubjectSelector = ({
                     <p className="text-slate-500 mt-2 font-semibold text-xs sm:text-sm md:text-base dark:text-slate-400">请选择要练习的学科</p>
                     
                     {/* 快捷直达操作菜单 */}
-                    <div className="flex justify-center gap-3 mt-6 flex-wrap relative z-30">
-                        <a href="/#/report" className="px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
-                            📈 学习数据报表
+                    <div className="flex justify-center gap-2 sm:gap-3 mt-6 flex-wrap relative z-30">
+                        {/* 学习报表 */}
+                        <a href="/#/report" className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                            📈 数据报表
                         </a>
-                        <a href="profile.html" className="px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
-                            👤 账号个人中心
+                        {/* 产品介绍 */}
+                        <a href="/#/introduce" className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-indigo-400 dark:hover:border-indigo-900/50">
+                            <Info size={14} /> 产品介绍
                         </a>
-                        <button onClick={() => setThemeMode(nextModeMap[themeMode])} className="px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                        {/* 备份 */}
+                        <button onClick={onManualSync} disabled={syncStatus === 'uploading'} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                            {syncStatus === 'uploading' ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} 备份
+                        </button>
+                        {/* 恢复 */}
+                        <button onClick={onManualRestore} disabled={syncStatus === 'downloading'} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
+                            {syncStatus === 'downloading' ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />} 恢复
+                        </button>
+                        {/* 导出 */}
+                        <button onClick={onExport} className="px-3 sm:px-4 py-2.5 bg-white text-blue-600 hover:text-blue-700 border border-blue-100 hover:border-blue-300 hover:bg-blue-50 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-blue-950/20 dark:border-blue-900/40 dark:text-blue-400 dark:hover:bg-blue-950/40">
+                            <FileUp size={14} /> 导出
+                        </button>
+                        {/* 导入 */}
+                        <label className="px-3 sm:px-4 py-2.5 bg-white text-indigo-600 hover:text-indigo-700 border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer dark:bg-indigo-950/20 dark:border-indigo-900/40 dark:text-indigo-400 dark:hover:bg-indigo-950/40">
+                            <FileDown size={14} /> 导入
+                            <input type="file" className="hidden" accept=".json" onChange={onImport} />
+                        </label>
+                        {/* 主题切换 */}
+                        <button onClick={() => setThemeMode(nextModeMap[themeMode])} className="px-3 sm:px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300 dark:hover:text-blue-400 dark:hover:border-blue-900/50">
                             {labelMap[themeMode] || '🌗 切换主题'}
                         </button>
+                        {/* 退出登录 */}
                         <button onClick={() => {
                             if (window.confirm('确定要退出当前账号登录吗？')) {
                                 onLogout();
                             }
-                        }} className="px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-red-950/20 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/40">
+                        }} className="px-3 sm:px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-red-950/20 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/40">
                             🚪 退出登录
                         </button>
                     </div>

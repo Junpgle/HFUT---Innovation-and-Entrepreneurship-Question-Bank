@@ -2195,6 +2195,11 @@ function App() {
             currentUser={currentUser}
             themeMode={themeMode}
             setThemeMode={setThemeMode}
+            syncStatus={syncStatus}
+            onManualSync={() => handleManualSync()}
+            onManualRestore={() => handleManualRestore()}
+            onExport={handleExportProgress}
+            onImport={handleImportProgress}
             onLogout={() => {
                 api.logout();
                 setCurrentUser(null);
@@ -2211,25 +2216,11 @@ function App() {
                     syncMsg={syncMsg}
                     syncStatus={syncStatus}
                     isFullscreen={isFullscreen}
-                    showEmailHint={showEmailHint}
-                    bankStatus={bankStatus}
                     themeMode={themeMode}
                     setThemeMode={setThemeMode}
                     onSwitchSubject={switchSubject}
                     onToggleSearch={() => setIsSearchOpen(!isSearchOpen)}
                     onToggleFullscreen={toggleFullscreen}
-                    onGoProfile={() => {
-                        location.href = 'profile.html';
-                    }}
-                    onManualSync={() => handleManualSync()}
-                    onManualRestore={() => handleManualRestore()}
-                    onExport={handleExportProgress}
-                    onImport={handleImportProgress}
-                    onShowReset={() => setShowResetModal(true)}
-                    onLogout={() => {
-                        api.logout();
-                        setCurrentUser(null);
-                    }}
                 />
             }
             searchPanel={
@@ -2250,11 +2241,6 @@ function App() {
                     setIsSearchOpen={setIsSearchOpen}
                 />
             }
-            bankStatus={bankStatus}
-            onManualSync={() => handleManualSync()}
-            onManualRestore={() => handleManualRestore()}
-            onExport={handleExportProgress}
-            onImport={handleImportProgress}
             resetModal={
                 <ResetConfirmModal
                     open={showResetModal}
