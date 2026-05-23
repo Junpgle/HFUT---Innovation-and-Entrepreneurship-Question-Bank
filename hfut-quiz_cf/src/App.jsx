@@ -2148,6 +2148,11 @@ function App() {
             setCustomSubjects={setCustomSubjects} 
             safeSet={safeSet} 
             getBankCacheKey={getBankCacheKey}
+            currentUser={currentUser}
+            onLogout={() => {
+                api.logout();
+                setCurrentUser(null);
+            }}
         />
     );
     const renderDashboard = () => (

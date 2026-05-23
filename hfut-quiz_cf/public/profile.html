@@ -48,9 +48,7 @@
         const [loading, setLoading] = useState(true);
         const [emailInput, setEmailInput] = useState("");
         const [msg, setMsg] = useState({ type: '', text: '' });
-        const [isEditingEmail, setIsEditingEmail] = useState(false);
 
-        // 安全跳转函数：防止在预览环境因路径问题报错崩溃
         const safeNavigate = (url) => {
             try {
                 window.location.href = url;
@@ -61,62 +59,29 @@
         };
 
         useEffect(() => {
-            if (window.AV) {
-                window.AV.init({ appId: LC_APP_ID, appKey: LC_APP_KEY, serverURL: LC_SERVER_URL });
-                const current = window.AV.User.current();
-                if (current) {
-                    setUser(current);
-                    setEmailInput(current.getEmail() || "");
-                    setLoading(false);
-                } else {
-                    // 尝试重定向到主页，如果环境不支持（如报错）则显示手动返回界面
-                    try {
-                        window.location.href = 'index.html';
-                    } catch (e) {
-                        console.warn("Auto-redirect blocked by environment:", e);
-                        setLoading(false); // 停止加载，显示未登录界面
-                    }
+            const userStr = localStorage.getItem('user_info');
+            if (userStr) {
+                try {
+                    const parsed = JSON.parse(userStr);
+                    setUser(parsed);
+                    setEmailInput(parsed.email || "");
+                } catch (e) {
+                    console.error("Parse user fail", e);
                 }
+                setLoading(false);
+            } else {
+                safeNavigate('index.html');
             }
         }, []);
 
-        const handleBindEmail = async (e) => {
-            e.preventDefault();
-            setMsg({ type: 'info', text: '正在处理...' });
-            try {
-                if(user.getEmail() === emailInput && user.get('emailVerified')) {
-                    setMsg({ type: 'error', text: '该邮箱已绑定且已验证' });
-                    return;
-                }
-
-                user.setEmail(emailInput);
-                await user.save();
-
-                setMsg({ type: 'success', text: '验证邮件已发送！请前往邮箱点击链接验证，验证后请刷新此页面。' });
-                setIsEditingEmail(false);
-            } catch (err) {
-                setMsg({ type: 'error', text: '绑定失败: ' + err.message });
-            }
-        };
-
-        const resendVerification = async () => {
-            setMsg({ type: 'info', text: '正在发送...' });
-            try {
-                await window.AV.User.requestEmailVerify(user.getEmail());
-                setMsg({ type: 'success', text: '验证邮件已重新发送，请查收。' });
-            } catch(err) {
-                setMsg({ type: 'error', text: '发送失败: ' + err.message });
-            }
-        };
-
         const logout = () => {
-            window.AV.User.logOut();
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_info');
             safeNavigate('index.html');
         };
 
         if (loading) return <div className="min-h-screen flex items-center justify-center text-slate-500">加载中...</div>;
 
-        // 处理未登录/自动跳转失败的情况
         if (!user) {
             return (
                 <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
@@ -134,9 +99,6 @@
             );
         }
 
-        const isVerified = user.get('emailVerified');
-        const hasEmail = !!user.getEmail();
-
         return (
             <div className="min-h-screen p-4 md:p-8 flex justify-center">
                 <div className="w-full max-w-lg space-y-6">
@@ -152,87 +114,25 @@
                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
                         <div className="flex items-center gap-4 mb-6">
                             <div className="w-16 h-16 bg-gradient-to-tr from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                                {user.getUsername().charAt(0).toUpperCase()}
+                                {user.username ? user.username.charAt(0).toUpperCase() : 'U'}
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-slate-900">{user.getUsername()}</h2>
-                                <p className="text-slate-500 text-sm">ID: {user.id}</p>
+                                <h2 className="text-xl font-bold text-slate-900">{user.username}</h2>
+                                <p className="text-slate-500 text-sm">用户邮箱: {user.email || "未绑定"}</p>
                             </div>
                         </div>
 
-                        {/* Email Section */}
-                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-4">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex items-center gap-2 text-slate-700 font-bold">
-                                    <Icons.Mail className="text-blue-500" /> 邮箱绑定
-                                </div>
-                                {hasEmail && (
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${isVerified ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                        {isVerified ? '已验证' : '未验证'}
-                                    </span>
-                                )}
+                        {/* Cloudflare Pages Alert */}
+                        <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100 mb-4 text-xs sm:text-sm text-blue-700 leading-relaxed space-y-2">
+                            <div className="font-bold flex items-center gap-1">
+                                <Icons.Alert className="w-4 h-4 text-blue-500" /> 物理隔离安全保障
                             </div>
-
-                            {!isEditingEmail && hasEmail ? (
-                                <div>
-                                    <div className="text-lg font-mono text-slate-600 mb-3">{user.getEmail()}</div>
-                                    <div className="flex gap-2">
-                                        {!isVerified && (
-                                            <button onClick={resendVerification} className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm font-bold hover:bg-blue-200 transition">
-                                                重发验证邮件
-                                            </button>
-                                        )}
-                                        <button onClick={() => setIsEditingEmail(true)} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-50 transition">
-                                            修改邮箱
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <form onSubmit={handleBindEmail} className="mt-3">
-                                    <input
-                                        type="email"
-                                        required
-                                        placeholder="输入您的邮箱地址"
-                                        className="w-full px-4 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none mb-3"
-                                        value={emailInput}
-                                        onChange={e => setEmailInput(e.target.value)}
-                                    />
-                                    <div className="flex gap-2">
-                                        <button type="submit" className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition">
-                                            保存并发送验证
-                                        </button>
-                                        {hasEmail && (
-                                            <button type="button" onClick={() => setIsEditingEmail(false)} className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50">
-                                                取消
-                                            </button>
-                                        )}
-                                    </div>
-                                </form>
-                            )}
-                        </div>
-
-                        {/* Password Section (Optional Link) */}
-                        <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
-                            <div className="flex items-center gap-2 text-slate-700 font-bold mb-2">
-                                <Icons.Lock className="text-slate-400" /> 安全设置
-                            </div>
-                            <button
-                                onClick={async () => {
-                                    if(!isVerified) {
-                                        setMsg({type:'error', text:'请先绑定并验证邮箱后才能重置密码'});
-                                        return;
-                                    }
-                                    try {
-                                        await window.AV.User.requestPasswordReset(user.getEmail());
-                                        setMsg({type:'success', text:'密码重置邮件已发送至您的邮箱'});
-                                    } catch(e) {
-                                        setMsg({type:'error', text: e.message});
-                                    }
-                                }}
-                                className="text-sm text-blue-600 hover:underline font-medium"
-                            >
-                                发送密码重置邮件
-                            </button>
+                            <p>
+                                刷题系统现已全面升级为本地与云端物理隔离的高速架构。您的所有答题数据、自定义题库和个性化进度均完全安全地保存在本地缓存中。
+                            </p>
+                            <p>
+                                若您要更换绑定邮箱或更新账号安全配置，可以在首页重新使用新邮箱进行极速注册或登录，本地的刷题记录将会自动平滑过渡。
+                            </p>
                         </div>
                     </div>
 

@@ -1,15 +1,52 @@
 import { BookOpen, Brain, GraduationCap, Trash2, UploadCloud } from 'lucide-react';
 import CustomUploadModal from './CustomUploadModal.jsx';
 
-export const SubjectSelector = ({ allSubjects, showUploadModal, setShowUploadModal, setSelectedSubject, setBankStatus, setAllQuestionBank, handleDeleteCustomSubject, customSubjects, setCustomSubjects, safeSet, getBankCacheKey }) => (
+export const SubjectSelector = ({ 
+    allSubjects, 
+    showUploadModal, 
+    setShowUploadModal, 
+    setSelectedSubject, 
+    setBankStatus, 
+    setAllQuestionBank, 
+    handleDeleteCustomSubject, 
+    customSubjects, 
+    setCustomSubjects, 
+    safeSet, 
+    getBankCacheKey,
+    currentUser,
+    onLogout
+}) => (
     <div className="min-h-screen flex items-center justify-center py-10 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
         <div className="w-full max-w-2xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl">
-            <div className="text-center mb-8 md:mb-14">
-                <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-3 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3 hover:rotate-12 transition-transform duration-300">
+            <div className="text-center mb-8 md:mb-14 flex flex-col items-center">
+                {currentUser && (
+                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-blue-50 border border-blue-100 rounded-full text-xs font-bold text-blue-700 mb-4 shadow-sm animate-fade-in shrink-0">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                        👋 欢迎回来，{currentUser.username}
+                    </div>
+                )}
+                <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mb-3 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3 hover:rotate-12 transition-transform duration-300">
                     <BookOpen size={24} className="sm:w-8 sm:h-8 md:w-10 md:h-10"/>
                 </div>
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">HFUT 刷题系统</h1>
                 <p className="text-slate-500 mt-2 font-semibold text-xs sm:text-sm md:text-base">请选择要练习的学科</p>
+                
+                {/* 快捷直达操作菜单 */}
+                <div className="flex justify-center gap-3 mt-6 flex-wrap relative z-30">
+                    <a href="/#/report" className="px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline">
+                        📈 学习数据报表
+                    </a>
+                    <a href="profile.html" className="px-4 py-2.5 bg-white text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 no-underline">
+                        👤 账号个人中心
+                    </a>
+                    <button onClick={() => {
+                        if (window.confirm('确定要退出当前账号登录吗？')) {
+                            onLogout();
+                        }
+                    }} className="px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">
+                        🚪 退出登录
+                    </button>
+                </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
                 {allSubjects.map(subject => {
