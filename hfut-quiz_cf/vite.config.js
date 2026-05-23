@@ -36,6 +36,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/raw\.githubusercontent\.com\/.*/i,
@@ -79,6 +80,10 @@ export default defineConfig({
                 statuses: [0, 200],
               },
             },
+          },
+          {
+            urlPattern: /^https:\/\/integrate\.api\.nvidia\.com\/.*/i,
+            handler: 'NetworkOnly',
           },
         ],
       },

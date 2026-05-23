@@ -3,6 +3,7 @@ import {
     UploadCloud, X, FileUp, AlertCircle, Loader2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import * as mammoth from 'mammoth/mammoth.browser';
 
 const parseOldFormatData = (rows, subjectId) => {
     const cleanRows = rows.filter(r => r && r.length > 0);
@@ -408,6 +409,171 @@ const parseCustomExcel = (rawData, subjectId) => {
     return parsedBank;
 };
 
+const parseCustomDocxText = (text, subjectId) => {
+    const lines = String(text || '')
+        .split(/\r?\n/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    if (!lines.length) return {};
+
+    const parsedBank = {};
+    let currentCategory = '默认章节';
+    let currentType = 'single';
+    let qIndex = 1;
+    let currentBlock = [];
+
+    const normalizeTypeByText = (s = '') => {
+        const t = String(s);
+        if (/多选|多项/.test(t)) return 'multiple';
+        if (/判断|是非|对错/.test(t)) return 'judgment';
+        if (/填空/.test(t)) return 'fill';
+        if (/简答|论述|大题|问答/.test(t)) return 'big';
+        return 'single';
+    };
+
+    const parseAnswerToken = (token, qType) => {
+        const ans = String(token || '').trim();
+        if (!ans) return [];
+        if (qType === 'judgment') {
+            const u = ans.toUpperCase();
+            if (/^(正确|对|√|T|TRUE|YES)$/.test(u)) return [0];
+            if (/^(错误|错|×|F|FALSE|NO)$/.test(u)) return [1];
+            return [];
+        }
+        const normalized = ans.toUpperCase().replace(/[^A-H]/g, '');
+        if (!normalized) return [];
+        return Array.from(new Set(normalized.split('').map(ch => ch.charCodeAt(0) - 65))).filter(i => i >= 0 && i < 8).sort((a, b) => a - b);
+    };
+
+    const extractAnswerFromBlock = (blockText) => {
+        const ansLine = blockText.match(/(?:^|\n)\s*(?:答案|参考答案|正确答案)\s*[:：]\s*([A-Ha-h]{1,8}|正确|错误|对|错|√|×|T|F)\s*$/m);
+        if (ansLine) return String(ansLine[1] || '').trim();
+        const bracket = blockText.match(/[（(]\s*([A-Ha-h]{1,8}|正确|错误|对|错|√|×|T|F)\s*[)）]/);
+        if (bracket) return String(bracket[1] || '').trim();
+        return '';
+    };
+
+    const pushQuestionBlock = (blockLines) => {
+        if (!blockLines.length) return;
+        const merged = blockLines.join('\n').trim();
+        if (!merged) return;
+
+        const numberMatch = merged.match(/^\s*(?:第?\d+\s*[题\.、:]|\d+\s*[\.、:）\)]|[（(]?\d+[)）])\s*/);
+        const body = numberMatch ? merged.slice(numberMatch[0].length).trim() : merged;
+        if (!body) return;
+
+        const ansRaw = extractAnswerFromBlock(body);
+        const bodyNoAnswer = body
+            .replace(/[（(]\s*([A-Ha-h]{1,8}|正确|错误|对|错|√|×|T|F)\s*[)）]/g, '（  ）')
+            .replace(/(?:^|\n)\s*(?:答案|参考答案|正确答案)\s*[:：]\s*([A-Ha-h]{1,8}|正确|错误|对|错|√|×|T|F)\s*$/gm, '')
+            .trim();
+
+        const optionStart = bodyNoAnswer.search(/(?:^|\n|\s)([A-H])\s*[\.\．、:：\)]\s*/);
+        let questionText = bodyNoAnswer;
+        let optionsPart = '';
+        if (optionStart >= 0) {
+            questionText = bodyNoAnswer.slice(0, optionStart).trim();
+            optionsPart = bodyNoAnswer.slice(optionStart).trim();
+        }
+
+        let type = currentType;
+        let options = [];
+        let rawAnswer = [];
+
+        if (type === 'judgment') {
+            options = ['正确', '错误'];
+            rawAnswer = parseAnswerToken(ansRaw, 'judgment');
+            if (!rawAnswer.length && /(正确|错误|对错|是非)/.test(questionText)) {
+                rawAnswer = parseAnswerToken(ansRaw, 'judgment');
+            }
+            if (!rawAnswer.length && /(正确|对|√)\s*$/.test(body)) rawAnswer = [0];
+            else if (!rawAnswer.length && /(错误|错|×)\s*$/.test(body)) rawAnswer = [1];
+            if (!rawAnswer.length) rawAnswer = [0];
+        } else if (type === 'fill' || type === 'big') {
+            const explicitAns = String(ansRaw || '').trim();
+            options = [explicitAns || '（暂无标准答案，点击查看解析）'];
+            rawAnswer = [0];
+        } else {
+            if (optionsPart) {
+                const optionRegex = /(?:^|\n|\s)([A-H])\s*[\.\．、:：\)]\s*([\s\S]*?)(?=(?:\s+[A-H]\s*[\.\．、:：\)])|$)/g;
+                let m;
+                while ((m = optionRegex.exec(optionsPart)) !== null) {
+                    const optText = String(m[2] || '').replace(/\s+/g, ' ').trim();
+                    if (optText) options.push(optText);
+                }
+            }
+            if (!options.length) {
+                const inline = bodyNoAnswer.match(/([A-H])\s*[\.\．、:：\)]\s*([^A-H]+)(?=(?:\s+[A-H]\s*[\.\．、:：\)])|$)/g) || [];
+                options = inline.map(v => v.replace(/^[A-H]\s*[\.\．、:：\)]\s*/, '').trim()).filter(Boolean);
+            }
+            if (!options.length && /判断|是非|对错/.test(currentCategory + questionText)) {
+                type = 'judgment';
+                options = ['正确', '错误'];
+                rawAnswer = parseAnswerToken(ansRaw, 'judgment');
+                if (!rawAnswer.length) rawAnswer = [0];
+            } else {
+                rawAnswer = parseAnswerToken(ansRaw, type);
+                if (type === 'single' && rawAnswer.length > 1) type = 'multiple';
+                if (!options.length && (type === 'single' || type === 'multiple')) return;
+            }
+        }
+
+        questionText = questionText
+            .replace(/\s+/g, ' ')
+            .replace(/(?:^|\s)(?:A|B|C|D|E|F|G|H)\s*[\.\．、:：\)]\s*$/, '')
+            .trim();
+
+        if (!questionText) return;
+        if (!parsedBank[currentCategory]) parsedBank[currentCategory] = [];
+        parsedBank[currentCategory].push({
+            id: `${subjectId}-Q${qIndex++}`,
+            type,
+            question: questionText,
+            options,
+            rawAnswer,
+            explanation: '暂无解析',
+            category: currentCategory
+        });
+    };
+
+    for (const line of lines) {
+        if (/^[一二三四五六七八九十]+[、.．]/.test(line) && /题|选择|判断|填空|简答|论述|问答/.test(line)) {
+            if (currentBlock.length) {
+                pushQuestionBlock(currentBlock);
+                currentBlock = [];
+            }
+            currentCategory = line;
+            currentType = normalizeTypeByText(line);
+            continue;
+        }
+
+        if (/^\s*(?:第?\d+\s*[题\.、:]|\d+\s*[\.、:）\)]|[（(]?\d+[)）])\s*/.test(line)) {
+            if (currentBlock.length) pushQuestionBlock(currentBlock);
+            currentBlock = [line];
+        } else if (currentBlock.length) {
+            currentBlock.push(line);
+        } else {
+            // 无题号文档：把整段“题干 + 选项 + 答案”视作一个块
+            if (/[A-H]\s*[\.\．、:：\)]/.test(line) || /(?:答案|参考答案|正确答案)\s*[:：]/.test(line)) {
+                currentBlock = [line];
+            }
+        }
+    }
+    if (currentBlock.length) pushQuestionBlock(currentBlock);
+
+    // 回退：若未解析到题目，尝试按空行段落粗解析
+    if (Object.values(parsedBank).flat().length === 0) {
+        const paragraphs = String(text || '').split(/\n\s*\n+/).map(p => p.trim()).filter(Boolean);
+        for (const p of paragraphs) {
+            if (/^\s*(?:第?\d+\s*[题\.、:]|\d+\s*[\.、:）\)]|[（(]?\d+[)）])/.test(p) || /[A-H]\s*[\.\．、:：\)]/.test(p)) {
+                pushQuestionBlock([p]);
+            }
+        }
+    }
+
+    return parsedBank;
+};
+
 export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
     const [subjectName, setSubjectName] = useState('');
     const [shortName, setShortName] = useState('');
@@ -454,8 +620,12 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                 const ws = wb.Sheets[wb.SheetNames[0]];
                 const raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
                 parsedBank = parseCustomExcel(raw, subjectId);
+            } else if (fileName.endsWith('.docx')) {
+                const buf = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer: buf });
+                parsedBank = parseCustomDocxText(result?.value || '', subjectId);
             } else {
-                throw new Error('不支持的文件格式，请使用 JSON (.json) 或 Excel (.xlsx / .xls) 文件');
+                throw new Error('不支持的文件格式，请使用 JSON (.json)、Excel (.xlsx / .xls) 或 Word (.docx) 文件');
             }
 
             const totalQ = Object.values(parsedBank).flat().length;
@@ -552,7 +722,7 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                         <div className="space-y-1.5">
                             <label className="text-[10px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">题库文件 *</label>
                             <label className={'block border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ' + (file ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800/60' : 'border-slate-300 dark:border-slate-700 hover:border-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/50')}>
-                                <input ref={fileInputRef} type="file" accept=".json,.xlsx,.xls" onChange={e => setFile(e.target.files[0])} disabled={uploading} className="hidden" />
+                                <input ref={fileInputRef} type="file" accept=".json,.xlsx,.xls,.docx" onChange={e => setFile(e.target.files[0])} disabled={uploading} className="hidden" />
                                 {file ? (
                                     <div className="space-y-1">
                                         <FileUp size={24} className="mx-auto text-blue-500 animate-bounce" />
@@ -563,7 +733,7 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                                     <div className="space-y-1">
                                         <UploadCloud size={24} className="mx-auto text-slate-400 dark:text-slate-500" />
                                         <p className="text-sm font-bold text-slate-600 dark:text-slate-300">点击选择文件</p>
-                                        <p className="text-xs text-slate-400 dark:text-slate-500">支持 JSON、Excel (.xlsx / .xls)</p>
+                                        <p className="text-xs text-slate-400 dark:text-slate-500">支持 JSON、Excel、Word (.docx)</p>
                                     </div>
                                 )}
                             </label>
@@ -575,7 +745,7 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                                 <span>导入指南</span>
                             </p>
                             <p className="text-[11px] text-amber-700 dark:text-amber-500 leading-relaxed">
-                                Excel 须含"题型"、"题干"、"答案"等列名。JSON 支持以章节名为键的键值数组或直接以题目为元素的平面数组，系统将智能提取。
+                                Excel 须含"题型"、"题干"、"答案"等列名。JSON 支持章节键值或平面数组。Word(.docx) 支持“章节标题 + 题号 + A/B/C/D 选项 + 括号答案”格式。
                             </p>
                         </div>
 

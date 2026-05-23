@@ -1,4 +1,4 @@
-import { Award, Edit3, MessageSquare, Send, ThumbsUp, Zap } from 'lucide-react';
+import { Award, BookOpen, Edit3, MessageSquare, Send, ThumbsUp, Zap } from 'lucide-react';
 import { Markdown } from './Markdown';
 
 export function QuizDiscussionPanel({
@@ -30,8 +30,17 @@ export function QuizDiscussionPanel({
 }) {
   if (isCustomSubject) {
     const noteList = Array.isArray(customNotes?.[currentQ.id]) ? customNotes[currentQ.id] : [];
+    const hasExplanation = currentQ.explanation && currentQ.explanation !== '暂无解析';
     return (
       <div className="grid grid-cols-1 gap-4 md:gap-6 items-stretch">
+        {hasExplanation && (
+          <div className="animate-enter bg-indigo-50 p-5 md:p-6 rounded-[1.5rem] border border-indigo-100 dark:bg-indigo-950/20 dark:border-indigo-900/30">
+            <div className="flex items-center gap-2 mb-3 text-indigo-900 font-bold text-sm dark:text-indigo-300">
+              <BookOpen size={18} className="text-indigo-600 dark:text-indigo-400" /> <span>答案解析</span>
+            </div>
+            <Markdown content={currentQ.explanation} size="sm" className="text-indigo-800 leading-relaxed opacity-90 text-sm md:text-base flex-1 dark:text-indigo-200" />
+          </div>
+        )}
         <div className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 scroll-mt-24 h-full flex flex-col dark:bg-slate-900 dark:border-slate-800" ref={commentSectionRef}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-slate-900 font-bold dark:text-slate-100">
