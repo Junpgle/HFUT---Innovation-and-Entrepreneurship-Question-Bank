@@ -54,6 +54,8 @@ export function DashboardHeader(props) {
     }
   };
 
+  const displayName = currentUser?.username || '游客';
+
   return (
     <header className="flex justify-between items-center mb-6 md:mb-8 shrink-0">
       <div>
@@ -62,7 +64,7 @@ export function DashboardHeader(props) {
           <span>{currentSubject?.shortName || currentSubject?.name || '刷题系统'}</span>
           <button onClick={onSwitchSubject} className="ml-2 px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300">切换</button>
         </h1>
-        <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11 dark:text-slate-400">欢迎, {currentUser.username}</p>
+        <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11 dark:text-slate-400">欢迎, {displayName}</p>
       </div>
       <div className="flex gap-2 md:gap-3 items-center">
         {onlineCount !== null && <div className="px-3 py-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-200 text-xs md:text-sm font-medium flex items-center gap-2 dark:bg-blue-950/20 dark:border-blue-900/30 dark:text-blue-400"><User size={16} /> 在线：{onlineCount}</div>}
