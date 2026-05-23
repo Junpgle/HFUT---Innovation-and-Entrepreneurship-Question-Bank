@@ -477,10 +477,7 @@ export default function CustomUploadModal({ show, onClose, onUploadComplete }) {
                 shortName: shortName.trim() || displayName,
                 icon: icon,
                 isCustom: true,
-                lectures: lectures,
-                getChapters: (bank) => lectures.filter(l => bank[l.id]?.length),
-                getChapterName: (id) => lectures.find(l => l.id === id)?.name || ('章节' + id),
-                questionBank: numericBank
+                lectures: lectures
             }, numericBank);
 
             reset();

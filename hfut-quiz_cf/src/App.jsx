@@ -173,6 +173,20 @@ function App() {
             return true;
         }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     };
+    const toStorableCustomSubject = (s) => ({
+        id: s?.id,
+        name: s?.name || s?.shortName || s?.id || '自定义题库',
+        shortName: s?.shortName || s?.name || s?.id || '自定义',
+        icon: s?.icon || '📚',
+        isCustom: true,
+        lectures: Array.isArray(s?.lectures)
+            ? s.lectures.map((l, i) => ({ id: l?.id ?? (i + 1), name: l?.name || `章节${l?.id ?? (i + 1)}` }))
+            : []
+    });
+    const normalizeCustomSubjects = (list = []) => {
+        if (!Array.isArray(list)) return [];
+        return list.filter(s => s && s.id && s.isCustom).map(toStorableCustomSubject);
+    };
 
     // 交互状态
     const [quizConfig, setQuizConfig] = useState({lectureId: 0, count: 20, type: 'all', filter: 'all'});
@@ -809,7 +823,7 @@ function App() {
                 if (hist) setHistory(hist);
                 const sess = await safeGet('app_lastSession');
                 if (sess) setLastSession(sess);
-                const customSubs = await safeGet('custom_subjects_list', []);
+                const customSubs = normalizeCustomSubjects(await safeGet('custom_subjects_list', []));
                 setCustomSubjects(customSubs);
                 setHydrated(true);
             } catch (e) {
@@ -825,7 +839,7 @@ function App() {
         if (!confirm("确定要删除该自定义学科吗？此操作不可恢复，且该学科的本地刷题进度也会被清除。")) return;
         const updated = customSubjects.filter(s => s.id !== subjectId);
         setCustomSubjects(updated);
-        await safeSet('custom_subjects_list', updated);
+        await safeSet('custom_subjects_list', normalizeCustomSubjects(updated));
         await localforage.removeItem(getBankCacheKey(subjectId)).catch(console.warn);
         await localforage.removeItem(getBankCacheVersionKey(subjectId)).catch(console.warn);
         try { localStorage.removeItem(getBankCacheKey(subjectId)); localStorage.removeItem(getBankCacheVersionKey(subjectId)); } catch {}
@@ -1563,12 +1577,44 @@ function App() {
                 const fileScopeIds = Array.isArray(data?.header?.scopeSubjectIds)
                     ? data.header.scopeSubjectIds
                     : (data?.header?.scopeSubjectId ? [data.header.scopeSubjectId] : []);
+                const subjectMetaMap = new Map();
+                (Array.isArray(data?.subjects) ? data.subjects : []).forEach(s => {
+                    if (s && s.id) subjectMetaMap.set(s.id, s);
+                });
+                const idsFromBanks = data?.banks && typeof data.banks === 'object' ? Object.keys(data.banks) : [];
+                const idsFromPayload = (() => {
+                    const p = data?.payload || data?.progress || {};
+                    const allIds = [
+                        ...(Array.isArray(p.brushedIds) ? p.brushedIds : []),
+                        ...(Array.isArray(p.memorizedIds) ? p.memorizedIds : []),
+                        ...(Array.isArray(p.masteredIds) ? p.masteredIds : []),
+                        ...(Array.isArray(p.wrongIds) ? p.wrongIds : []),
+                        ...((Array.isArray(p.history) ? p.history : []).map(h => h?.questionId).filter(Boolean))
+                    ];
+                    return Array.from(new Set(allIds.map(id => getQuestionSubjectId(id)).filter(Boolean)));
+                })();
+                const importScopeIds = Array.from(new Set([
+                    ...fileScopeIds,
+                    ...idsFromBanks,
+                    ...idsFromPayload
+                ]));
+                const importScopeOptions = importScopeIds.map(id => {
+                    const meta = subjectMetaMap.get(id);
+                    const local = allSubjects.find(s => s.id === id);
+                    return {
+                        value: id,
+                        label: meta?.name || local?.name || id
+                    };
+                });
+                if (!importScopeOptions.length) {
+                    throw new Error("导入文件中未解析到题库范围信息。");
+                }
                 const chosenSubjects = await openSubjectSelectorModal({
                     title: '导入目标题库',
                     description: '支持单选/多选，只导入到你选中的题库范围',
                     allowMulti: true,
-                    options: allSubjects.map(s => ({value: s.id, label: s.name})),
-                    defaultValues: fileScopeIds.length ? fileScopeIds : (selectedSubject ? [selectedSubject] : [])
+                    options: importScopeOptions,
+                    defaultValues: importScopeIds
                 });
                 if (!chosenSubjects || !chosenSubjects.length) {
                     event.target.value = '';
@@ -1579,25 +1625,45 @@ function App() {
                     const importedSubjects = Array.isArray(data.subjects) ? data.subjects : [];
                     const importedCustomSubs = importedSubjects
                         .filter(s => s && s.isCustom && chosenSubjects.includes(s.id))
-                        .map(s => ({
-                            id: s.id,
-                            name: s.name,
-                            shortName: s.shortName || s.name,
-                            icon: s.icon || '📚',
-                            isCustom: true,
-                            lectures: Array.isArray(s.lectures) ? s.lectures : [],
-                            getChapters: (bank) => (Array.isArray(s.lectures) ? s.lectures : []).filter(l => bank[l.id]?.length),
-                            getChapterName: (id) => (Array.isArray(s.lectures) ? s.lectures : []).find(l => l.id === id)?.name || ('章节' + id)
-                        }));
-                    if (importedCustomSubs.length) {
+                        .map(s => {
+                            const lectures = Array.isArray(s.lectures) && s.lectures.length
+                                ? s.lectures
+                                : (data?.banks?.[s.id] ? Object.keys(data.banks[s.id]).map((k, i) => ({ id: Number(k) || (i + 1), name: `章节${k}` })) : []);
+                            return toStorableCustomSubject({
+                                id: s.id,
+                                name: s.name,
+                                shortName: s.shortName || s.name,
+                                icon: s.icon || '📚',
+                                isCustom: true,
+                                lectures
+                            });
+                        });
+                    const missingCustomFromBanks = chosenSubjects
+                        .filter(id => String(id).startsWith('custom_'))
+                        .filter(id => !importedCustomSubs.find(s => s.id === id))
+                        .map(id => {
+                            const bank = data?.banks?.[id] || {};
+                            const lectures = Object.keys(bank).map((k, i) => ({ id: Number(k) || (i + 1), name: `章节${k}` }));
+                            return toStorableCustomSubject({
+                                id,
+                                name: subjectMetaMap.get(id)?.name || id,
+                                shortName: subjectMetaMap.get(id)?.shortName || subjectMetaMap.get(id)?.name || id,
+                                icon: subjectMetaMap.get(id)?.icon || '📚',
+                                isCustom: true,
+                                lectures
+                            });
+                        });
+                    const nextImportedCustoms = [...importedCustomSubs, ...missingCustomFromBanks];
+                    if (nextImportedCustoms.length) {
                         const mergedCustom = [...customSubjects];
-                        importedCustomSubs.forEach(sub => {
+                        nextImportedCustoms.forEach(sub => {
                             const idx = mergedCustom.findIndex(x => x.id === sub.id);
                             if (idx >= 0) mergedCustom[idx] = sub;
                             else mergedCustom.push(sub);
                         });
-                        setCustomSubjects(mergedCustom);
-                        await safeSet('custom_subjects_list', mergedCustom);
+                        const normalizedMergedCustom = normalizeCustomSubjects(mergedCustom);
+                        setCustomSubjects(normalizedMergedCustom);
+                        await safeSet('custom_subjects_list', normalizedMergedCustom);
                     }
                     for (const subId of chosenSubjects) {
                         if (data.banks[subId]) {

@@ -100,14 +100,24 @@ export const SubjectSelector = ({
                         const isInnovation = subject.id === 'innovation';
                         const Icon = isCustom ? GraduationCap : (isInnovation ? Brain : BookOpen);
                         return (
-                            <button
+                            <div
                                 key={subject.id}
+                                role="button"
+                                tabIndex={0}
                                 onClick={async () => {
                                     setSelectedSubject(subject.id);
                                     setBankStatus('idle');
                                     setAllQuestionBank({});
                                 }}
-                                className="group relative overflow-hidden bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-slate-100 hover:border-blue-200 text-left hover:-translate-y-1 dark:bg-slate-900 dark:border-slate-800 dark:hover:border-blue-900/60 dark:shadow-none dark:hover:shadow-blue-900/5"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        setSelectedSubject(subject.id);
+                                        setBankStatus('idle');
+                                        setAllQuestionBank({});
+                                    }
+                                }}
+                                className="group relative overflow-hidden bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm hover:shadow-xl transition-all duration-300 border-2 border-slate-100 hover:border-blue-200 text-left hover:-translate-y-1 dark:bg-slate-900 dark:border-slate-800 dark:hover:border-blue-900/60 dark:shadow-none dark:hover:shadow-blue-900/5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
                                 {isCustom && (
                                     <button
@@ -132,7 +142,7 @@ export const SubjectSelector = ({
                                                 : '9个章节，涵盖毛泽东思想和中国特色社会主义理论体系概论全部内容')}
                                     </p>
                                 </div>
-                            </button>
+                            </div>
                         );
                     })}
                     <button
