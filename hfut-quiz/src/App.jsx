@@ -32,7 +32,7 @@ const LC_APP_ID = "5wPsbnakcoOjfaPzfC44vfW5-gzGzoHsz";
 const LC_APP_KEY = "j9qbdfjiJAPsqbGUy04COFTD";
 const LC_SERVER_URL = "https://5wpsbnak.lc-cn-n1-shared.com";
 const CURRENT_APP_VERSION = '3.6.7';
-const LEADERBOARD_LIMIT = 20; // Number of top wrong questions to display
+const LEADERBOARD_LIMIT = 50; // Number of top wrong questions to display
 
 // 题库源：LeanCloud 为主，GitHub raw 兜底
 const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
@@ -1847,7 +1847,6 @@ function App() {
             submitAnswer([idx]);
         }
     };
-
     const submitAnswer = (finalSelection = selectedIndices) => {
         if (finalSelection.length === 0) return;
         const currentQ = questions[currentIndex];

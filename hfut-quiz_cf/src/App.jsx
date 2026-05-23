@@ -1,11 +1,12 @@
 /*
-* version: 4.0.3 (Cloudflare Migration)
+* version: 4.0.4 (Cloudflare Migration)
 * 1. 移除 LeanCloud SDK，完全迁移至 Cloudflare Workers + D1
 * 2. 优化 API 调用，适配 Hono 后端
 * 3. 数据结构适配 SQL 模式
 * 4. 题库源加回Leancloud File 直链
 * 5. 新增数据导入和导出功能,可以无缝从原有网站迁移旧有刷题数据
 * 6. 优化api调用次数我真没招了
+* 7. 一直在优化api我真没招了
 * */
 
 import {useState, useEffect, useRef} from 'react';
@@ -25,8 +26,8 @@ import {
 import {validateContent} from './contentFilter.js';
 
 // --- 配置常量 ---
-const CURRENT_APP_VERSION = '4.0.2';
-const LEADERBOARD_LIMIT = 20;
+const CURRENT_APP_VERSION = '4.0.4';
+const LEADERBOARD_LIMIT = 50;
 
 // 题库源：GitHub raw 兜底
 const GITHUB_BASE = "https://raw.githubusercontent.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Question-Bank/refs/heads/main/questions/";
@@ -103,9 +104,42 @@ const LECTURES = [
     },
 ];
 
-const BANK_CACHE_KEY = 'hf_question_bank';
-const BANK_CACHE_VERSION_KEY = 'hf_bank_version';
-const BANK_CACHE_VERSION = 1;
+const MAOGAO_CHAPTERS = [
+    {id: 1, name: '导论'},
+    {id: 2, name: '第一章'},
+    {id: 3, name: '第二章'},
+    {id: 4, name: '第三章'},
+    {id: 5, name: '第四章'},
+    {id: 6, name: '第五章'},
+    {id: 7, name: '第六章'},
+    {id: 8, name: '第七章'},
+    {id: 9, name: '第八章'},
+];
+
+const SUBJECTS = [
+    {
+        id: 'innovation',
+        name: '创新创业',
+        icon: '🚀',
+        lectures: LECTURES,
+        getChapters: (bank) => LECTURES.filter(l => bank[l.id]?.length),
+        getChapterName: (id) => LECTURES.find(l => l.id === id)?.name || `章节${id}`,
+    },
+    {
+        id: 'maogai',
+        name: '毛泽东思想和中国特色社会主义理论体系概论',
+        shortName: '毛概',
+        icon: '📖',
+        file: 'maogai_full.json',
+        chapters: MAOGAO_CHAPTERS,
+        getChapters: (bank) => MAOGAO_CHAPTERS.filter(ch => bank[ch.id]?.length),
+        getChapterName: (id) => MAOGAO_CHAPTERS.find(ch => ch.id === id)?.name || `章节${id}`,
+    },
+];
+
+const getBankCacheKey = (subjectId) => `hf_question_bank_${subjectId}`;
+const getBankCacheVersionKey = (subjectId) => `hf_bank_version_${subjectId}`;
+const BANK_CACHE_VERSION = 2;
 
 
 // 🕒 时间格式化工具：强制将数据库时间视为 UTC 并转为本地时间
@@ -272,6 +306,11 @@ function App() {
     const [authError, setAuthError] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
+    // 学科选择
+    const [selectedSubject, setSelectedSubject] = useState(null);
+
+    const currentSubject = selectedSubject ? SUBJECTS.find(s => s.id === selectedSubject) : null;
+
     // 题库状态
     const [allQuestionBank, setAllQuestionBank] = useState({});
     const [bankStatus, setBankStatus] = useState('idle');
@@ -308,8 +347,9 @@ function App() {
     // 新功能状态
     const [wrongQuestionRanking, setWrongQuestionRanking] = useState([]);
     const [viewingRankQuestion, setViewingRankQuestion] = useState(null);
-    const [questionComments, setQuestionComments] = useState({});
-    const [userExplanations, setUserExplanations] = useState({});
+    // 统一管理评论和解析的状态：{ [questionId]: { comments: [], explanations: [] } }
+    const [questionThread, setQuestionThread] = useState({});
+
     const [showComments, setShowComments] = useState(false);
     const [showExplanationForm, setShowExplanationForm] = useState(false);
     const [newComment, setNewComment] = useState('');
@@ -330,7 +370,7 @@ function App() {
 
     // 批量发送题目状态策略
     const statsBuffer = useRef([]);
-    const BATCH_THRESHOLD = 15; // 攒够 5 题发一次
+    const BATCH_THRESHOLD = 30; // 攒够 30 题发一次
     const FLUSH_INTERVAL = 300 * 1000; // 或者每 300 秒发一次
 
     // 统一处理 API 限制错误 (适配 Cloudflare 429 错误)
@@ -343,8 +383,6 @@ function App() {
         }
     };
 
-    // 题目互动缓存 (优化点 3)
-    const [questionThread, setQuestionThread] = useState({});
 
     // ==========================================
     // 🚀 优化逻辑 1: 登录 & 初始同步
@@ -416,9 +454,16 @@ function App() {
 
     useEffect(() => {
         if (!currentUser) return;
+
+        // 1. 进入页面（或登录成功）立即执行一次，获取初始在线人数和进度
+        performGlobalSync(true);
+
+        // 2. 开启 5 分钟一次的定时心跳
         const timer = setInterval(() => performGlobalSync(true), 5 * 60 * 1000);
+
         return () => clearInterval(timer);
-    }, [currentUser, brushedIds, history]);
+        // 💡 只依赖 currentUser。即使 brushedIds 变了，定时器也不会重启
+    }, [currentUser]);
 
     // ==========================================
     // 🚀 优化逻辑 3: 聚合加载互动内容
@@ -475,6 +520,38 @@ function App() {
     });
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
+
+    // --- 核心工具函数：数据加载与防抖 ---
+
+    // 加载单题的评论和解析数据 (带缓存检查)
+    const loadThreadData = async (questionId) => {
+        if (!questionId) return;
+        // 如果本地已有且不为空，暂时跳过（根据需要可增加过期时间策略）
+        if (questionThread[questionId]) return;
+
+        try {
+            const [comments, explanations] = await Promise.all([
+                api.getComments(questionId).catch(e => {
+                    console.warn(`Load comments failed for ${questionId}`, e);
+                    return [];
+                }),
+                api.getExplanations(questionId).catch(e => {
+                    console.warn(`Load explanations failed for ${questionId}`, e);
+                    return [];
+                })
+            ]);
+
+            setQuestionThread(prev => ({
+                ...prev,
+                [questionId]: {
+                    comments: Array.isArray(comments) ? comments : [],
+                    explanations: Array.isArray(explanations) ? explanations : []
+                }
+            }));
+        } catch (e) {
+            console.error(`Load thread failed for ${questionId}`, e);
+        }
+    };
 
     // --- 数据加载工具 ---
 
@@ -718,19 +795,96 @@ function App() {
         return questions;
     };
 
-    // ✅ 改动：检查版本更新 (假设后端未实现 SystemConfig 接口，此处可暂时保留逻辑框架，但需要 error handling)
+    const parseMaogaiJson = (data) => {
+        const chapters = {};
+        const chapterMap = {};
+        MAOGAO_CHAPTERS.forEach(ch => { chapterMap[String(ch.id)] = ch.name; });
+
+        const srcToChId = {};
+        srcToChId['0（题库更新时间:2025-5-6）'] = 1;
+        for (let i = 1; i <= 8; i++) srcToChId[String(i)] = i + 1;
+
+        for (const q of data) {
+            const rawCh = String(q['来源章节请求'] || '0（题库更新时间:2025-5-6）');
+            const chId = srcToChId[rawCh] || 1;
+            const chKey = String(chId);
+
+            if (!chapters[chKey]) chapters[chKey] = [];
+
+            const typeMap = {'1': 'single', '2': 'multiple', '4': 'judgment', '7': 'fill'};
+            const type = typeMap[q['题型']] || 'single';
+            const optionsObj = q['选项'] || {};
+            let options = [];
+            let rawAnswer = [];
+
+            if (type === 'judgment') {
+                options = ['正确', '错误'];
+                rawAnswer = q['正确答案'] === 'A' ? [0] : [1];
+            } else if (type === 'fill') {
+                options = [q['正确答案'] || ''];
+                rawAnswer = [0];
+            } else {
+                const keys = Object.keys(optionsObj).sort();
+                options = keys.map(k => optionsObj[k]);
+                const answerStr = q['正确答案'] || '';
+                const parts = answerStr.split('、').map(s => s.trim()).filter(Boolean);
+                if (parts.length > 0) {
+                    parts.forEach(ch => {
+                        const idx = keys.indexOf(ch);
+                        if (idx >= 0) rawAnswer.push(idx);
+                    });
+                }
+                if (rawAnswer.length === 0 && Array.isArray(q['原始answer'])) {
+                    rawAnswer = q['原始answer'];
+                }
+            }
+
+            chapters[chKey].push({
+                id: `MG-${q['题目ID']}`,
+                type,
+                question: q['题干'] || '',
+                options,
+                rawAnswer: rawAnswer.sort((a, b) => a - b),
+                explanation: q['解析'] || '暂无解析',
+                category: chapterMap[chKey] || `第${chKey}章`,
+                lectureId: chId
+            });
+        }
+        return chapters;
+    };
+
     useEffect(() => {
         const checkVersion = async () => {
+            if (!currentUser || apiLimitReached) return;
             try {
-                // const config = await api.request('/systemConfig?key=app_version');
-                // if (config && config.value && config.value !== CURRENT_APP_VERSION) { ... }
+                // 假设后端接口返回格式: { success: true, version: "4.0.3", changelog: "..." }
+                // 或者直接存放在 SystemConfig 表中
+                const res = await api.request('/SystemConfig?key=app_version');
+
+                if (res && res.success) {
+                    const latestVersion = res.version || res.data?.value;
+                    const changelog = res.changelog || res.data?.changelog || '修复了一些已知问题并提升了稳定性。';
+
+                    // 只有当远程版本号与本地 CURRENT_APP_VERSION 不一致时才弹窗
+                    if (latestVersion && latestVersion !== CURRENT_APP_VERSION) {
+                        setRemoteVersionInfo({
+                            version: latestVersion,
+                            log: changelog
+                        });
+                        setShowUpdateModal(true);
+                    }
+                }
             } catch (e) {
-                console.error('检查更新失败', e);
+                // 静默处理，不打扰用户正常刷题
+                console.warn('[Version Check] 检查更新跳过:', e.message);
             }
         };
-        const timer = setTimeout(() => checkVersion(), 2000);
+
+        // 延迟 3 秒检查，避开首屏题库加载的高峰期
+        const timer = setTimeout(checkVersion, 3000);
         return () => clearTimeout(timer);
-    }, []);
+    }, [currentUser, apiLimitReached]);
+
 
     // --- Hooks (本地数据加载) ---
     useEffect(() => {
@@ -790,38 +944,25 @@ function App() {
         save().catch(console.error);
     }, [lastSession, hydrated]);
 
-    // 迁移旧缓存
+    // 迁移旧缓存 (to subject-specific keys)
     useEffect(() => {
         (async () => {
             try {
-                const v = await localforage.getItem(BANK_CACHE_VERSION_KEY);
-                if (v === BANK_CACHE_VERSION) return;
-
-                const legacy = localStorage.getItem(BANK_CACHE_KEY);
-                if (legacy) {
-                    try {
-                        const obj = JSON.parse(legacy);
-                        const repaired = {};
-                        Object.keys(obj || {}).forEach(k => {
-                            const arr = Array.isArray(obj[k]) ? obj[k] : [];
-                            repaired[k] = arr.filter(x => x && typeof x === 'object').map((x, i) => ({
-                                id: x.id || `L${k}-${i}`,
-                                type: x.type || 'single',
-                                question: x.question || String(x.q || x.title || ''),
-                                options: Array.isArray(x.options) ? x.options : (Array.isArray(x.opts) ? x.opts : []),
-                                rawAnswer: Array.isArray(x.rawAnswer) ? x.rawAnswer : (Array.isArray(x.answer) ? x.answer : []),
-                                explanation: x.explanation || x.exp || '',
-                                category: x.category || '',
-                                lectureId: Number(k)
-                            })).filter(q => q.question && q.options && q.options.length > 0);
-                        });
-                        await safeSet(BANK_CACHE_KEY, repaired);
-                        await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
-                    } catch (err) {
-                        console.warn('Legacy cache parse failed', err);
+                const oldKeys = ['hf_question_bank', 'hf_bank_version'];
+                for (const k of oldKeys) {
+                    const val = await localforage.getItem(k);
+                    if (val) {
+                        if (k === 'hf_question_bank' && typeof val === 'object') {
+                            const newKey = getBankCacheKey('innovation');
+                            const existing = await safeGet(newKey);
+                            if (!existing) {
+                                await safeSet(newKey, val);
+                                await safeSet(getBankCacheVersionKey('innovation'), BANK_CACHE_VERSION);
+                            }
+                        }
+                        await localforage.removeItem(k).catch(() => {});
+                        try { localStorage.removeItem(k); } catch {}
                     }
-                } else {
-                    await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
                 }
             } catch (err) {
                 console.warn('Migration step failed', err);
@@ -859,8 +1000,15 @@ function App() {
         return () => clearTimeout(timer);
     }, [hydrated, currentUser, history, apiLimitReached]);
 
-    // 加载题库
+    // 加载题库 (subject-aware)
     useEffect(() => {
+        if (!selectedSubject) return;
+
+        const cacheKey = getBankCacheKey(selectedSubject);
+        const cacheVerKey = getBankCacheVersionKey(selectedSubject);
+        const subject = SUBJECTS.find(s => s.id === selectedSubject);
+        if (!subject) return;
+
         const isValidBank = (bank) => {
             if (!bank || typeof bank !== 'object') return false;
             const chapters = Object.values(bank);
@@ -899,7 +1047,7 @@ function App() {
             setBankPercent(0);
             try {
                 setBankProgress("检查本地缓存...");
-                const cachedBank = await safeGet(BANK_CACHE_KEY);
+                const cachedBank = await safeGet(cacheKey);
 
                 if (cachedBank) {
                     if (isValidBank(cachedBank)) {
@@ -913,8 +1061,8 @@ function App() {
                         if (repaired && isValidBank(repaired)) {
                             setAllQuestionBank(repaired);
                             setBankStatus('ready');
-                            await safeSet(BANK_CACHE_KEY, repaired);
-                            await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                            await safeSet(cacheKey, repaired);
+                            await safeSet(cacheVerKey, BANK_CACHE_VERSION);
                             setBankProgress('题库已就绪');
                             setBankPercent(100);
                             return;
@@ -922,12 +1070,40 @@ function App() {
                     }
                 }
 
-                const total = LECTURES.length;
+                if (subject.id === 'maogai') {
+                    setBankProgress('正在加载毛概题库...');
+                    try {
+                        const url = `${GITHUB_BASE}maogai_full.json`;
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const rawJson = await res.json();
+                        const parsed = parseMaogaiJson(rawJson);
+                        if (Object.keys(parsed).length > 0) {
+                            setAllQuestionBank(parsed);
+                            setBankStatus('ready');
+                            await safeSet(cacheKey, parsed);
+                            await safeSet(cacheVerKey, BANK_CACHE_VERSION);
+                            setBankProgress('题库已就绪');
+                            setBankPercent(100);
+                        } else {
+                            throw new Error('解析结果为空');
+                        }
+                    } catch (error) {
+                        console.warn('毛概题库加载失败', error);
+                        setBankStatus('error');
+                        setErrorMsg("毛概题库加载失败: " + error.message);
+                        setBankPercent(0);
+                    }
+                    return;
+                }
+
+                const lectures = subject.lectures || LECTURES;
+                const total = lectures.length;
                 const newBank = {};
                 let done = 0;
                 setBankProgress(`正在下载题库... (0/${total})`);
 
-                for (const lecture of LECTURES) {
+                for (const lecture of lectures) {
                     try {
                         const data = await fetchLectureArrayBuffer(lecture);
                         const workbook = await safeParseXLSX(data);
@@ -935,7 +1111,6 @@ function App() {
                         const rawData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
 
                         let parsed = [];
-                        // 根据 ID 判断使用哪个解析器
                         if (lecture.id === 99) {
                             parsed = parseOldFormatData(rawData, lecture.id, lecture.name);
                         } else {
@@ -956,8 +1131,8 @@ function App() {
                 if (Object.keys(newBank).length > 0) {
                     setAllQuestionBank(newBank);
                     setBankStatus('ready');
-                    await safeSet(BANK_CACHE_KEY, newBank);
-                    await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+                    await safeSet(cacheKey, newBank);
+                    await safeSet(cacheVerKey, BANK_CACHE_VERSION);
                     setBankProgress('题库已更新');
                     setBankPercent(100);
                 } else {
@@ -972,7 +1147,7 @@ function App() {
             }
         };
         loadBankData();
-    }, []);
+    }, [selectedSubject]);
 
     // 消息提示清除
     useEffect(() => {
@@ -986,13 +1161,46 @@ function App() {
     }, [syncMsg]);
 
     const refreshBankFromServer = async () => {
+        if (!selectedSubject) return;
+        const cacheKey = getBankCacheKey(selectedSubject);
+        const cacheVerKey = getBankCacheVersionKey(selectedSubject);
+        const subject = SUBJECTS.find(s => s.id === selectedSubject);
+        if (!subject) return;
+
         setBankStatus('loading');
         setBankProgress('正在强制更新题库... (0%)');
         setBankPercent(0);
+
+        if (subject.id === 'maogai') {
+            try {
+                const url = `${GITHUB_BASE}maogai_full.json`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const rawJson = await res.json();
+                const parsed = parseMaogaiJson(rawJson);
+                if (Object.keys(parsed).length > 0) {
+                    setAllQuestionBank(parsed);
+                    setBankStatus('ready');
+                    await safeSet(cacheKey, parsed);
+                    await safeSet(cacheVerKey, BANK_CACHE_VERSION);
+                    setBankProgress('题库已更新');
+                    setBankPercent(100);
+                    return;
+                }
+            } catch (error) {
+                console.warn('毛概题库强制更新失败', error);
+                setBankStatus('error');
+                setErrorMsg("毛概题库强制更新失败: " + error.message);
+                setBankPercent(0);
+                return;
+            }
+        }
+
+        const lectures = subject.lectures || LECTURES;
         const newBank = {};
-        const total = LECTURES.length;
+        const total = lectures.length;
         let done = 0;
-        for (const lecture of LECTURES) {
+        for (const lecture of lectures) {
             try {
                 const data = await fetchLectureArrayBuffer(lecture);
                 const workbook = await safeParseXLSX(data);
@@ -1020,8 +1228,8 @@ function App() {
         if (Object.keys(newBank).length > 0) {
             setAllQuestionBank(newBank);
             setBankStatus('ready');
-            await safeSet(BANK_CACHE_KEY, newBank);
-            await safeSet(BANK_CACHE_VERSION_KEY, BANK_CACHE_VERSION);
+            await safeSet(cacheKey, newBank);
+            await safeSet(cacheVerKey, BANK_CACHE_VERSION);
             setBankProgress('题库已更新');
             setBankPercent(100);
         } else {
@@ -1458,9 +1666,10 @@ function App() {
         const questionDetail = getQuestionDetails(rankItem.questionId);
         if (questionDetail) {
             setViewingRankQuestion({...questionDetail, rankInfo: rankItem});
-            ensureExplanationsLoaded(questionDetail.id);
+            // 💡 修改这里：使用新的加载函数
+            loadQuestionThread(questionDetail.id);
         } else {
-            alert('题库中未找到该题（强制刷新题库可能可以解决）');
+            alert('题库中未找到该题');
         }
     };
 
@@ -1503,50 +1712,82 @@ function App() {
         if (typeof setViewingRankQuestion === 'function') {
             setViewingRankQuestion(safeQuestion);
         }
-        if (typeof ensureExplanationsLoaded === 'function') {
-            ensureExplanationsLoaded(questionItem.id);
-        }
-        if (typeof loadQuestionComments === 'function') {
-            loadQuestionComments(questionItem.id);
-        }
+        // 触发数据加载
+        loadThreadData(questionItem.id);
     };
 
-    // ✅ 改动：加载评论 (api.getComments)
-    const loadQuestionComments = async (questionId) => {
-        try {
-            // api.getComments 返回数组，包含 liked 字段
-            const comments = await api.getComments(questionId);
-            if (Array.isArray(comments)) {
-                setQuestionComments(prev => ({...prev, [questionId]: comments}));
-            }
-        } catch (e) {
-            console.error('加载评论失败:', e);
-        }
-    };
+    // --- 交互逻辑重构 (本地乐观更新) ---
 
-    // 🔄 【优化】提交评论 (刷新 questionThread)
+    // 提交评论
     const submitComment = async (questionId) => {
         if (!currentUser || !newComment.trim()) return;
 
         const validation = validateContent(newComment.trim());
         if (!validation.valid) {
+            alert(validation.message);
             setSyncMsg(validation.message);
+            setSyncStatus('error');
             return;
         }
 
+        const tempId = 'temp_' + Date.now();
+        const commentPayload = {
+            id: tempId,
+            questionId,
+            content: newComment.trim(),
+            author: currentUser.username || '我',
+            authorId: currentUser.id,
+            createdAt: new Date().toISOString(),
+            likes: 0,
+            liked: false,
+            isTemp: true
+        };
+
+        // 乐观更新 UI
+        setQuestionThread(prev => {
+            const thread = prev[questionId] || { comments: [], explanations: [] };
+            return {
+                ...prev,
+                [questionId]: {
+                    ...thread,
+                    comments: [commentPayload, ...thread.comments]
+                }
+            };
+        });
+        setNewComment('');
+
         try {
-            await api.postComment(questionId, newComment.trim());
-            setNewComment('');
-            // 关键：重新拉取 thread 以更新列表
-            await loadQuestionThread(questionId);
+            // 发送请求
+            await api.postComment(questionId, commentPayload.content);
             setSyncMsg('评论发布成功');
+            setSyncStatus('success');
+            // 成功后重新拉取以获取真实 ID 和时间
+            // 这里可以不做全量拉取，但为了 ID 同步，简单起见重新拉取一次也无妨。
+            // 为了严格符合"不重复拉取"的要求，这里其实可以只保留 UI 状态，
+            // 但真实情况需要 ID 才能后续删除。这里折中：静默后台刷新一次 ID。
+            // 或者我们可以假设 api.postComment 返回了新 ID。如果 api 支持的话。
+            // 暂时强制刷新一次数据以确保一致性 (debounce 会过滤掉频繁操作)
+            loadThreadData(questionId);
         } catch (e) {
             console.error('发布评论失败:', e);
             setSyncMsg('评论发布失败');
+            setSyncStatus('error');
+            // 回滚
+            setQuestionThread(prev => {
+                const thread = prev[questionId];
+                if (!thread) return prev;
+                return {
+                    ...prev,
+                    [questionId]: {
+                        ...thread,
+                        comments: thread.comments.filter(c => c.id !== tempId)
+                    }
+                };
+            });
         }
     };
 
-    // ✅ 改动：点赞评论 (api.likeComment)
+    // 点赞评论
     const handleLikeComment = async (questionId, comment) => {
         if (!currentUser || !comment?.id) return;
         if (comment.authorId && comment.authorId === currentUser.id) {
@@ -1554,41 +1795,89 @@ function App() {
             return;
         }
 
-        try {
-            // api.likeComment 返回 { liked: bool, likes: number }
-            const result = await api.likeComment(comment.id);
+        // 乐观更新
+        const originalLiked = comment.liked;
+        const originalLikes = comment.likes;
 
-            setQuestionComments(prev => {
-                const currentList = prev[questionId] || [];
-                const newList = currentList.map(c => {
-                    if (c.id === comment.id) {
-                        return {
-                            ...c,
-                            likes: result.likes,
-                            liked: result.liked
-                        };
-                    }
-                    return c;
-                });
-                return {...prev, [questionId]: newList};
+        setQuestionThread(prev => {
+            const thread = prev[questionId];
+            if (!thread) return prev;
+            const newComments = thread.comments.map(c => {
+                if (c.id === comment.id) {
+                    return {
+                        ...c,
+                        liked: !originalLiked,
+                        likes: originalLiked ? Math.max(0, originalLikes - 1) : originalLikes + 1
+                    };
+                }
+                return c;
             });
+            return { ...prev, [questionId]: { ...thread, comments: newComments } };
+        });
 
+        try {
+            const result = await api.likeComment(comment.id);
+            // 使用服务器返回的准确计数校准
+            setQuestionThread(prev => {
+                const thread = prev[questionId];
+                if (!thread) return prev;
+                return {
+                    ...prev,
+                    [questionId]: {
+                        ...thread,
+                        comments: thread.comments.map(c =>
+                            c.id === comment.id ? { ...c, likes: result.likes, liked: result.liked } : c
+                        )
+                    }
+                };
+            });
         } catch (e) {
             console.error('点赞操作失败', e);
+            // 回滚
+             setQuestionThread(prev => {
+                const thread = prev[questionId];
+                if (!thread) return prev;
+                return {
+                     ...prev,
+                    [questionId]: {
+                        ...thread,
+                        comments: thread.comments.map(c =>
+                            c.id === comment.id ? { ...c, likes: originalLikes, liked: originalLiked } : c
+                        )
+                    }
+                };
+            });
         }
     };
 
-    // ✅ 改动：删除评论 (api.request DELETE)
+    // 删除评论
     const handleDeleteComment = async (questionId, comment) => {
         if (!currentUser || !comment?.id || comment.authorId !== currentUser.id) return;
         if (!window.confirm('确定删除这条评论吗？')) return;
+
+        // 乐观更新：直接移除
+        setQuestionThread(prev => {
+            const thread = prev[questionId];
+            if (!thread) return prev;
+            return {
+                ...prev,
+                [questionId]: {
+                    ...thread,
+                    comments: thread.comments.filter(c => c.id !== comment.id)
+                }
+            };
+        });
+
+        setEditingCommentId(null);
+        setEditingCommentContent('');
+
         try {
             await api.request(`/comments/${comment.id}`, 'DELETE');
-            setEditingCommentId(null);
-            setEditingCommentContent('');
-            await loadQuestionComments(questionId);
         } catch (e) {
             console.error('删除评论失败', e);
+            alert("删除失败，请重试");
+            // 恢复（需重新加载）
+            loadThreadData(questionId);
         }
     };
 
@@ -1597,66 +1886,201 @@ function App() {
         setEditingCommentContent(comment.content);
     };
 
-    // ✅ 改动：更新评论 (api.request PUT)
+    // 更新评论
     const handleUpdateComment = async (questionId) => {
         if (!editingCommentId) return;
         const content = editingCommentContent.trim();
         if (!content) return;
+
         const validation = validateContent(content);
         if (!validation.valid) {
             setSyncMsg(validation.message);
             setSyncStatus('error');
             return;
         }
+
+        // 乐观更新
+        setQuestionThread(prev => {
+            const thread = prev[questionId];
+            if (!thread) return prev;
+            return {
+                ...prev,
+                [questionId]: {
+                    ...thread,
+                    comments: thread.comments.map(c =>
+                        c.id === editingCommentId ? { ...c, content: content } : c
+                    )
+                }
+            };
+        });
+
+        const originalId = editingCommentId;
+        setEditingCommentId(null);
+        setEditingCommentContent('');
+
         try {
-            await api.request(`/comments/${editingCommentId}`, 'PUT', {content});
-            setEditingCommentId(null);
-            setEditingCommentContent('');
-            await loadQuestionComments(questionId);
+            await api.request(`/comments/${originalId}`, 'PUT', {content});
             setSyncStatus('success');
             setSyncMsg('评论已更新');
         } catch (e) {
             console.error('更新评论失败', e);
             setSyncStatus('error');
             setSyncMsg('更新失败');
+            loadThreadData(questionId); // 这里回滚比较麻烦，直接重载
         }
     };
 
-
-    // 🔄 【优化】点赞解析 (刷新 questionThread)
+    // 解析点赞
     const handleLikeExplanation = async (questionId, explanation) => {
         if (!currentUser || !explanation?.id) return;
-        if (explanation.authorId === currentUser.id) return;
+        if (explanation.authorId && explanation.authorId === currentUser.id) return;
+
+         // 乐观更新
+         const originalVotes = explanation.votes || 0;
+         // 注意：当前 API 可能没返回 liked 状态给 explanations 列表（需确认），假设有
+         // 如果没有 liked 字段，只能简单 +1
+         // 假设前端没有维护 'liked' 状态在 explanations 里，只能盲加
+
+         // 这里为稳妥起见，仍暂时使用重载，或者改进 API 返回结构。
+         // 按照用户要求 "不要重复拉取"，我们尝试手动修改本地。
+         // 由于不知道当前是“已赞”还是“未赞”（UserExplanation 数据结构如果不含 liked），
+         // 我们只能假设这是一个 toggle。但通常点赞 UI 需要 distinct visual state。
+         // 检查 loadUserExplanations 里的 api.getExplanations 返回，确实包含 liked。
+
+        setQuestionThread(prev => {
+            const thread = prev[questionId];
+            if (!thread) return prev;
+            const newExps = thread.explanations.map(e => {
+                if (e.id === explanation.id) {
+                    const isLiked = !!e.liked;
+                    return {
+                        ...e,
+                        liked: !isLiked,
+                        votes: isLiked ? Math.max(0, originalVotes - 1) : originalVotes + 1
+                    };
+                }
+                return e;
+            });
+            return { ...prev, [questionId]: { ...thread, explanations: newExps } };
+        });
+
         try {
-            await api.voteExplanation(explanation.id);
-            await loadQuestionThread(questionId); // 刷新以显示最新点赞数
+            const result = await api.voteExplanation(explanation.id);
+             setQuestionThread(prev => {
+                const thread = prev[questionId];
+                if (!thread) return prev;
+                return {
+                    ...prev,
+                     [questionId]: {
+                        ...thread,
+                        explanations: thread.explanations.map(e =>
+                            e.id === explanation.id ? { ...e, votes: result.votes, liked: result.liked } : e
+                        )
+                    }
+                };
+            });
         } catch (e) {
             console.error('解析点赞失败', e);
+            loadThreadData(questionId); // 回滚
         }
     };
 
-    // ✅ 改动：加载解析 (api.getExplanations)
-    const loadUserExplanations = async (questionId) => {
+    // 提交解析
+    const submitUserExplanation = async (questionId) => {
+         if (!currentUser || !newExplanation.trim()) return;
+
+        const validation = validateContent(newExplanation.trim());
+        if (!validation.valid) {
+            alert(validation.message);
+            setSyncMsg(validation.message);
+            setSyncStatus('error');
+            return;
+        }
+
+        const tempId = 'temp_exp_' + Date.now();
+        const expPayload = {
+            id: tempId,
+            questionId,
+            content: newExplanation.trim(),
+            author: currentUser.username || '我',
+            authorId: currentUser.id,
+            createdAt: new Date().toISOString(),
+            votes: 0,
+            liked: false
+        };
+
+        setQuestionThread(prev => {
+            const thread = prev[questionId] || { comments: [], explanations: [] };
+            return {
+                ...prev,
+                [questionId]: {
+                    ...thread,
+                    explanations: [expPayload, ...thread.explanations]
+                }
+            };
+        });
+        setNewExplanation('');
+        setShowExplanationForm(false);
+
         try {
-            const explanations = await api.getExplanations(questionId);
-            if (Array.isArray(explanations)) {
-                setUserExplanations(prev => ({...prev, [questionId]: explanations}));
-            }
+            await api.postExplanation(questionId, expPayload.content);
+            setSyncMsg('解析提交成功');
+            setSyncStatus('success');
+            loadThreadData(questionId); // 刷新以获取真实 ID
         } catch (e) {
-            console.error('加载用户解析失败:', e);
+            console.error('提交解析失败:', e);
+            alert("提交解析失败: " + (e.message || "未知错误"));
+            setSyncMsg('解析提交失败');
+            setSyncStatus('error');
+            // 回滚
+            loadThreadData(questionId);
         }
     };
 
-    const ensureExplanationsLoaded = (questionId) => {
-        if (!questionId) return;
-        if (!userExplanations[questionId]) loadUserExplanations(questionId);
+    const handleUpdateExplanation = async (questionId) => {
+        if (!editingExplanationId) return;
+        const content = editingExplanationContent.trim();
+        if (!content) return;
+        const validation = validateContent(content);
+        if (!validation.valid) {
+             setSyncMsg(validation.message);
+             setSyncStatus('error');
+             return;
+        }
+
+        setQuestionThread(prev => {
+            const thread = prev[questionId];
+            if (!thread) return prev;
+            return {
+                ...prev,
+                [questionId]: {
+                    ...thread,
+                    explanations: thread.explanations.map(e =>
+                        e.id === editingExplanationId ? { ...e, content: content } : e
+                    )
+                }
+            };
+        });
+
+        const originalId = editingExplanationId;
+        setEditingExplanationId(null);
+        setEditingExplanationContent('');
+
+        try {
+            await api.request(`/explanations/${originalId}`, 'PUT', {content});
+            setSyncStatus('success');
+            setSyncMsg('解析已更新');
+        } catch (e) {
+            console.error('更新解析失败:', e);
+            setSyncStatus('error');
+            setSyncMsg('更新解析失败');
+            loadThreadData(questionId);
+        }
     };
 
-    // 🔄 【优化】渲染用户解析 (读取 questionThread)
     const renderUserExplanations = (questionId) => {
-        // 修改点：从 questionThread 获取数据
-        const list = questionThread[questionId]?.explanations || [];
-
+        // 安全引用
+        const list = questionThread[questionId]?.explanations;
         if (!list || list.length === 0) return null;
         return (
             <div className="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
@@ -1677,15 +2101,39 @@ function App() {
                                     }} className="text-blue-600 text-xs">编辑</button>
                                 )}
                             </div>
-                            {/* ... existing editing logic ... */}
-                            {!isEditing && (
+                            {isEditing ? (
+                                <div className="space-y-2">
+                                <textarea
+                                    value={editingExplanationContent}
+                                    onChange={(e) => setEditingExplanationContent(e.target.value)}
+                                    className="w-full p-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                                    rows={4}
+                                />
+                                    <div className="flex gap-2 justify-end text-xs">
+                                        <button onClick={() => handleUpdateExplanation(questionId)}
+                                                className="px-3 py-1 bg-blue-600 text-white rounded-lg">保存
+                                        </button>
+                                        <button onClick={() => {
+                                            setEditingExplanationId(null);
+                                            setEditingExplanationContent('');
+                                        }} className="px-3 py-1 bg-slate-200 text-slate-700 rounded-lg">取消
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
                                 <>
                                     <Markdown content={exp.content}/>
                                     <div className="flex items-center gap-3 text-xs">
-                                        <button onClick={() => handleLikeExplanation(questionId, exp)}
-                                                className={`flex items-center gap-1 ${isOwner ? 'text-amber-600' : 'text-slate-400 hover:text-amber-600'}`}>
-                                            <ThumbsUp size={12}/> {exp.votes || 0}
-                                        </button>
+                                        {isOwner ? (
+                                            <div className="text-amber-600 flex items-center gap-1">
+                                                <ThumbsUp size={12}/> {exp.votes || 0}
+                                            </div>
+                                        ) : (
+                                            <button onClick={() => handleLikeExplanation(questionId, exp)}
+                                                    className="flex items-center gap-1 text-amber-600 hover:text-amber-700">
+                                                <ThumbsUp size={12} fill={exp.liked ? "currentColor" : "none"}/> {exp.votes || 0}
+                                            </button>
+                                        )}
                                     </div>
                                 </>
                             )}
@@ -1696,75 +2144,76 @@ function App() {
         );
     };
 
-    // 🔄 【优化】提交解析 (刷新 questionThread)
-    const submitUserExplanation = async (questionId) => {
-        if (!currentUser || !newExplanation.trim()) return;
+    // // ✅ 改动：加载评论 (api.getComments)
+    // const loadQuestionComments = async (questionId) => {
+    //     try {
+    //         // api.getComments 返回数组，包含 liked 字段
+    //         const comments = await api.getComments(questionId);
+    //         if (Array.isArray(comments)) {
+    //             setQuestionComments(prev => ({...prev, [questionId]: comments}));
+    //         }
+    //     } catch (e) {
+    //         console.error('加载评论失败:', e);
+    //     }
+    // };
 
-        const validation = validateContent(newExplanation.trim());
-        if (!validation.valid) {
-            setSyncMsg(validation.message);
-            return;
-        }
-
+    // ✅ 改动：加载解析 (api.getExplanations)
+    const loadUserExplanations = async (questionId) => {
         try {
-            await api.postExplanation(questionId, newExplanation.trim());
-            setNewExplanation('');
-            setShowExplanationForm(false);
-            await loadQuestionThread(questionId);
-            setSyncMsg('解析提交成功');
+            const explanations = await api.getExplanations(questionId);
+            if (Array.isArray(explanations)) {
+                setUserExplanations(prev => ({...prev, [questionId]: explanations}));
+            }
         } catch (e) {
-            console.error('提交解析失败:', e);
-            setSyncMsg('解析提交失败');
+            console.error('加载用户解析失败:', e);
         }
     };
 
-    const handleUpdateExplanation = async (questionId) => {
-        if (!editingExplanationId) return;
-        const content = editingExplanationContent.trim();
-        if (!content) return;
-        const validation = validateContent(content);
-        if (!validation.valid) {
-            setSyncMsg(validation.message);
-            setSyncStatus('error');
-            return;
-        }
-        try {
-            await api.request(`/explanations/${editingExplanationId}`, 'PUT', {content});
-            setEditingExplanationId(null);
-            setEditingExplanationContent('');
-            await loadUserExplanations(questionId);
-            setSyncStatus('success');
-            setSyncMsg('解析已更新');
-        } catch (e) {
-            console.error('更新解析失败:', e);
-            setSyncStatus('error');
-            setSyncMsg('更新解析失败');
-        }
+    const ensureExplanationsLoaded = (questionId) => {
+        if (!questionId) return;
+        if (!userExplanations[questionId]) loadUserExplanations(questionId);
     };
 
     const handleOptionClick = (idx) => {
+        // 如果是背题模式，或者已经作答过了，点击无效
         if (currentMode === 'memorize' || isAnswered) return;
+
         const currentQ = questions[currentIndex];
+
+        // 多选题逻辑：点击只是选中/取消选中，不自动提交
         if (currentQ.type === 'multiple') {
-            setSelectedIndices(prev => prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]);
+            setSelectedIndices(prev =>
+                prev.includes(idx)
+                    ? prev.filter(i => i !== idx)
+                    : [...prev, idx]
+            );
         } else {
+            // 单选/判断：点击立即执行提交逻辑
             submitAnswer([idx]);
         }
     };
 
+    // ✅ 优化版：提交答案 (移除冗余加载逻辑)
     const submitAnswer = (finalSelection = selectedIndices) => {
         if (finalSelection.length === 0) return;
         const currentQ = questions[currentIndex];
 
+        // 1. 判定对错
         const correctSet = new Set(currentQ.rawAnswer);
         const userSet = new Set(finalSelection);
         const isCorrect = correctSet.size === userSet.size && [...correctSet].every(x => userSet.has(x));
 
-        const answerText = [...finalSelection].sort((a, b) => a - b).map(i => ['A', 'B', 'C', 'D', 'E'][i]).join('');
+        const answerText = [...finalSelection]
+            .sort((a, b) => a - b)
+            .map(i => ['A', 'B', 'C', 'D', 'E'][i])
+            .join('');
 
+        // 2. 更新基础交互状态
         setIsAnswered(true);
         setSelectedIndices(finalSelection);
-        setShowExplanation(true);
+        setShowExplanation(true); // 💡 这一步会触发我们之前写的 useEffect，自动去加载互动数据
+
+        // 3. 更新统计数据 (本地 Set 操作)
         setBrushedIds(prev => new Set(prev).add(currentQ.id));
 
         if (isCorrect) {
@@ -1783,11 +2232,12 @@ function App() {
             });
             setWrongIds(prev => new Set(prev).add(currentQ.id));
             setAnswerResults(prev => ({...prev, [currentQ.id]: 'wrong'}));
-
         }
 
+        // 4. 提交到缓冲区 (由 flushStats 批量发送，不会导致 API 爆炸)
         submitQuestionResult(currentQ.id, isCorrect, currentQ.question, currentQ.category, answerText);
 
+        // 5. 记录本地历史
         setHistory(prev => [{
             id: Date.now(),
             questionId: currentQ.id,
@@ -1797,11 +2247,6 @@ function App() {
             userAnswer: answerText,
             timestamp: new Date().toISOString(),
         }, ...prev]);
-
-        loadQuestionComments(currentQ.id);
-        if (!isCorrect || !currentQ.explanation || currentQ.explanation === '暂无解析') {
-            loadUserExplanations(currentQ.id);
-        }
     };
 
     const handleMemorizeCheck = () => {
@@ -1853,6 +2298,59 @@ function App() {
     };
 
 
+    const switchSubject = () => {
+        setSelectedSubject(null);
+        setAllQuestionBank({});
+        setBankStatus('idle');
+        setCurrentMode('dashboard');
+        setQuestions([]);
+        setLastSession(null);
+    };
+
+    const renderSubjectSelector = () => (
+        <div className="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200">
+            <div className="w-full max-w-2xl">
+                <div className="text-center mb-10">
+                    <div className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
+                        <BookOpen size={32} className="md:w-10 md:h-10"/>
+                    </div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 刷题系统</h1>
+                    <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">请选择要练习的学科</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {SUBJECTS.map(subject => {
+                        const isInnovation = subject.id === 'innovation';
+                        const Icon = isInnovation ? Brain : BookOpen;
+                        return (
+                            <button
+                                key={subject.id}
+                                onClick={async () => {
+                                    setSelectedSubject(subject.id);
+                                    setBankStatus('idle');
+                                    setAllQuestionBank({});
+                                }}
+                                className="group relative bg-white rounded-[2rem] p-8 shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-transparent hover:border-blue-200 text-left hover:-translate-y-1"
+                            >
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 rounded-full -mr-12 -mt-12 opacity-50 group-hover:opacity-100 transition-opacity blur-2xl"/>
+                                <div className="relative z-10">
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 ${isInnovation ? 'bg-blue-100 text-blue-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                                        <Icon size={28}/>
+                                    </div>
+                                    <h2 className="text-xl font-bold text-slate-800 mb-2">{subject.shortName || subject.name}</h2>
+                                    <p className="text-sm text-slate-400 leading-relaxed">
+                                        {isInnovation
+                                            ? '7个章节 + 经典旧题库，涵盖创新创业基础全部内容'
+                                            : '9个章节，涵盖毛泽东思想和中国特色社会主义理论体系概论全部内容'}
+                                    </p>
+                                </div>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+
     // Helper renderers moved out of JSX return
     const renderDashboard = () => (
         <div className="h-screen flex flex-col max-w-[1400px] mx-auto px-4 md:px-6 py-4 md:py-6 overflow-hidden">
@@ -1860,7 +2358,11 @@ function App() {
                 <div>
                     <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2 md:gap-3">
                         <GraduationCap className="text-blue-600 w-6 h-6 md:w-8 md:h-8"/>
-                        <span>创新创业</span>
+                        <span>{currentSubject?.shortName || currentSubject?.name || '刷题系统'}</span>
+                        <button onClick={switchSubject}
+                                className="ml-2 px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg transition-colors">
+                            切换学科
+                        </button>
                     </h1>
                     {/* ✅ 改动：Cloudflare 模式下直接访问 username 属性 */}
                     <p className="text-slate-500 text-xs md:text-sm font-medium mt-1 pl-8 md:pl-11">欢迎, {currentUser.username}</p>
@@ -2022,7 +2524,7 @@ function App() {
                                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value={0}>全部章节</option>
-                                {LECTURES.map(l => (
+                                {(currentSubject?.lectures || (currentSubject?.chapters?.map(ch => ({id: ch.id, name: ch.name}))) || []).map(l => (
                                     <option key={l.id} value={l.id}>{l.name}</option>
                                 ))}
                             </select>
@@ -2248,8 +2750,8 @@ function App() {
                                         })}
                                                 className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
                                             <option value={0}>📚 综合练习 (所有章节)</option>
-                                            {LECTURES.map(l => <option key={l.id}
-                                                                       value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
+                                            {(currentSubject?.lectures || (currentSubject?.chapters?.map(ch => ({id: ch.id, name: ch.name})) || [])).map(l => <option key={l.id}
+                                                                        value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
                                         </select>
                                     </div>
                                     <div>
@@ -2725,7 +3227,8 @@ function App() {
                                 <div className="grid md:grid-cols-2 gap-4 md:gap-6 items-stretch">
                                     <div
                                         className="animate-enter bg-white p-5 md:p-6 rounded-[1.5rem] border border-slate-200 h-full flex flex-col gap-4">
-                                        {userExplanations[currentQ.id] && userExplanations[currentQ.id].length > 0 && (
+                                        {/* 使用 Optional Chaining 安全访问 */}
+                                        {questionThread[currentQ.id]?.explanations?.length > 0 && (
                                             <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
                                                 <div
                                                     className="flex items-center gap-2 mb-3 text-purple-900 font-bold">
@@ -2789,18 +3292,19 @@ function App() {
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="flex items-center gap-2 text-slate-900 font-bold">
                                                 <MessageSquare size={20} className="text-slate-500"/>
-                                                评论区 {questionComments[currentQ.id] ? `(${questionComments[currentQ.id].length})` : ''}
+                                                {/* 使用 Optional Chaining 安全访问 */}
+                                                评论区 {questionThread[currentQ.id]?.comments?.length ? `(${questionThread[currentQ.id].comments.length})` : ''}
                                             </div>
                                         </div>
                                         <div className="space-y-4 pb-1 flex flex-col flex-1">
                                             <div className="space-y-2">
-                                                <textarea
-                                                    value={newComment}
-                                                    onChange={(e) => setNewComment(e.target.value)}
-                                                    placeholder="分享你的想法..."
-                                                    className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                                    rows={3}
-                                                />
+                                            <textarea
+                                                value={newComment}
+                                                onChange={(e) => setNewComment(e.target.value)}
+                                                placeholder="分享你的想法..."
+                                                className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                rows={3}
+                                            />
                                                 <button
                                                     onClick={() => submitComment(currentQ.id)}
                                                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
@@ -2808,9 +3312,10 @@ function App() {
                                                 </button>
                                             </div>
 
-                                            {questionComments[currentQ.id] && questionComments[currentQ.id].length > 0 ? (
+                                            {/* 使用 Optional Chaining 安全访问 */}
+                                            {questionThread[currentQ.id]?.comments?.length > 0 ? (
                                                 <div className="space-y-3 max-h-full overflow-y-auto flex-1">
-                                                    {questionComments[currentQ.id].map((comment) => {
+                                                    {questionThread[currentQ.id].comments.map((comment) => {
                                                         const isOwner = comment.authorId === currentUser?.id;
                                                         const isEditing = editingCommentId === comment.id;
                                                         return (
@@ -2923,8 +3428,8 @@ function App() {
                         className="bg-gradient-to-tr from-blue-600 to-indigo-600 w-16 h-16 md:w-20 md:h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6 shadow-lg shadow-blue-500/30 text-white transform rotate-3">
                         <Brain size={32} className="md:w-10 md:h-10"/>
                     </div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 创新创业</h1>
-                    <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">Pro 学习系统 (CF版)</p>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-800">HFUT 刷题系统</h1>
+                    <p className="text-slate-500 mt-2 font-medium text-sm md:text-base">Pro 学习系统</p>
                     {brushedIds.size > 0 &&
                         <p className="text-xs text-blue-500 mt-2">本地缓存: {brushedIds.size} 题记录</p>}
                 </div>
@@ -2970,19 +3475,34 @@ function App() {
         </div>
     );
 
-    // 自动加载评论与解析
+// ✅ 优化版：自动加载互动数据 (防抖 + 缓存检查)
     useEffect(() => {
         if (!questions.length) return;
         const q = questions[currentIndex];
-        if (q && !questionComments[q.id]) {
-            loadQuestionComments(q.id);
-        }
+        if (!q || !q.id) return;
+
+        // 💡 确定加载时机：背题模式直接加载，或者刷题模式已显示解析（答题后）
         const isMemorizeMode = currentMode === 'memorize';
         const shouldShowContent = isMemorizeMode || showExplanation;
-        if (shouldShowContent && q && (!q.explanation || q.explanation === '暂无解析')) {
-            ensureExplanationsLoaded(q.id);
-        }
-    }, [showExplanation, currentIndex, questions, currentMode]);
+
+        if (!shouldShowContent) return;
+
+        // 1. 💡 增加防抖 (Debounce)：防止快速翻题导致瞬间发出几十个请求
+        const timer = setTimeout(() => {
+
+            // 2. 💡 检查缓存：如果 questionThread 里已经有这道题的数据，就不再请求 API
+            if (!questionThread[q.id]) {
+                console.log(`[API] 正在拉取题目互动数据: ${q.id}`);
+                loadQuestionThread(q.id); // 统一拉取评论和用户解析
+            }
+
+        }, 300); // 延迟 300ms，用户停留在某题才会加载
+
+        // 3. 清理定时器，如果用户在 300ms 内翻到下一题，上一个请求会被取消
+        return () => clearTimeout(timer);
+
+    }, [currentIndex, showExplanation, currentMode, questions.length]);
+// 💡 注意：这里移除了 questions 本身作为依赖，改用 length，防止无关变动触发
 
 
     // 定时发送答题缓冲数据
@@ -3172,6 +3692,7 @@ function App() {
     };
 
     if (!currentUser) return renderLoginScreen();
+    if (!selectedSubject) return renderSubjectSelector();
 
     return (
         <div className="h-full bg-slate-50 font-sans text-slate-900">

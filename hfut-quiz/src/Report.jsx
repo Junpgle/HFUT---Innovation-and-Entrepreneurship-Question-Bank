@@ -320,26 +320,26 @@ function Report() {
     return null;
   };
 
-  const loadUserExplanations = async (questionId) => {
-    try {
-      const query = new AV.Query('UserExplanation');
-      query.equalTo('questionId', questionId);
-      query.descending('votes');
-      query.include('author');
-      query.include('votedBy');
-      const res = await query.find();
-      const list = res.map(r => ({
-        id: r.id,
-        content: String(r.get('content') || ''),
-        author: r.get('author')?.get('username') || '匿名',
-        authorId: r.get('author')?.id || '',
-        votes: r.get('votes') || 0,
-        votedBy: mapUserNames(r.get('votedBy')),
-        createdAt: r.get('createdAt'),
-      }));
-      setUserExplanations(prev => ({ ...prev, [questionId]: list }));
-    } catch (e) { console.warn('load explanations fail', e); }
-  };
+  // const loadUserExplanations = async (questionId) => {
+  //   try {
+  //     const query = new AV.Query('UserExplanation');
+  //     query.equalTo('questionId', questionId);
+  //     query.descending('votes');
+  //     query.include('author');
+  //     query.include('votedBy');
+  //     const res = await query.find();
+  //     const list = res.map(r => ({
+  //       id: r.id,
+  //       content: String(r.get('content') || ''),
+  //       author: r.get('author')?.get('username') || '匿名',
+  //       authorId: r.get('author')?.id || '',
+  //       votes: r.get('votes') || 0,
+  //       votedBy: mapUserNames(r.get('votedBy')),
+  //       createdAt: r.get('createdAt'),
+  //     }));
+  //     setUserExplanations(prev => ({ ...prev, [questionId]: list }));
+  //   } catch (e) { console.warn('load explanations fail', e); }
+  // };
 
   const handleStartEditExp = (exp) => {
     setEditingExpId(exp.id);
