@@ -26,6 +26,8 @@ import {LoginScreen} from './components/LoginScreen';
 import {RankingPage} from './components/RankingPage';
 import {QuestionDetailModal} from './components/QuestionDetailModal';
 import {SubjectSelector} from './components/SubjectSelector';
+import {ResetConfirmModal} from './components/ResetConfirmModal';
+import {UpdateNoticeModal} from './components/UpdateNoticeModal';
 import {
     BANK_CACHE_VERSION,
     CURRENT_APP_VERSION,
@@ -42,6 +44,8 @@ import {
 import {formatDate} from './utils/date';
 import {safeGet, safeSet} from './utils/storage';
 import {normalizeQuestionId, normalizeSet} from './utils/questionId';
+import {getSubjectById, getSubjectChapterOptions} from './utils/subjectAdapter';
+import {getQuestionTypeBadgeClass, getQuestionTypeLabel} from './utils/questionType';
 function App() {
     // ✅ 改动：使用 api.getCurrentUser() 替代 AV.User.current()
     const [currentUser, setCurrentUser] = useState(api.getCurrentUser());
@@ -52,7 +56,7 @@ function App() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     // 学科选择
     const [selectedSubject, setSelectedSubject] = useState(null);
-    const currentSubject = selectedSubject ? SUBJECTS.find(s => s.id === selectedSubject) : null;
+    const currentSubject = getSubjectById(SUBJECTS, selectedSubject);
     // 题库状态
     const [allQuestionBank, setAllQuestionBank] = useState({});
     const [bankStatus, setBankStatus] = useState('idle');
@@ -692,7 +696,7 @@ function App() {
         if (!selectedSubject) return;
         const cacheKey = getBankCacheKey(selectedSubject);
         const cacheVerKey = getBankCacheVersionKey(selectedSubject);
-        const subject = SUBJECTS.find(s => s.id === selectedSubject);
+        const subject = getSubjectById(SUBJECTS, selectedSubject);
         if (!subject) return;
         const isValidBank = (bank) => {
             if (!bank || typeof bank !== 'object') return false;
@@ -837,7 +841,7 @@ function App() {
         if (!selectedSubject) return;
         const cacheKey = getBankCacheKey(selectedSubject);
         const cacheVerKey = getBankCacheVersionKey(selectedSubject);
-        const subject = SUBJECTS.find(s => s.id === selectedSubject);
+        const subject = getSubjectById(SUBJECTS, selectedSubject);
         if (!subject) return;
         setBankStatus('loading');
         setBankProgress('正在强制更新题库... (0%)');
@@ -2040,10 +2044,7 @@ function App() {
                                 className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm focus:ring-2 focus:ring-blue-500"
                             >
                                 <option value={0}>全部章节</option>
-                                {(currentSubject?.lectures || (currentSubject?.chapters?.map(ch => ({
-                                    id: ch.id,
-                                    name: ch.name
-                                }))) || []).map(l => (
+                                {getSubjectChapterOptions(currentSubject).map(l => (
                                     <option key={l.id} value={l.id}>{l.name}</option>
                                 ))}
                             </select>
@@ -2124,12 +2125,7 @@ function App() {
                                             className="text-slate-800 font-semibold group-hover:text-blue-600 transition">{res.question}</div>
                                         <div className="flex items-center justify-between">
                                                 <span
-                                                    className="text-[12px] text-slate-500">{res.category} · {
-                                                    res.type === 'multiple' ? '多选' :
-                                                        res.type === 'judgment' ? '判断' :
-                                                            res.type === 'fill' ? '填空' :
-                                                                res.type === 'big' ? '简答' : '单选'
-                                                }</span>
+                                                    className="text-[12px] text-slate-500">{res.category} · {getQuestionTypeLabel(res.type)}</span>
                                             <span
                                                 className="text-blue-600 text-xs font-medium opacity-0 group-hover:opacity-100 transition">查看详情 →</span>
                                         </div>
@@ -2165,73 +2161,19 @@ function App() {
                     </label>
                 </div>
             )}
-            {/* Reset Modal */}
-            {showResetModal && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-enter">
-                    <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-                        <div className="flex flex-col items-center text-center mb-6">
-                            <div
-                                className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
-                                <AlertOctagon size={32}/>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800">确认重置进度？</h3>
-                            <p className="text-slate-500 mt-2 text-sm">这将清除本地所有的刷题记录、错题本和统计数据。此操作无法撤销。</p>
-                            {currentUser &&
-                                <p className="text-orange-500 text-xs mt-2 bg-orange-50 p-2 rounded-lg text-left w-full">注意：云端数据不会自动清除。如需清空云端备份，请在重置后点击“备份”按钮以覆盖。</p>}
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => setShowResetModal(false)}
-                                    className="py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">取消
-                            </button>
-                            <button onClick={performReset}
-                                    className="py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-200 transition-colors">确认重置
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {/* 【新增】版本更新提示窗口 */}
-            {showUpdateModal && (
-                <div
-                    className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-enter backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative overflow-hidden">
-                        {/* 装饰背景 */}
-                        <div
-                            className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl"></div>
-                        <div className="relative z-10">
-                            <div className="flex flex-col items-center text-center mb-6">
-                                <div
-                                    className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 shadow-inner">
-                                    <RefreshCw size={32}
-                                               className="animate-spin-slow"/> {/* 需要确保导入了 RefreshCw 图标 */}
-                                </div>
-                                <h3 className="text-xl font-bold text-slate-800">发现新版本 {remoteVersionInfo.version}</h3>
-                                <p className="text-xs text-slate-400 mt-1">当前版本: {CURRENT_APP_VERSION}</p>
-                            </div>
-                            <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-100 text-left">
-                                <div className="text-xs font-bold text-slate-400 mb-2 uppercase">更新内容</div>
-                                <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
-                                    {remoteVersionInfo.log}
-                                </p>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3">
-                                <button
-                                    onClick={() => window.location.reload()}
-                                    className="py-3.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-2"
-                                >
-                                    <RefreshCw size={18}/> 立即刷新体验
-                                </button>
-                                <button
-                                    onClick={() => setShowUpdateModal(false)}
-                                    className="py-3 rounded-xl font-bold text-slate-400 hover:text-slate-600 transition-colors text-sm"
-                                >
-                                    暂不更新
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ResetConfirmModal
+                open={showResetModal}
+                currentUser={currentUser}
+                onCancel={() => setShowResetModal(false)}
+                onConfirm={performReset}
+            />
+            <UpdateNoticeModal
+                open={showUpdateModal}
+                currentVersion={CURRENT_APP_VERSION}
+                remoteVersionInfo={remoteVersionInfo}
+                onReload={() => window.location.reload()}
+                onClose={() => setShowUpdateModal(false)}
+            />
             <div className="flex-1 overflow-y-auto pb-10 no-scrollbar pr-1 md:pr-2">
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
                     {/* 左侧主内容 */}
@@ -2259,10 +2201,7 @@ function App() {
                                         })}
                                                 className="w-full p-3 md:p-4 bg-slate-50 border-0 rounded-2xl text-slate-800 text-sm md:text-base font-medium focus:ring-2 focus:ring-blue-500 transition-all hover:bg-slate-100 appearance-none">
                                             <option value={0}>📚 综合练习 (所有章节)</option>
-                                            {(currentSubject?.lectures || (currentSubject?.chapters?.map(ch => ({
-                                                id: ch.id,
-                                                name: ch.name
-                                            })) || [])).map(l => <option key={l.id}
+                                            {getSubjectChapterOptions(currentSubject).map(l => <option key={l.id}
                                                                          value={l.id}>{l.name} ({allQuestionBank[l.id]?.length || 0}题)</option>)}
                                         </select>
                                     </div>
@@ -2600,18 +2539,8 @@ function App() {
                                     className="md:col-span-2 bg-white rounded-[1.5rem] md:rounded-[2rem] p-5 md:p-8 shadow-sm border border-slate-200 animate-enter h-full flex flex-col">
                                     <div className="flex items-center gap-3 mb-4 md:mb-6">
                                         <span
-                                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
-                                                currentQ.type === 'multiple' ? 'bg-purple-100 text-purple-700' :
-                                                    (currentQ.type === 'judgment' ? 'bg-orange-100 text-orange-700' :
-                                                        (currentQ.type === 'fill' ? 'bg-indigo-100 text-indigo-700' :
-                                                            (currentQ.type === 'big' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700')))
-                                            }`}>
-                                            {
-                                                currentQ.type === 'multiple' ? '多选题' :
-                                                    (currentQ.type === 'judgment' ? '判断题' :
-                                                        (currentQ.type === 'fill' ? '填空题' :
-                                                            (currentQ.type === 'big' ? '简答题' : '单选题')))
-                                            }
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${getQuestionTypeBadgeClass(currentQ.type)}`}>
+                                            {`${getQuestionTypeLabel(currentQ.type)}题`}
                                         </span>
                                         <span
                                             className="text-slate-400 text-xs md:text-sm font-medium flex items-center gap-1"><Layers
