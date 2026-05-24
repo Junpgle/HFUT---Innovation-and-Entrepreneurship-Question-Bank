@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Brain, Rocket, Zap, BarChart3, ShieldCheck, Users,
     ChevronRight, Star, CheckCircle, ArrowRight,
-    GraduationCap, Globe, Github, AlertTriangle, Target,
-    Layers, BookOpen, Clock, Search
+    GraduationCap, Github, AlertTriangle, Layers, BookOpen, Clock, Search
 } from 'lucide-react';
 
 const LandingPage = () => {

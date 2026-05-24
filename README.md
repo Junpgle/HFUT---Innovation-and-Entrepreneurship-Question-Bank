@@ -20,8 +20,6 @@
 - **智能匹配** - 不区分大小写，支持模糊匹配
 - **快速练习** - 直接从搜索结果开始练习
 
-详细使用说明请参见 [SEARCH_FEATURE.md](../SEARCH_FEATURE.md)
-
 #### 🏆 易错题排行榜
 - 查看全站最易错的题目
 - 了解常见错误和难点
@@ -71,22 +69,22 @@ git clone https://github.com/Junpgle/HFUT---Innovation-and-Entrepreneurship-Ques
 cd HFUT---Innovation-and-Entrepreneurship-Question-Bank/hfut-quiz
 ```
 
-2. 安装依赖
+1. 安装依赖
 ```bash
 npm install
 ```
 
-3. 启动开发服务器
+1. 启动开发服务器
 ```bash
 npm run dev
 ```
 
-4. 构建生产版本
+1. 构建生产版本
 ```bash
 npm run build
 ```
 
-5. 预览生产构建
+1. 预览生产构建
 ```bash
 npm run preview
 ```

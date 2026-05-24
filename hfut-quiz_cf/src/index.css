@@ -47,6 +47,7 @@ html { overscroll-behavior-x: none; }
 .no-select { -webkit-user-select: none; user-select: none; }
 
 /* --- High-end GPU-Accelerated View Transitions (Compose SharedNav inspired) --- */
+/* 全局页面切换（进入/退出 Dashboard、做题模式）：物理阻尼淡入 + 上滑 */
 ::view-transition-old(root) {
     animation: 200ms cubic-bezier(0.4, 0, 1, 1) both fade-out;
 }
@@ -68,8 +69,77 @@ html { overscroll-behavior-x: none; }
     to { transform: translateY(0) scale(1); }
 }
 
-/* Custom spring-like easing for Shared Element morphing */
+/* 科目卡片共享元素变换：给所有命名 view-transition 元素设置默认时序（root 和 modal 会各自覆盖） */
 ::view-transition-old(*), ::view-transition-new(*) {
     animation-duration: 350ms;
     animation-timing-function: cubic-bezier(0.34, 1.3, 0.64, 1);
+    /* 彻底杜绝 Chromium 的 backdrop-filter 二次模糊 Bug */
+    backdrop-filter: none !important;
+    filter: none !important;
+}
+/* 覆盖默认 plus-lighter 混合模式，防止过渡结束时亮度叠加产生闪白 */
+::view-transition-image-pair(*) {
+    isolation: isolate;
+    mix-blend-mode: normal;
+}
+
+/* 局部过渡（切换页签、关闭弹窗）：旧背景柔和淡出，新背景立刻静态显示，杜绝上滑闪屏 */
+.local-transition::view-transition-old(root) {
+    animation: 150ms cubic-bezier(0.4, 0, 1, 1) both fade-out !important;
+}
+.local-transition::view-transition-new(root) {
+    animation: none !important;
+    opacity: 1 !important;
+}
+
+/* Premium spring-like elastic animations for popups and modals */
+.animate-fade-in {
+    animation: modal-backdrop-enter 220ms ease both;
+}
+.animate-scale-up {
+    animation: modal-content-enter 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes modal-backdrop-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modal-content-enter {
+    from { opacity: 0; transform: scale(0.94) translateY(14px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 弹窗命名 view-transition 组：控制按钮→弹窗的共享元素 Morph 时序 */
+::view-transition-group(modal) {
+    /* 控制位置/尺寸的插值时间与曲线（弹性阻尼，有轻微超调） */
+    animation-duration: 420ms !important;
+    animation-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1) !important;
+    z-index: 9999 !important;
+}
+/* 旧状态（按钮或旧弹窗）淡出 */
+::view-transition-old(modal) {
+    animation: 180ms ease both fade-out !important;
+}
+/* 新状态（弹窗内容）淡入，尺寸/位置由 group 动画处理 */
+::view-transition-new(modal) {
+    animation: 300ms cubic-bezier(0.34, 1.56, 0.64, 1) both fade-in !important;
+}
+
+@keyframes modal-exit {
+    from { opacity: 1; transform: scale(1) translateY(0); }
+    to { opacity: 0; transform: scale(0.96) translateY(8px); }
+}
+
+/* 遮罩层命名过渡组：与弹窗展开同步淡入，关闭时同步淡出 */
+::view-transition-group(modal-backdrop) {
+    z-index: 9998 !important;
+}
+::view-transition-old(modal-backdrop) {
+    /* 关闭时：遮罩淡出 */
+    animation: 200ms ease both fade-out !important;
+}
+::view-transition-new(modal-backdrop) {
+    /* 打开时：遮罩随弹窗展开同步淡入（与 modal group 420ms 对齐） */
+    animation: 420ms ease both fade-in !important;
 }

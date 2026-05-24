@@ -5,7 +5,7 @@ export function ResetConfirmModal({ open, currentUser, onCancel, onConfirm }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-enter">
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+      <div style={{ viewTransitionName: 'modal' }} className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
             <AlertOctagon size={32} />

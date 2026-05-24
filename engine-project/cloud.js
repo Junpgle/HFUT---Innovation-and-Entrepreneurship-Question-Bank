@@ -194,7 +194,7 @@ AV.Cloud.define('secureSync', async (request) => {
     const diffCount = params.brushedIds.length - oldBrushedIds.length;
     const timeDeltaSeconds = (now.getTime() - lastUpdatedAt.getTime()) / 1000;
 
-    if (diffCount > 10 && timeDeltaSeconds < diffCount * 1.0) {
+    if (diffCount > 10 && timeDeltaSeconds < diffCount) {
       console.warn(`[Suspicious] User: ${currentUser.id}, Speed: ${diffCount} in ${timeDeltaSeconds}s`);
     }
   } else {

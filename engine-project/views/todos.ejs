@@ -11,7 +11,7 @@
       <input type="submit" value="New todo" />
     </form>
     <ul>
-      <% for(var i=0; i<todos.length; i++) {%>
+      <% for(let i=0; i<todos.length; i++) {%>
       <li><%= todos[i].get('content') %></li>
       <% } %>
     </ul>

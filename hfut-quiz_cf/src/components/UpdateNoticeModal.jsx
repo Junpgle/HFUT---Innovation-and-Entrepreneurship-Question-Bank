@@ -5,7 +5,7 @@ export function UpdateNoticeModal({ open, currentVersion, remoteVersionInfo, onR
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 animate-enter backdrop-blur-sm">
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative overflow-hidden">
+      <div style={{ viewTransitionName: 'modal' }} className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-100 rounded-full -mr-10 -mt-10 opacity-50 blur-2xl" />
         <div className="relative z-10">
           <div className="flex flex-col items-center text-center mb-6">

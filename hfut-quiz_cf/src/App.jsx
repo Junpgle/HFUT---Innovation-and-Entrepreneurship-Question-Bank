@@ -15,12 +15,10 @@ import {api} from './api'; //
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
 import {
-    BookOpen, CheckCircle, XCircle, Brain, Settings,
-    ChevronRight, ChevronLeft, RotateCcw, LogOut, AlertCircle, Layers, Loader2,
-    AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
-    UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
-    Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
-    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy, FileUp, FileDown
+    BookOpen, CheckCircle, Brain, Settings,
+    ChevronRight, Layers, Loader2,
+    AlertTriangle, PieChart, BarChart3, Zap,
+    Bookmark, Eye, TrendingUp, ThumbsUp, X
 } from 'lucide-react';
 import {validateContent} from './contentFilter.js';
 import {Markdown} from './components/Markdown';
@@ -42,13 +40,11 @@ import {QuizDiscussionPanel} from './components/QuizDiscussionPanel';
 import {
     BANK_CACHE_VERSION,
     CURRENT_APP_VERSION,
-    GITHUB_BASE,
     getBankCacheKey,
     getBankCacheVersionKey,
     LECTURES,
     LEADERBOARD_LIMIT,
     MAOGAO_CHAPTERS,
-    REPORT_URL,
     SUBJECTS
 } from './config/quizConfig';
 import {formatDate} from './utils/date';
@@ -2126,7 +2122,7 @@ function App() {
             // 但真实情况需要 ID 才能后续删除。这里折中：静默后台刷新一次 ID。
             // 或者我们可以假设 api.postComment 返回了新 ID。如果 api 支持的话。
             // 暂时强制刷新一次数据以确保一致性 (debounce 会过滤掉频繁操作)
-            loadThreadData(questionId);
+            await loadThreadData(questionId);
         } catch (e) {
             console.error('发布评论失败:', e);
             setSyncMsg('评论发布失败');
@@ -2228,7 +2224,7 @@ function App() {
             console.error('删除评论失败', e);
             alert("删除失败，请重试");
             // 恢复（需重新加载）
-            loadThreadData(questionId);
+            await loadThreadData(questionId);
         }
     };
     const handleStartEditComment = (comment) => {
@@ -2271,7 +2267,7 @@ function App() {
             console.error('更新评论失败', e);
             setSyncStatus('error');
             setSyncMsg('更新失败');
-            loadThreadData(questionId); // 这里回滚比较麻烦，直接重载
+            await loadThreadData(questionId); // 这里回滚比较麻烦，直接重载
         }
     };
     // 解析点赞
@@ -2321,7 +2317,7 @@ function App() {
             });
         } catch (e) {
             console.error('解析点赞失败', e);
-            loadThreadData(questionId); // 回滚
+            await loadThreadData(questionId); // 回滚
         }
     };
     // 提交解析
@@ -2361,14 +2357,14 @@ function App() {
             await api.postExplanation(questionId, expPayload.content);
             setSyncMsg('解析提交成功');
             setSyncStatus('success');
-            loadThreadData(questionId); // 刷新以获取真实 ID
+            await loadThreadData(questionId); // 刷新以获取真实 ID
         } catch (e) {
             console.error('提交解析失败:', e);
             alert("提交解析失败: " + (e.message || "未知错误"));
             setSyncMsg('解析提交失败');
             setSyncStatus('error');
             // 回滚
-            loadThreadData(questionId);
+            await loadThreadData(questionId);
         }
     };
     const handleUpdateExplanation = async (questionId) => {
@@ -2405,7 +2401,7 @@ function App() {
             console.error('更新解析失败:', e);
             setSyncStatus('error');
             setSyncMsg('更新解析失败');
-            loadThreadData(questionId);
+            await loadThreadData(questionId);
         }
     };
     const renderUserExplanations = (questionId) => {
@@ -3257,7 +3253,7 @@ function App() {
         };
         const clearAll = () => setSelectorModal(prev => ({...prev, selectedValues: []}));
         return (
-            <div className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div style={{ viewTransitionName: 'modal' }} className="fixed inset-0 z-[120] bg-slate-900/45 backdrop-blur-[2px] flex items-end sm:items-center justify-center p-0 sm:p-4">
                 <div className="w-full sm:max-w-lg bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[82vh] flex flex-col">
                     <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800">
                         <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">{selectorModal.title}</h3>

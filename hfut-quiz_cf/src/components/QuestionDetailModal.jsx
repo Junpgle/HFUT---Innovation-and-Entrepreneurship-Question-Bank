@@ -1,4 +1,4 @@
-import { CheckCircle, ChevronLeft, XCircle, X, Trophy, Zap } from 'lucide-react';
+import { CheckCircle, XCircle, X, Trophy, Zap } from 'lucide-react';
 import { Markdown } from './Markdown';
 
 export function QuestionDetailModal({ viewingRankQuestion, onClose, renderUserExplanations }) {
@@ -17,7 +17,7 @@ export function QuestionDetailModal({ viewingRankQuestion, onClose, renderUserEx
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-enter">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div style={{ viewTransitionName: 'modal' }} className="bg-white dark:bg-slate-900 w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-6 flex justify-between items-start z-10">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">

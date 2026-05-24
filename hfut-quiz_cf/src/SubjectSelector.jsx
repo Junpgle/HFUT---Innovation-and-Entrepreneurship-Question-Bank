@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { BookOpen, Brain, ChevronLeft, ChevronRight, DownloadCloud, FileDown, FileUp, Github, GraduationCap, Info, Loader2, Maximize, Minimize, Settings, Trash2, UploadCloud, User, Wand2 } from 'lucide-react';
 import CustomUploadModal from './CustomUploadModal.jsx';
 import AIQuestionModal from './AIQuestionModal.jsx';
@@ -35,6 +36,68 @@ export const SubjectSelector = ({
     onlineCount,
 }) => {
     const isGuest = !currentUser;
+    const runLocalTransition = (callback) => {
+        if (document.startViewTransition) {
+            document.documentElement.classList.add('local-transition');
+            const transition = document.startViewTransition(() => {
+                flushSync(callback);
+            });
+            transition.finished.finally(() => {
+                document.documentElement.classList.remove('local-transition');
+            });
+        } else {
+            callback();
+        }
+    };
+    // 记住打开弹窗的触发按钮，用于关闭时反向 Morph 缩回
+    const modalTriggerRef = useRef(null);
+    // 从指定按钮位置展开弹窗（共享元素 Morph：按钮 → 弹窗）
+    const openModalFrom = (buttonEl, setter) => {
+        if (!document.startViewTransition) {
+            setter(true);
+            return;
+        }
+        modalTriggerRef.current = buttonEl;
+        document.documentElement.classList.add('local-transition');
+        buttonEl.style.viewTransitionName = 'modal';
+        const t = document.startViewTransition(() => {
+            flushSync(() => {
+                buttonEl.style.viewTransitionName = '';
+                setter(true);
+            });
+        });
+        t.finished.finally(() => {
+            buttonEl.style.viewTransitionName = '';
+            document.documentElement.classList.remove('local-transition');
+        });
+    };
+    // 关闭弹窗，反向 Morph 缩回原触发按钮位置
+    const closeModalTo = (callback) => {
+        if (!document.startViewTransition) {
+            callback();
+            return;
+        }
+        const buttonEl = modalTriggerRef.current;
+        document.documentElement.classList.add('local-transition');
+        // 关键时序：
+        // OLD 快照 → 只有弹窗内容 div 有 'modal' 名字（按钮没有）
+        // flushSync 内：callback() 卸载弹窗（'modal' 名字随之消失）→ 再给按钮设置 'modal'
+        // NEW 快照 → 只有按钮有 'modal' 名字（弹窗已不存在）
+        // 浏览器自动做反向 Morph：全屏弹窗 → 按钮尺寸位置
+        const t = document.startViewTransition(() => {
+            flushSync(() => {
+                callback();                               // ← 弹窗卸载，'modal' 名字消失
+                if (buttonEl && document.contains(buttonEl)) {
+                    buttonEl.style.viewTransitionName = 'modal'; // ← 现在只有按钮有这个名字
+                }
+            });
+        });
+        t.finished.finally(() => {
+            if (buttonEl) buttonEl.style.viewTransitionName = '';
+            document.documentElement.classList.remove('local-transition');
+            modalTriggerRef.current = null;
+        });
+    };
     const [activeCategory, setActiveCategory] = useState('全部');
     const [isEditingOrder, setIsEditingOrder] = useState(false);
     const [editingSubject, setEditingSubject] = useState(null);
@@ -103,14 +166,18 @@ export const SubjectSelector = ({
             const temp = newIds[idx];
             newIds[idx] = newIds[idx - 1];
             newIds[idx - 1] = temp;
-            setSortOrder(newIds);
+            runLocalTransition(() => {
+                setSortOrder(newIds);
+            });
             localStorage.setItem('hf_subject_sort_order', JSON.stringify(newIds));
         } else if (direction === 'right' && idx < currentIds.length - 1) {
             const newIds = [...currentIds];
             const temp = newIds[idx];
             newIds[idx] = newIds[idx + 1];
             newIds[idx + 1] = temp;
-            setSortOrder(newIds);
+            runLocalTransition(() => {
+                setSortOrder(newIds);
+            });
             localStorage.setItem('hf_subject_sort_order', JSON.stringify(newIds));
         }
     };
@@ -118,12 +185,14 @@ export const SubjectSelector = ({
     // 3. 一键清空所有分类覆盖和排序历史，恢复到出厂默认状态
     const handleResetCustomization = () => {
         if (window.confirm('确定要重置所有学科的分类、名称和排序回默认状态吗？')) {
-            setOverrides({});
-            setSortOrder([]);
+            runLocalTransition(() => {
+                setOverrides({});
+                setSortOrder([]);
+                setIsEditingOrder(false);
+                setActiveCategory('全部');
+            });
             localStorage.removeItem('hf_subject_overrides');
             localStorage.removeItem('hf_subject_sort_order');
-            setIsEditingOrder(false);
-            setActiveCategory('全部');
         }
     };
 
@@ -219,7 +288,7 @@ export const SubjectSelector = ({
                             <FileDown size={14} /> 导入
                             <input type="file" className="hidden" accept=".json" onChange={onImport} />
                         </label>
-                        <button onClick={() => setShowApiSettingsModal(true)} className="px-3 sm:px-4 py-2.5 bg-white text-violet-600 hover:text-violet-700 border border-violet-100 hover:border-violet-300 hover:bg-violet-50 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-violet-950/20 dark:border-violet-900/40 dark:text-violet-400 dark:hover:bg-violet-950/40">
+                        <button onClick={(e) => openModalFrom(e.currentTarget, setShowApiSettingsModal)} className="px-3 sm:px-4 py-2.5 bg-white text-violet-600 hover:text-violet-700 border border-violet-100 hover:border-violet-300 hover:bg-violet-50 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 dark:bg-violet-950/20 dark:border-violet-900/40 dark:text-violet-400 dark:hover:bg-violet-950/40">
                             <Settings size={14} /> API 设置
                         </button>
                         {/* 主题切换 */}
@@ -282,7 +351,7 @@ export const SubjectSelector = ({
                             return (
                                 <button
                                     key={cat}
-                                    onClick={() => setActiveCategory(cat)}
+                                    onClick={() => runLocalTransition(() => setActiveCategory(cat))}
                                     className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 transform outline-none shrink-0 ${
                                         isActive
                                             ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25 hover:shadow-blue-500/35 scale-[1.03]'
@@ -393,7 +462,7 @@ export const SubjectSelector = ({
                                                 <ChevronLeft size={18} />
                                             </button>
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); setEditingSubject(subject); }}
+                                                onClick={(e) => { e.stopPropagation(); openModalFrom(e.currentTarget, () => setEditingSubject(subject)); }}
                                                 className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all hover:scale-105 active:scale-95 flex items-center gap-1 text-xs border-0 cursor-pointer"
                                                 title="编辑分类和属性"
                                             >
@@ -421,7 +490,7 @@ export const SubjectSelector = ({
                     {(activeCategory === '全部' || activeCategory === '自建题库') && (
                         <>
                             <button
-                                onClick={() => setShowUploadModal(true)}
+                                onClick={(e) => openModalFrom(e.currentTarget, setShowUploadModal)}
                                 className="group relative overflow-hidden bg-slate-50/50 border-2 border-dashed border-slate-300 rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 hover:bg-white hover:border-blue-400 hover:shadow-lg transition-all duration-300 text-center flex flex-col items-center justify-center min-h-[160px] sm:min-h-[200px] md:min-h-[220px] hover:-translate-y-1 dark:bg-slate-950/20 dark:border-slate-800 dark:hover:bg-slate-900/30 dark:hover:border-blue-900"
                             >
                                 <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-3 sm:mb-4 bg-slate-100 text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors dark:bg-slate-900 dark:text-slate-400 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-400">
@@ -431,7 +500,7 @@ export const SubjectSelector = ({
                                 <p className="text-xs text-slate-400 max-w-[180px] sm:max-w-[200px] leading-relaxed dark:text-slate-500">支持 JSON 或 Excel 格式，纯离线安全使用</p>
                             </button>
                             <button
-                                onClick={() => setShowAiModal(true)}
+                                onClick={(e) => openModalFrom(e.currentTarget, setShowAiModal)}
                                 className="group relative overflow-hidden bg-violet-50/60 border-2 border-dashed border-violet-300 rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 hover:bg-white hover:border-violet-500 hover:shadow-lg transition-all duration-300 text-center flex flex-col items-center justify-center min-h-[160px] sm:min-h-[200px] md:min-h-[220px] hover:-translate-y-1 dark:bg-violet-950/10 dark:border-violet-900/50 dark:hover:bg-slate-900/30"
                             >
                                 <div className="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center mb-3 sm:mb-4 bg-violet-100 text-violet-600 group-hover:bg-violet-200 transition-colors dark:bg-violet-950/40 dark:text-violet-400">
@@ -465,47 +534,53 @@ export const SubjectSelector = ({
             <CustomUploadModal
                 show={showUploadModal}
                 existingCategories={categories}
-                onClose={() => setShowUploadModal(false)}
+                onClose={() => closeModalTo(() => setShowUploadModal(false))}
                 onUploadComplete={(newSubject, bankData) => {
                     const updated = [...customSubjects, newSubject];
                     setCustomSubjects(updated);
                     safeSet('custom_subjects_list', updated);
                     safeSet(getBankCacheKey(newSubject.id), bankData);
-                    setShowUploadModal(false);
-                    setSelectedSubject(newSubject.id);
+                    runLocalTransition(() => {
+                        setShowUploadModal(false);
+                        setSelectedSubject(newSubject.id);
+                    });
                 }}
             />
             <AIQuestionModal
                 show={showAiModal}
                 existingCategories={categories}
-                onClose={() => setShowAiModal(false)}
+                onClose={() => closeModalTo(() => setShowAiModal(false))}
                 onUploadComplete={(newSubject, bankData) => {
                     const updated = [...customSubjects, newSubject];
                     setCustomSubjects(updated);
                     safeSet('custom_subjects_list', updated);
                     safeSet(getBankCacheKey(newSubject.id), bankData);
-                    setShowAiModal(false);
-                    setSelectedSubject(newSubject.id);
+                    runLocalTransition(() => {
+                        setShowAiModal(false);
+                        setSelectedSubject(newSubject.id);
+                    });
                 }}
             />
             <ApiSettingsModal
                 show={showApiSettingsModal}
-                onClose={() => setShowApiSettingsModal(false)}
+                onClose={() => closeModalTo(() => setShowApiSettingsModal(false))}
             />
             <EditSubjectModal
                 key={editingSubject?.id || 'none'}
                 show={editingSubject !== null}
                 subject={editingSubject}
                 existingCategories={categories}
-                onClose={() => setEditingSubject(null)}
+                onClose={() => closeModalTo(() => setEditingSubject(null))}
                 onSave={(id, newAttrs) => {
                     const newOverrides = {
                         ...overrides,
                         [id]: newAttrs
                     };
-                    setOverrides(newOverrides);
                     localStorage.setItem('hf_subject_overrides', JSON.stringify(newOverrides));
-                    setEditingSubject(null);
+                    closeModalTo(() => {
+                        setOverrides(newOverrides);
+                        setEditingSubject(null);
+                    });
                 }}
             />
         </div>
@@ -527,8 +602,8 @@ const EditSubjectModal = ({ show, subject, onSave, onClose, existingCategories }
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[3px] z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/50 dark:border-slate-800/80 rounded-[2rem] p-6 sm:p-8 max-w-md w-full shadow-2xl animate-scale-up relative">
+        <div style={{ viewTransitionName: 'modal-backdrop' }} className="fixed inset-0 bg-black/65 z-50 flex items-center justify-center p-4">
+            <div style={{ viewTransitionName: 'modal' }} className="bg-white/95 dark:bg-slate-900/95 border border-slate-200/50 dark:border-slate-800/80 rounded-[2rem] p-6 sm:p-8 max-w-md w-full shadow-2xl relative">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <span>✏️ 编辑题库属性</span>

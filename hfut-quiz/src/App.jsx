@@ -22,8 +22,8 @@ import {
     ChevronRight, ChevronLeft, RotateCcw, LogOut, AlertCircle, Layers, Loader2,
     AlertTriangle, PieChart, BarChart3, CheckSquare, GraduationCap, Zap,
     UploadCloud, DownloadCloud, RefreshCw, Bookmark, User, Database,
-    Maximize, Minimize, Trash2, AlertOctagon, Eye, TrendingUp, MessageSquare,
-    ThumbsUp, Send, Edit3, Award, Search, X, Filter, Trophy, FileUp, FileDown
+    Maximize, Minimize, AlertOctagon, Eye, TrendingUp, MessageSquare,
+    ThumbsUp, Send, Edit3, Award, Search, X, Trophy, FileUp, FileDown
 } from 'lucide-react';
 import { validateContent } from './contentFilter.js';
 

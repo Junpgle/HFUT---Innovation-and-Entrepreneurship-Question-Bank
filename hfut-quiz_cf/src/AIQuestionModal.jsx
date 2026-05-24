@@ -169,8 +169,8 @@ ${materialText || '（无资料，请基于创新创业基础常见知识点生�
     if (!show) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-900 w-full h-[100dvh] sm:h-auto sm:max-w-lg md:max-w-4xl sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-2xl shadow-2xl transition-all duration-300" onClick={e => e.stopPropagation()}>
+        <div style={{ viewTransitionName: 'modal-backdrop' }} className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60" onClick={onClose}>
+            <div style={{ viewTransitionName: 'modal' }} className="bg-white dark:bg-slate-900 w-full h-[100dvh] sm:h-auto sm:max-w-lg md:max-w-4xl sm:max-h-[90vh] overflow-y-auto rounded-none sm:rounded-2xl shadow-2xl transition-all duration-300" onClick={e => e.stopPropagation()}>
                 <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-5 sm:p-6 flex justify-between items-start z-10">
                     <div className="flex items-center gap-3">
                         <div className="w-11 h-11 sm:w-12 sm:h-12 bg-violet-100 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 rounded-2xl flex items-center justify-center shrink-0">
