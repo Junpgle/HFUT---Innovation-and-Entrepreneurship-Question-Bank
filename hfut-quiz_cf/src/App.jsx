@@ -62,6 +62,19 @@ import {
     destroyThemeListener
 } from './utils/theme';
 
+const getQuestionSubjectId = (questionId) => {
+    const qid = String(questionId || '');
+    if (!qid) return null;
+    if (qid.startsWith('custom_')) {
+        const idx = qid.lastIndexOf('-Q');
+        return idx > 0 ? qid.slice(0, idx) : null;
+    }
+    if (qid.startsWith('HGD-MG-')) return 'hgdmy-maogai';
+    if (qid.startsWith('MG-')) return 'maogai';
+    if (/^(OLD-|L\d+-)/.test(qid)) return 'innovation';
+    return 'innovation';
+};
+
 function App() {
     const initialUser = api.getCurrentUser();
     const [currentUser, setCurrentUser] = useState(initialUser);
@@ -81,8 +94,22 @@ function App() {
     };
 
     // 学科选择
+    const [history, setHistory] = useState([]);
     const [customSubjects, setCustomSubjects] = useState([]);
-    const allSubjects = useMemo(() => [...SUBJECTS, ...customSubjects], [customSubjects]);
+    const allSubjects = useMemo(() => {
+        const baseList = [...SUBJECTS, ...customSubjects];
+        return baseList.map(s => {
+            const subjectHistory = history.filter(h => h && h.questionId && getQuestionSubjectId(h.questionId) === s.id);
+            let lastBrushed = null;
+            if (subjectHistory.length > 0) {
+                lastBrushed = subjectHistory[0].timestamp;
+            }
+            return {
+                ...s,
+                lastBrushedTime: lastBrushed
+            };
+        });
+    }, [customSubjects, history]);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showAiModal, setShowAiModal] = useState(false);
     const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
@@ -106,7 +133,6 @@ function App() {
         const currentQs = Object.values(allQuestionBank).flat();
         return currentQs.filter(q => wrongIds.has(q.id)).length;
     }, [allQuestionBank, wrongIds]);
-    const [history, setHistory] = useState([]);
     const [lastSession, setLastSession] = useState(null);
     const [hydrated, setHydrated] = useState(false);
 
@@ -135,18 +161,6 @@ function App() {
     const currentHistory = useMemo(() => {
         return history.filter(h => h && h.questionId && currentSubjectQids.has(h.questionId));
     }, [history, currentSubjectQids]);
-    const getQuestionSubjectId = (questionId) => {
-        const qid = String(questionId || '');
-        if (!qid) return null;
-        if (qid.startsWith('custom_')) {
-            const idx = qid.lastIndexOf('-Q');
-            return idx > 0 ? qid.slice(0, idx) : null;
-        }
-        if (qid.startsWith('HGD-MG-')) return 'hgdmy-maogai';
-        if (qid.startsWith('MG-')) return 'maogai';
-        if (/^(OLD-|L\d+-)/.test(qid)) return 'innovation';
-        return 'innovation';
-    };
     const filterProgressBySubject = (items = [], subjectId = 'all') => {
         if (subjectId === 'all') return items;
         return items.filter(item => getQuestionSubjectId(item) === subjectId);

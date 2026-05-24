@@ -4,6 +4,7 @@ import CustomUploadModal from './CustomUploadModal.jsx';
 import AIQuestionModal from './AIQuestionModal.jsx';
 import ApiSettingsModal from './ApiSettingsModal.jsx';
 import mottos from './data/mottos.json';
+import { formatDate } from './utils/date';
 
 export const SubjectSelector = ({ 
     allSubjects, 
@@ -78,6 +79,16 @@ export const SubjectSelector = ({
                 const indexA = orderMap[a.id] !== undefined ? orderMap[a.id] : 999;
                 const indexB = orderMap[b.id] !== undefined ? orderMap[b.id] : 999;
                 return indexA - indexB;
+            });
+        } else {
+            // 默认排序：最近刷过题的排最前（降序），未刷过的排后面并保持预设相对顺序
+            list.sort((a, b) => {
+                if (a.lastBrushedTime && b.lastBrushedTime) {
+                    return new Date(b.lastBrushedTime) - new Date(a.lastBrushedTime);
+                }
+                if (a.lastBrushedTime) return -1;
+                if (b.lastBrushedTime) return 1;
+                return 0;
             });
         }
         return list;
@@ -348,6 +359,12 @@ export const SubjectSelector = ({
                                                 ? '7个章节 + 经典旧题库，涵盖创新创业基础全部内容'
                                                 : '9个章节，涵盖毛泽东思想和中国特色社会主义理论体系概论全部内容')}
                                     </p>
+                                    {subject.lastBrushedTime && (
+                                        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 select-none">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                            <span>最近刷题: {formatDate(subject.lastBrushedTime)}</span>
+                                        </div>
+                                    )}
                                 </div>
                                 {isEditingOrder && (
                                     <div className="absolute inset-0 bg-slate-950/40 dark:bg-slate-950/60 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center gap-3 transition-all animate-fade-in rounded-2xl sm:rounded-[2rem]">
