@@ -95,6 +95,11 @@ function App() {
 
     // 学科选择
     const [history, setHistory] = useState([]);
+    const [brushedIds, setBrushedIds] = useState(new Set());
+    const [memorizedIds, setMemorizedIds] = useState(new Set());
+    const [masteredIds, setMasteredIds] = useState(new Set());
+    const [wrongIds, setWrongIds] = useState(new Set());
+    const [customSubjectCounts, setCustomSubjectCounts] = useState({});
     const [customSubjects, setCustomSubjects] = useState([]);
     const allSubjects = useMemo(() => {
         const baseList = [...SUBJECTS, ...customSubjects];
@@ -104,12 +109,27 @@ function App() {
             if (subjectHistory.length > 0) {
                 lastBrushed = subjectHistory[0].timestamp;
             }
+
+            // 计算已刷题数
+            const brushedCount = Array.from(brushedIds).filter(id => id && getQuestionSubjectId(id) === s.id).length;
+
+            // 计算总题数
+            let totalCount = 0;
+            if (s.id === 'innovation') totalCount = 1575;
+            else if (s.id === 'maogai') totalCount = 1084;
+            else if (s.id === 'hgdmy-maogai') totalCount = 583;
+            else {
+                totalCount = s.questionCount || customSubjectCounts[s.id] || 0;
+            }
+
             return {
                 ...s,
-                lastBrushedTime: lastBrushed
+                lastBrushedTime: lastBrushed,
+                brushedCount,
+                totalCount
             };
         });
-    }, [customSubjects, history]);
+    }, [customSubjects, history, brushedIds, customSubjectCounts]);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showAiModal, setShowAiModal] = useState(false);
     const [showApiSettingsModal, setShowApiSettingsModal] = useState(false);
@@ -123,10 +143,6 @@ function App() {
     const [bankPercent, setBankPercent] = useState(0);
     const [errorMsg, setErrorMsg] = useState(null);
     // 学习数据
-    const [brushedIds, setBrushedIds] = useState(new Set());
-    const [memorizedIds, setMemorizedIds] = useState(new Set());
-    const [masteredIds, setMasteredIds] = useState(new Set());
-    const [wrongIds, setWrongIds] = useState(new Set());
     // 动态计算当前选中学科下的错题数量，实现错题卡片学科隔离
     const currentWrongCount = useMemo(() => {
         if (!allQuestionBank) return 0;
@@ -854,6 +870,35 @@ function App() {
                 if (sess) setLastSession(sess);
                 const customSubs = normalizeCustomSubjects(await safeGet('custom_subjects_list', []));
                 setCustomSubjects(customSubs);
+
+                // 异步补全遗留自定义学科的总题数 questionCount 并缓存
+                const counts = {};
+                let hasChanges = false;
+                for (const s of customSubs) {
+                    if (s && s.id) {
+                        if (s.questionCount) {
+                            counts[s.id] = s.questionCount;
+                        } else {
+                            try {
+                                const data = await localforage.getItem(getBankCacheKey(s.id));
+                                if (data) {
+                                    const total = Object.values(data).flat().length;
+                                    counts[s.id] = total;
+                                    s.questionCount = total;
+                                    hasChanges = true;
+                                }
+                            } catch (err) {
+                                console.warn('Failed to load count for custom subject:', s.id, err);
+                            }
+                        }
+                    }
+                }
+                setCustomSubjectCounts(counts);
+                if (hasChanges) {
+                    await safeSet('custom_subjects_list', customSubs);
+                    setCustomSubjects([...customSubs]);
+                }
+
                 setHydrated(true);
             } catch (e) {
                 console.error(e);

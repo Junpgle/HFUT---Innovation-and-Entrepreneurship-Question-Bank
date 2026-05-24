@@ -359,6 +359,26 @@ export const SubjectSelector = ({
                                                 ? '7个章节 + 经典旧题库，涵盖创新创业基础全部内容'
                                                 : '9个章节，涵盖毛泽东思想和中国特色社会主义理论体系概论全部内容')}
                                     </p>
+                                    {/* 刷题进度 */}
+                                    <div className="mt-4 space-y-1.5 select-none">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="font-semibold text-slate-400 dark:text-slate-500">刷题进度</span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                {subject.totalCount > 0 
+                                                    ? `${subject.brushedCount || 0} / ${subject.totalCount} (${Math.min(100, Math.round(((subject.brushedCount || 0) / subject.totalCount) * 100))}%)` 
+                                                    : `已刷 ${subject.brushedCount || 0} 题`}
+                                            </span>
+                                        </div>
+                                        {subject.totalCount > 0 && (
+                                            <div className="w-full h-1.5 bg-slate-100 rounded-full dark:bg-slate-800/60 overflow-hidden">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 rounded-full transition-all duration-500 group-hover:brightness-110" 
+                                                    style={{ width: `${Math.min(100, Math.round(((subject.brushedCount || 0) / subject.totalCount) * 100))}%` }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {subject.lastBrushedTime && (
                                         <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 select-none">
                                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
@@ -449,6 +469,7 @@ export const SubjectSelector = ({
             </div>
             <CustomUploadModal
                 show={showUploadModal}
+                existingCategories={categories}
                 onClose={() => setShowUploadModal(false)}
                 onUploadComplete={(newSubject, bankData) => {
                     const updated = [...customSubjects, newSubject];
@@ -463,6 +484,7 @@ export const SubjectSelector = ({
             />
             <AIQuestionModal
                 show={showAiModal}
+                existingCategories={categories}
                 onClose={() => setShowAiModal(false)}
                 onUploadComplete={(newSubject, bankData) => {
                     const updated = [...customSubjects, newSubject];
