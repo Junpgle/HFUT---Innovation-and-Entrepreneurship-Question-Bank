@@ -31,6 +31,7 @@ export const SUBJECTS = [
   {
     id: 'innovation',
     name: '创新创业',
+    category: '公共课程',
     icon: '🚀',
     lectures: LECTURES,
     getChapters: (bank) => LECTURES.filter((l) => bank[l.id]?.length),
@@ -40,6 +41,7 @@ export const SUBJECTS = [
     id: 'maogai',
     name: '毛泽东思想和中国特色社会主义理论体系概论',
     shortName: '毛概',
+    category: '思想政治',
     icon: '📖',
     file: 'maogai_full.json',
     chapters: MAOGAO_CHAPTERS,
@@ -50,11 +52,12 @@ export const SUBJECTS = [
     id: 'hgdmy-maogai',
     name: '合工大智慧马院-毛概',
     shortName: '马院毛概',
+    category: '思想政治',
     icon: '🏛️',
     file: 'hgdmy-maogai.json',
     lectures: [{ id: 1, name: '全部题目' }],
     getChapters: (bank) => [{ id: 1, name: '全部题目' }].filter((ch) => bank[ch.id]?.length),
-    getChapterName: (id) => '全部题目',
+    getChapterName: () => '全部题目',
   },
 ];
 

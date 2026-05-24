@@ -181,6 +181,7 @@ function App() {
         name: s?.name || s?.shortName || s?.id || '自定义题库',
         shortName: s?.shortName || s?.name || s?.id || '自定义',
         icon: s?.icon || '📚',
+        category: s?.category || '自建题库',
         isCustom: true,
         lectures: Array.isArray(s?.lectures)
             ? s.lectures.map((l, i) => ({ id: l?.id ?? (i + 1), name: l?.name || `章节${l?.id ?? (i + 1)}` }))
