@@ -15,8 +15,6 @@ export const SubjectSelector = ({
     showApiSettingsModal,
     setShowApiSettingsModal,
     setSelectedSubject, 
-    setBankStatus, 
-    setAllQuestionBank, 
     handleDeleteCustomSubject, 
     customSubjects, 
     setCustomSubjects, 
@@ -308,6 +306,7 @@ export const SubjectSelector = ({
                         return (
                             <div
                                 key={subject.id}
+                                style={{ viewTransitionName: `card-${subject.id}` }}
                                 role="button"
                                 tabIndex={0}
                                 onClick={async () => {
@@ -316,8 +315,6 @@ export const SubjectSelector = ({
                                         return;
                                     }
                                     setSelectedSubject(subject.id);
-                                    setBankStatus('idle');
-                                    setAllQuestionBank({});
                                 }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
@@ -327,8 +324,6 @@ export const SubjectSelector = ({
                                             return;
                                         }
                                         setSelectedSubject(subject.id);
-                                        setBankStatus('idle');
-                                        setAllQuestionBank({});
                                     }
                                 }}
                                 className={`group relative overflow-hidden bg-white rounded-2xl sm:rounded-[2rem] p-5 sm:p-6 md:p-8 shadow-sm transition-all duration-300 border-2 text-left dark:bg-slate-900 dark:border-slate-800 dark:shadow-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${
@@ -478,8 +473,6 @@ export const SubjectSelector = ({
                     safeSet(getBankCacheKey(newSubject.id), bankData);
                     setShowUploadModal(false);
                     setSelectedSubject(newSubject.id);
-                    setBankStatus('idle');
-                    setAllQuestionBank({});
                 }}
             />
             <AIQuestionModal
@@ -493,8 +486,6 @@ export const SubjectSelector = ({
                     safeSet(getBankCacheKey(newSubject.id), bankData);
                     setShowAiModal(false);
                     setSelectedSubject(newSubject.id);
-                    setBankStatus('idle');
-                    setAllQuestionBank({});
                 }}
             />
             <ApiSettingsModal

@@ -10,6 +10,7 @@
 * 7. 一直在优化api我真没招了
 * */
 import {useState, useEffect, useRef, useMemo} from 'react';
+import {flushSync} from 'react-dom';
 import {api} from './api'; //
 import * as XLSX from 'xlsx';
 import localforage from 'localforage';
@@ -253,6 +254,15 @@ function App() {
     const [editingExplanationContent, setEditingExplanationContent] = useState('');
     const commentSectionRef = useRef(null);
     const searchSectionRef = useRef(null);
+    const runTransition = (callback) => {
+        if (document.startViewTransition) {
+            document.startViewTransition(() => {
+                flushSync(callback);
+            });
+        } else {
+            callback();
+        }
+    };
     const [showEmailHint, setShowEmailHint] = useState(false);
     // 版本状态
     const [showUpdateModal, setShowUpdateModal] = useState(false);
@@ -2607,13 +2617,16 @@ function App() {
         setTimeout(() => nextQuestion(), 400);
     };
     const startMode = (mode) => {
-        setCurrentMode(mode);
-        if (mode !== currentMode) {
-            setSelectedIndices([]);
-            setSelectedByQuestion({});
-            setIsAnswered(false);
-            setShowExplanation(false);
-        }
+        const action = () => {
+            setCurrentMode(mode);
+            if (mode !== currentMode) {
+                setSelectedIndices([]);
+                setSelectedByQuestion({});
+                setIsAnswered(false);
+                setShowExplanation(false);
+            }
+        };
+        runTransition(action);
     };
     const changeQuestion = (idx) => {
         const q = questions[idx];
@@ -2630,34 +2643,39 @@ function App() {
         else {
             alert("本组练习完成！");
             setLastSession(null);
-            setCurrentMode('dashboard');
+            runTransition(() => setCurrentMode('dashboard'));
         }
     };
     const prevQuestion = () => {
         if (currentIndex > 0) changeQuestion(currentIndex - 1);
     };
     const exitToDashboard = () => {
-        if (['quiz', 'memorize', 'mistakes'].includes(currentMode) && questions.length > 0 && currentIndex < questions.length - 1) {
-            setLastSession({
-                mode: currentMode,
-                questions,
-                currentIndex,
-                quizConfig,
-                answerResults,
-                selectedByQuestion
-            });
-        } else {
-            setLastSession(null);
-        }
-        setCurrentMode('dashboard');
+        const action = () => {
+            if (['quiz', 'memorize', 'mistakes'].includes(currentMode) && questions.length > 0 && currentIndex < questions.length - 1) {
+                setLastSession({
+                    mode: currentMode,
+                    questions,
+                    currentIndex,
+                    quizConfig,
+                    answerResults,
+                    selectedByQuestion
+                });
+            } else {
+                setLastSession(null);
+            }
+            setCurrentMode('dashboard');
+        };
+        runTransition(action);
     };
     const switchSubject = () => {
-        setSelectedSubject(null);
-        setAllQuestionBank({});
-        setBankStatus('idle');
-        setCurrentMode('dashboard');
-        setQuestions([]);
-        setLastSession(null);
+        runTransition(() => {
+            setSelectedSubject(null);
+            setAllQuestionBank({});
+            setBankStatus('idle');
+            setCurrentMode('dashboard');
+            setQuestions([]);
+            setLastSession(null);
+        });
     };
     const renderSubjectSelector = () => (
         <>
@@ -2669,9 +2687,13 @@ function App() {
                 setShowAiModal={setShowAiModal}
                 showApiSettingsModal={showApiSettingsModal}
                 setShowApiSettingsModal={setShowApiSettingsModal}
-                setSelectedSubject={setSelectedSubject}
-                setBankStatus={setBankStatus}
-                setAllQuestionBank={setAllQuestionBank}
+                setSelectedSubject={(id) => {
+                    runTransition(() => {
+                        setSelectedSubject(id);
+                        setBankStatus('idle');
+                        setAllQuestionBank({});
+                    });
+                }}
                 handleDeleteCustomSubject={handleDeleteCustomSubject}
                 customSubjects={customSubjects}
                 setCustomSubjects={setCustomSubjects}
@@ -2699,7 +2721,8 @@ function App() {
         </>
     );
     const renderDashboard = () => (
-        <DashboardPage
+        <div style={{ viewTransitionName: `card-${selectedSubject}` }} className="h-full">
+            <DashboardPage
             header={
                 <DashboardHeader
                     currentSubject={currentSubject}
@@ -2952,8 +2975,10 @@ function App() {
                             
                             {!currentSubject?.isCustom && (
                                 <div onClick={() => {
-                                    setCurrentMode('ranking');
-                                    loadWrongQuestionRanking();
+                                    runTransition(() => {
+                                        setCurrentMode('ranking');
+                                        loadWrongQuestionRanking();
+                                    });
                                 }}
                                      className="bg-gradient-to-br from-orange-500 to-amber-600 p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] shadow-lg shadow-orange-200 text-white cursor-pointer hover:scale-[1.02] transition-transform duration-300 ease-in-out will-change-transform relative overflow-hidden group">
                                     <div
@@ -3028,7 +3053,9 @@ function App() {
                         </a>
                     </div>
             </DashboardMainContentShell>
-        </DashboardPage>)
+        </DashboardPage>
+        </div>
+    )
     // --- 修复版：计算最近7天刷题数据 ---
     const weeklyStats = (() => {
         const stats = [];
@@ -3203,7 +3230,7 @@ function App() {
     const renderRankingPage = () => (
         <RankingPage
             wrongQuestionRanking={wrongQuestionRanking}
-            onBack={() => setCurrentMode('dashboard')}
+            onBack={() => runTransition(() => setCurrentMode('dashboard'))}
             onRefresh={() => {
                 setWrongQuestionRanking([]);
                 loadWrongQuestionRanking();
